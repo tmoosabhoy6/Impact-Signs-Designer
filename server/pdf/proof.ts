@@ -13,7 +13,7 @@ import fontkit from '@pdf-lib/fontkit';
 import sharp from 'sharp';
 import { fromRoot } from '../config.js';
 import { mustOption } from '../catalog.js';
-import { findAsset, brandLogoFile } from '../assets.js';
+import { findAsset, proofFooterLogoFile } from '../assets.js';
 import { proofLabelFontFile } from '../text/fonts.js';
 import type { PlaqueSpec } from '../../shared/types.js';
 
@@ -76,8 +76,8 @@ export async function buildProofPdf({ jobNumber, spec, plaqueImage }: ProofInput
   const [embedded] = await doc.embedPdf(template, [0]);
   page.drawPage(embedded, { x: 0, y: 0, width: PAGE.w, height: PAGE.h });
 
-  // Optional: a logo file in brand-assets/ replaces the template's wordmark.
-  const logoFile = brandLogoFile();
+  // Optional: brand-assets/proof-footer-logo.(svg|png) replaces the template's vector wordmark.
+  const logoFile = proofFooterLogoFile();
   if (logoFile) {
     const png = await sharp(logoFile, { density: 600 }).resize({ height: 200 }).png().toBuffer();
     const img = await doc.embedPng(png);

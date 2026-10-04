@@ -16,48 +16,47 @@ If an icon is missing, the proof falls back to a flat color square (paint colors
 ## Plaque finishes (`assets/finishes/`), shown on the proof with the finish name
 | Option | File |
 |---|---|
-| Natural Satin Brushed Bronze | `assets/finishes/natural-satin-brushed-bronze.png` |
-| Chemical Oxidized | `assets/finishes/chemical-oxidized.png` |
-| Verde Patina | `assets/finishes/verde-patina.png` |
-| Turquoise Patina | `assets/finishes/turquoise-patina.png` |
-| Light Oxidized (tint) | `assets/finishes/light-oxidized.png` |
-| Medium Oxidized (tint) | `assets/finishes/medium-oxidized.png` |
-| Dark Oxidized (tint) | `assets/finishes/dark-oxidized.png` |
-| Polished | `assets/finishes/polished.png` |
+| Natural Satin Brushed Bronze | `assets/finishes/natural-satin-brushed-bronze.jpg` |
+| Chemical Oxidized | `assets/finishes/chemical-oxidized.jpg` |
+| Verde Patina | `assets/finishes/verde-patina.jpg` |
+| Turquoise Patina | `assets/finishes/turquoise-patina.jpg` |
+| Light Oxidized (tint) | `assets/finishes/light-oxidized.jpg` |
+| Medium Oxidized (tint) | `assets/finishes/medium-oxidized.jpg` |
+| Dark Oxidized (tint) | `assets/finishes/dark-oxidized.jpg` |
+| Polished | `assets/finishes/polished.jpg` |
 
-`natural-satin-brushed-bronze.png` was extracted from the real Liquid Mercury proof (the coin photo).
 
 ## Background (paint-fill) colors (`assets/background-colors/`), shown on the proof as "<Color> / Paint Fill"
 | Option | File |
 |---|---|
-| Dark Oxide | `assets/background-colors/dark-oxide.png` |
-| Black | `assets/background-colors/black.png` |
-| Brown | `assets/background-colors/brown.png` |
-| Duranodic Bronze | `assets/background-colors/duranodic-bronze.png` |
+| Dark Oxide | `assets/background-colors/dark-oxide.jpg` |
+| Black | `assets/background-colors/black.jpg` |
+| Brown | `assets/background-colors/brown.jpg` |
+| Duranodic Bronze | `assets/background-colors/duranodic-bronze.jpg` |
 
 ## Background textures (`assets/background-textures/`), sent to the image model only
 | Option | File |
 |---|---|
-| Leatherette | `assets/background-textures/leatherette.png` |
-| Stipple | `assets/background-textures/stipple.png` |
-| Pebble | `assets/background-textures/pebble.png` |
+| Leatherette | `assets/background-textures/leatherette.jpg` |
+| Stipple | `assets/background-textures/stipple.jpg` |
+| Pebble | `assets/background-textures/pebble.jpg` |
 
 ## Borders (`assets/borders/`), sent to the image model only
 | Option | File |
 |---|---|
-| Single Line Border | `assets/borders/single-line.png` |
-| No Border | `assets/borders/none.png` |
-| Double Line Border | `assets/borders/double-line.png` |
-| Bevel Edge Border | `assets/borders/bevel-edge.png` |
+| Single Line Border | `assets/borders/single-line.jpg` |
+| No Border | `assets/borders/none.jpg` |
+| Double Line Border | `assets/borders/double-line.jpg` |
+| Bevel Edge Border | `assets/borders/bevel-edge.jpg` |
 
 ## Image options (`assets/image-types/`), examples of each image treatment for the image model
 | Option | File |
 |---|---|
 | Photo Relief | `assets/image-types/photo-relief.jpg` |
 | Bas Relief | `assets/image-types/bas-relief.jpg` |
-| Etched Photo | `assets/image-types/etched-photo.png` |
-| Full Color UV Printed | `assets/image-types/full-color-uv.jpg` |
+| Etched Photo | `assets/image-types/etched-photo.jpg` |
+| Full Color UV Printed | `assets/image-types/full-color-uv.png` |
 
-> The four image-type files here are the 100 x 100 px thumbnails pasted in chat, mapped as you confirmed:
-> 1 = Bas Relief, 2 = Photo Relief, 3 = Etched Photo, 4 = Full Color UV.
-> **Please replace them with full-size photos** (1000 px or more). Note that `etched-photo.png` looks like a full-color photo and `full-color-uv.jpg` looks like a grey metal plaque, so check whether those two are swapped.
+> The image-type examples are the 100 x 100 px files you uploaded (BAS / Photo / Etched / FULL UV examples).
+> **Full-size photos (1000 px or more) will noticeably improve how well the AI reproduces each treatment.**
+> `medium-oxidized.jpg` is currently identical to `chemical-oxidized.jpg` (the two uploaded oxidized files were the same image). Replace it if Medium Oxidized has its own photo.

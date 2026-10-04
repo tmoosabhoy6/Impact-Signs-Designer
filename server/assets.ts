@@ -40,8 +40,21 @@ export function assetLibraryStatus(): AssetStatus[] {
   return out;
 }
 
+/** Logo for the app header. */
 export function brandLogoFile(): string | null {
-  for (const n of ['logo.svg', 'logo.png', 'impact-signs-logo.svg', 'impact-signs-logo.png']) {
+  for (const n of ['logo.svg', 'logo.png']) {
+    const p = fromRoot('brand-assets', n);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+/**
+ * Optional replacement for the proof footer wordmark. By default the proof keeps the vector
+ * "impactsigns.com" wordmark from the real Liquid Mercury proof.
+ */
+export function proofFooterLogoFile(): string | null {
+  for (const n of ['proof-footer-logo.svg', 'proof-footer-logo.png']) {
     const p = fromRoot('brand-assets', n);
     if (fs.existsSync(p)) return p;
   }
