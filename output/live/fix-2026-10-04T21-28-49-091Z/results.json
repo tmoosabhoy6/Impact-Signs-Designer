@@ -1,0 +1,245 @@
+{
+  "plan": {
+    "kind": "visual",
+    "restated": "correct the spelling in this image"
+  },
+  "concept": {
+    "id": "c_2891283d8439",
+    "projectId": "p_db326fbe6b31",
+    "parentId": "c_40657473dadd",
+    "status": "done",
+    "note": "correct the spelling in this image",
+    "prompt": "SYSTEM: IMPACT SIGNS PLAQUE RENDERER\nYou are the rendering engine inside Impact Signs' Plaque Proof Studio. Every image you produce goes onto a customer proof that is signed off before a U.S. foundry makes the plaque. It must be a faithful product photograph of exactly the plaque that will be made, not an artistic interpretation.\n\n1. OUTPUT\n- One plaque, photographed perfectly straight-on: orthographic, no perspective, tilt, rotation or keystone.\n- The plaque fills the ENTIRE image edge to edge. The image border IS the plaque's outer edge. No wall, background, table, shadow, margin or frame outside it.\n- Even, soft studio light from the upper left at about 45 degrees. Neutral white balance. No colored light, glare hot-spots, lens effects, vignette or watermark.\n\n2. LAYOUT: REFERENCE 1 IS THE BLUEPRINT\n- Reference 1 is the exact flat drawing of this plaque at the same proportions as your output.\n- Keep every element at exactly its drawn position, size and alignment: border bands, inner lines, image frame, logo, screw heads, rules and every line of text.\n- Do not move, resize, re-space, re-wrap, re-center, add or remove anything. When in doubt, copy Reference 1.\n\n3. TEXT: ZERO TOLERANCE\n- Reproduce every line exactly as listed under TEXT and drawn in Reference 1: same words, spelling, capitalization, punctuation, quote marks, numerals and line breaks.\n- Use the typeface shown in Reference 1, including italic, bold and small capitals where marked.\n- Never add text of any kind (captions, signatures, foundry marks, dates, serial numbers, placeholders). Never correct, translate, abbreviate or \"improve\" the wording.\n- Letters are raised metal with crisp, even strokes. Small text stays sharp and legible.\n\n4. MATERIAL AND CONSTRUCTION\n- RAISED = solid metal in the specified finish: border bands, lettering, image frame, rules, logo and screw heads.\n  - Their flat top faces show the finish (brushed grain, polish, oxidation or patina).\n  - Edges facing the light get a thin highlight; their vertical sides are slightly darker.\n- RECESSED = the background field, filled with the specified baked paint color and carrying the specified texture (leatherette, stipple, pebble or smooth).\n  - Paint sits only in the recesses. Raised faces are clean metal.\n- Cast plaques: raised elements stand about 1/32 to 1/16 inch proud, with very slightly softened cast edges. Reverse-etched plaques are flatter, with razor-crisp edges.\n- Match the supplied swatches for metal color and sheen, paint color and texture. The swatches override your assumptions.\n\n5. IMAGES AND LOGOS\n- Follow IMAGE TREATMENT exactly (photo relief, bas relief, etched photo or full-color UV print).\n- Keep the customer photo's likeness, expression, pose, clothing and crop. Never beautify, age, re-pose or replace a person.\n- The image-type example shows only the treatment style. Never copy its subject.\n- Reproduce logos exactly in shape and proportion as raised metal. Never redraw, re-letter, simplify or invent a logo.\n\n6. NEVER\n- No hands, people, props, plants, rooms, reflections of surroundings, extra hardware (unless MOUNTING asks), stickers, dirt, damage or wear beyond the specified patina.\n- No illustration, painting, cartoon, CGI or 3D-render look, HDR halos or over-sharpening. It must look like a real professional product photograph.\n\nEDIT MODE. Image 1 is the current photograph of this plaque. Image 2 is its exact flat layout drawing.\nChange ONLY this: correct the spelling in this image.\nEverything not named in that change must stay exactly the same:\n- the framing (the plaque still fills the image edge to edge), camera angle and lighting\n- every word and letter, the finish, paint, texture, border, image and logo\n- every position and size\n\nIf the change cannot be made without touching something else, make the smallest possible change.\nImage 2 is the exact flat layout drawing; the text and positions must match it.\nThe text on the plaque must read exactly:\nIN HONOR OF    [bold]\nJoyce Conklin-Repp Vankirk    [bold, small capitals]\nAND    [bold]\nDallas (Pete) Vankirk    [bold, small capitals]\nFOUNDERS OF RACCOON RIVER PET RESCUE    [bold]\nWith vision, generosity, and an unshakable love for animals, you turned compassion\ninto action and a dream into reality.\nYour compassion, vision, and dedication created a safe haven for countless animals in\nneed. Because of your love, so many now know the joy of a forever home.\nRaccoon River Pet Rescue stands today as a testament to your kindness and the lives\nforever changed by it.\n“Saving one animal won’t change the world,    [italic]\nbut it will change the world for that one animal.”    [italic]\n— ANONYMOUS",
+    "promptVersion": "f58a9bca",
+    "model": "gpt-image-2.5-sunburst-2026-09-08",
+    "quality": "high",
+    "size": "1152x1536",
+    "costUsd": 0.083267,
+    "usage": {
+      "input_tokens": 4003,
+      "input_tokens_details": {
+        "image_tokens": 2904,
+        "text_tokens": 1099
+      },
+      "output_tokens": 1818,
+      "output_tokens_details": {
+        "image_tokens": 1818,
+        "text_tokens": 0
+      },
+      "total_tokens": 5821
+    },
+    "spellcheck": {
+      "ok": true,
+      "checked": true,
+      "differences": [],
+      "message": "Wording matches the customer text."
+    },
+    "error": null,
+    "hasImage": true,
+    "createdAt": "2026-10-04T21:28:51.247Z",
+    "snapshot": {
+      "spec": {
+        "material": "bronze",
+        "widthIn": 18,
+        "heightIn": 24,
+        "finish": "natural-satin-brushed-bronze",
+        "backgroundColor": "dark-oxide",
+        "backgroundTexture": "leatherette",
+        "border": "single-line",
+        "font": "times-new-roman",
+        "imageOption": "full-color-uv",
+        "mounting": "blind-studs",
+        "lettering": "raised",
+        "process": "cast",
+        "thicknessIn": 0.25,
+        "stakeLengthIn": null,
+        "customFontName": null,
+        "customPaint": null
+      },
+      "wording": {
+        "blocks": [
+          {
+            "id": "wmuubyma30",
+            "role": "subhead",
+            "text": "IN HONOR OF",
+            "style": {
+              "bold": true
+            }
+          },
+          {
+            "id": "wmuubyma31",
+            "role": "headline",
+            "text": "Joyce Conklin-Repp Vankirk",
+            "style": {
+              "bold": true,
+              "smallCaps": true
+            }
+          },
+          {
+            "id": "wmuubyma32",
+            "role": "subhead",
+            "text": "AND",
+            "style": {
+              "bold": true
+            }
+          },
+          {
+            "id": "wmuubyma33",
+            "role": "headline",
+            "text": "Dallas (Pete) Vankirk",
+            "style": {
+              "bold": true,
+              "smallCaps": true
+            }
+          },
+          {
+            "id": "wmuubyma34",
+            "role": "subhead",
+            "text": "FOUNDERS OF RACCOON RIVER PET RESCUE",
+            "style": {
+              "bold": true
+            }
+          },
+          {
+            "id": "wmuubyma35",
+            "role": "body",
+            "text": "With vision, generosity, and an unshakable love for animals, you turned compassion into action and a dream into reality."
+          },
+          {
+            "id": "wmuubyma36",
+            "role": "body",
+            "text": "Your compassion, vision, and dedication created a safe haven for countless animals in need. Because of your love, so many now know the joy of a forever home."
+          },
+          {
+            "id": "wmuubyma37",
+            "role": "body",
+            "text": "Raccoon River Pet Rescue stands today as a testament to your kindness and the lives forever changed by it."
+          },
+          {
+            "id": "wmuubyma38",
+            "role": "body",
+            "text": "“Saving one animal won’t change the world,\nbut it will change the world for that one animal.”",
+            "style": {
+              "italic": true
+            }
+          },
+          {
+            "id": "wmuubyma39",
+            "role": "footer",
+            "text": "— ANONYMOUS"
+          }
+        ],
+        "notes": []
+      },
+      "wordingText": "IN HONOR OF\nJoyce Conklin-Repp Vankirk\nAND\nDallas (Pete) Vankirk\nFOUNDERS OF RACCOON RIVER PET RESCUE\nWith vision, generosity, and an unshakable love for animals, you turned compassion into action and a dream into reality.\nYour compassion, vision, and dedication created a safe haven for countless animals in need. Because of your love, so many now know the joy of a forever home.\nRaccoon River Pet Rescue stands today as a testament to your kindness and the lives forever changed by it.\n“Saving one animal won’t change the world,\nbut it will change the world for that one animal.”\n— ANONYMOUS",
+      "parse": {
+        "spec": {
+          "material": "bronze",
+          "widthIn": 18,
+          "heightIn": 24,
+          "finish": "natural-satin-brushed-bronze",
+          "backgroundColor": "dark-oxide",
+          "backgroundTexture": "leatherette",
+          "border": "single-line",
+          "font": "times-new-roman",
+          "imageOption": "full-color-uv",
+          "mounting": "blind-studs",
+          "lettering": "raised",
+          "process": "cast",
+          "thicknessIn": 0.25,
+          "stakeLengthIn": null,
+          "customFontName": null,
+          "customPaint": null
+        },
+        "notes": [
+          {
+            "field": "font",
+            "kind": "assumed",
+            "message": "Font not stated. Assumed Times New Roman."
+          }
+        ],
+        "assumed": [
+          "font"
+        ],
+        "unrecognizedLines": []
+      },
+      "logoSlot": "auto",
+      "imageAfterBlock": 3,
+      "uploads": {
+        "photo": {
+          "file": "photo-muubym9u.png",
+          "name": "photo.png",
+          "width": 208,
+          "height": 302
+        }
+      }
+    },
+    "preset": "classic",
+    "kind": "fix",
+    "batchId": "b_c4f7444222f2",
+    "plan": {
+      "kind": "visual",
+      "restated": "correct the spelling in this image"
+    },
+    "durationMs": 37950
+  },
+  "outputs": [
+    {
+      "id": "o_43ad8da7cf4a",
+      "projectId": "p_db326fbe6b31",
+      "kind": "proof",
+      "conceptId": "c_2891283d8439",
+      "fileName": "Proof - 32885.pdf",
+      "preflight": null,
+      "createdAt": "2026-10-04T21:29:29.468Z"
+    },
+    {
+      "id": "o_c6b466b5d824",
+      "projectId": "p_db326fbe6b31",
+      "kind": "production",
+      "conceptId": "c_2891283d8439",
+      "fileName": "32885_Raccoon_River_Pet_Rescue_18x24_production.pdf",
+      "preflight": [
+        {
+          "label": "Page size",
+          "ok": true,
+          "detail": "1296.0 x 1728.0 pt (plaque 18\" x 24\" at 72 pt/in)"
+        },
+        {
+          "label": "No fonts (all text outlined)",
+          "ok": true,
+          "detail": "All text is vector outlines"
+        },
+        {
+          "label": "No raster images",
+          "ok": true,
+          "detail": "100% vector"
+        },
+        {
+          "label": "One ink (#231F20 + white)",
+          "ok": true,
+          "detail": "Only rich black #231F20 (raised) and white (recessed)"
+        },
+        {
+          "label": "Letter heights",
+          "ok": false,
+          "detail": "The smallest letters are 0.20\" tall, below the ¼\" casting minimum.",
+          "warnOnly": true
+        },
+        {
+          "label": "Font",
+          "ok": false,
+          "detail": "Open stand-in used. Add the licensed font to brand-assets/fonts/ for exact letterforms.",
+          "warnOnly": true
+        },
+        {
+          "label": "Border geometry",
+          "ok": true,
+          "detail": "Matches measured production files",
+          "warnOnly": true
+        }
+      ],
+      "createdAt": "2026-10-04T21:29:29.857Z"
+    }
+  ]
+}

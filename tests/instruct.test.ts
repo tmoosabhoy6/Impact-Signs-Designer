@@ -8,6 +8,7 @@ import { computeLayout } from '../server/layout/engine';
 import { layoutTextPath } from '../server/render/flat';
 import { buildProductionPdf } from '../server/pdf/production';
 import { preflight } from '../server/pdf/preflight';
+import { compareWording } from '../server/ai/spellcheck';
 import type { ConceptRecord, Project } from '../shared/types';
 
 async function heritage() {
@@ -63,7 +64,11 @@ describe('offline instruction planner', () => {
   });
   it('accepts every alternative chip returned for a finish refusal', async () => {
     const p = await heritage();
-    for (const f of getCatalog().finishes) expect(fallbackInstruction(p, `use ${f.label}`)).toMatchObject({ kind: 'spec', specPatch: { finish: f.id } });
+    for (const f of getCatalog().finishes) {
+      const plan = fallbackInstruction(p, `use ${f.label}`);
+      if ((f.materials as string[]).includes(p.spec!.material)) expect(plan).toMatchObject({ kind: 'spec', specPatch: { finish: f.id } });
+      else expect(plan.kind).toBe('refuse');
+    }
   });
   it('inserts verbatim text at the bottom and preserves punctuation', async () => {
     const p = await heritage();
@@ -106,5 +111,15 @@ describe('offline instruction planner', () => {
     const plan = fallbackInstruction(p, 'change Founder to Chairman.');
     if (plan.kind !== 'wording') throw new Error('Expected wording');
     expect(applyWordingEdits(p.wording, plan.wordingEdits).blocks[0].text).toBe('Edwin J. Feulner Jr., Chairman.');
+  });
+  it('uses the existing size style for larger names', async () => {
+    const p = await heritage();
+    const plan = fallbackInstruction(p, 'make the name line larger');
+    expect(plan).toMatchObject({ kind: 'wording', wordingEdits: [{ style: { size: 1.2 } }] });
+  });
+  it('handles small-cap OCR without ignoring case changes in ordinary text or punctuation', () => {
+    expect(compareWording(['Joyce Conklin-Repp Vankirk', 'Founder'], ['JOYCE CONKLIN-REPP VANKIRK', 'Founder'], [true, false])).toEqual([]);
+    expect(compareWording(['Joyce Conklin-Repp Vankirk', 'Founder'], ['JOYCE CONKLIN-REPP VANKIRK', 'FOUNDER'], [true, false])).not.toEqual([]);
+    expect(compareWording(['Joyce Conklin-Repp Vankirk,'], ['JOYCE CONKLIN REPP VANKIRK'], [true])).not.toEqual([]);
   });
 });

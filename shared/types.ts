@@ -18,6 +18,10 @@ export interface PlaqueSpec {
   thicknessIn: number | null;
   /** Garden stake length in inches (e.g. 24) when mounting is a garden stake. */
   stakeLengthIn: number | null;
+  /** Name of a font the order asks for that is not in the catalog (font = 'custom'). */
+  customFontName: string | null;
+  /** Custom paint match when backgroundColor = 'custom' (e.g. "Dark Blue 2050"). */
+  customPaint: { name: string; hex: string } | null;
 }
 
 export type SpecField = keyof PlaqueSpec;
@@ -43,8 +47,16 @@ export interface TextStyle {
   bold?: boolean;
   /** Lowercase letters drawn as smaller capitals. */
   smallCaps?: boolean;
-  /** Multiplier on this block's normal type size; does not alter preset constants. */
-  sizeScale?: number;
+  /** Font for this line only (catalog font id); otherwise the plaque font. */
+  font?: string;
+  /** Set the lines of this block in 2–4 columns (donor lists). */
+  columns?: number;
+  /** Text alignment inside its column (default centered). */
+  align?: 'center' | 'left';
+  /** A raised rule under this line (section headings). */
+  ruleBelow?: boolean;
+  /** Size multiplier for this line (1 = the role's normal size). */
+  size?: number;
 }
 
 export interface WordingBlock {
@@ -78,6 +90,9 @@ export interface ContentSnapshot {
   wording: Wording | null;
   wordingText: string;
   parse: ParseResult | null;
+  logoSlot?: Project['logoSlot'];
+  imageAfterBlock?: Project['imageAfterBlock'];
+  uploads?: Project['uploads'];
 }
 
 export type LayoutPresetId = 'classic' | 'portrait' | 'statement';
@@ -100,6 +115,10 @@ export interface TextLine {
   /** Font size in inches (em size). */
   size: number;
   style?: TextStyle;
+  /** For left-aligned (column) text: the left edge. */
+  x?: number;
+  /** Server-side: the font file this line is drawn with. */
+  face?: string;
 }
 
 export interface PlaqueLayout {
@@ -113,6 +132,12 @@ export interface PlaqueLayout {
   imageFrame: { outer: Rect; inner: Rect; orientation: 'portrait' | 'landscape' | 'square' } | null;
   logo: Rect | null;
   lines: TextLine[];
+  /** Raised horizontal rules (section headings). */
+  rules: Rect[];
+  /** Face screw / rosette positions (centers) with their diameter. */
+  screws: { cx: number; cy: number; d: number }[];
+  /** Height of the smallest letters on the plaque, in inches. */
+  minLetterIn: number | null;
   warnings: string[];
 }
 
@@ -171,6 +196,10 @@ export interface Uploads {
   photo?: { file: string; name: string; width: number; height: number };
   logo?: { file: string; name: string; width: number; height: number; vectorSource: boolean };
   sketch?: { file: string; name: string };
+  /** Photo of the installation site for the Description sheet's scale panel. */
+  site?: { file: string; name: string; width: number; height: number };
+  /** A font file supplied for this job (custom font). */
+  font?: { file: string; name: string };
   extra?: { file: string; name: string }[];
 }
 
@@ -192,6 +221,16 @@ export interface Project {
   proofStyle: ProofStyle;
   /** Designer-edited DESCRIPTION text for the Description-sheet proof (null = written from the spec). */
   proofDescription: string | null;
+  /** Put the image after this wording block (index); null = image at the top / left. */
+  imageAfterBlock: number | null;
+  /** Description sheet: person figure, photo of the site, or no scale panel. */
+  visualScale: 'person' | 'site' | 'none';
+  /** Height of the plaque's center above the floor/ground on the site photo, in inches. */
+  siteMountHeightIn: number | null;
+  /** Red note printed under the plaque on the proof. */
+  proofNote: string | null;
+  /** Proof footer wording. */
+  disclaimer: 'standard' | 'photo';
   createdBy: string;
   createdAt: string;
   updatedAt: string;

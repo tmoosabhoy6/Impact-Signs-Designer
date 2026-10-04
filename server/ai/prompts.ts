@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { fromRoot } from '../config.js';
-import { mustOption } from '../catalog.js';
+import { fontLabel, mustOption, paintLabel } from '../catalog.js';
 import type { PlaqueLayout, PlaqueSpec } from '../../shared/types.js';
 
 export const PROMPT_FILES = ['house_rules.md', 'concept.md', 'fix.md', 'spellcheck.md'] as const;
@@ -33,7 +33,13 @@ export interface RefImage {
 }
 
 export function layoutText(layout: PlaqueLayout): string {
-  return layout.lines.map((l) => l.text).join('\n');
+  return layout.lines
+    .map((l) => {
+      const s = l.style ?? {};
+      const notes = [s.bold && 'bold', s.italic && 'italic', s.smallCaps && 'small capitals', l.x != null && 'left-aligned in its column'].filter(Boolean);
+      return notes.length ? `${l.text}    [${notes.join(', ')}]` : l.text;
+    })
+    .join('\n');
 }
 
 const fmtIn = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0+$/, ''));
@@ -42,6 +48,7 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
   const material = mustOption('materials', spec.material);
   const finish = mustOption('finishes', spec.finish);
   const paint = mustOption('backgroundColors', spec.backgroundColor);
+  const process = mustOption('processes', spec.process ?? 'cast');
   const texture = mustOption('backgroundTextures', spec.backgroundTexture);
   const border = mustOption('borders', spec.border);
   const font = mustOption('fonts', spec.font);
@@ -52,25 +59,28 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
   const imageTreatment =
     spec.imageOption === 'none'
       ? 'none. This is a text-only plaque; do not add any picture.'
-      : `${image.prompt} The image sits inside a thin raised metal frame, filling the frame window exactly as in Reference 1.`;
+      : `${image.prompt} The image sits inside a thin raised metal frame, filling the frame window exactly where Reference 1 shows it.`;
+  const extras: string[] = [];
+  if (layout.rules.length) extras.push('Thin raised horizontal rules under section headings, exactly as in Reference 1.');
+  if (layout.screws.length) extras.push(`${layout.screws.length} visible ${mustOption('mountings', spec.mounting).label.toLowerCase()} heads in the corners, exactly where Reference 1 shows them.`);
   const body = fill(readPrompt('concept.md'), {
-    material: material.prompt,
+    material: `${material.prompt}; ${process.prompt}`,
     width: fmtIn(spec.widthIn),
     height: fmtIn(spec.heightIn),
     orientation,
     finish: finish.prompt,
-    paint: paint.prompt,
+    paint: spec.backgroundColor === 'custom' ? `a custom-matched ${paintLabel(spec)} baked paint (match the paint swatch exactly)` : paint.prompt,
     texture: texture.prompt,
     border: border.prompt,
     lettering: lettering.prompt,
-    font: font.prompt,
+    font: spec.font === 'custom' ? `${fontLabel(spec)} (copy the letterforms from Reference 1)` : font.prompt,
     mounting: mounting.prompt,
     imageTreatment,
     logo: opts.hasLogo
       ? 'the supplied customer logo, cast as raised metal in the plaque finish, in the logo position shown in Reference 1.'
       : 'none.',
     presetLabel: layout.presetLabel,
-    presetDescription: layout.presetDescription,
+    presetDescription: `${layout.presetDescription}${extras.length ? ' ' + extras.join(' ') : ''}`,
     text: layoutText(layout) || '(no text)',
     references: refs.map((r, i) => `Reference ${i + 1}: ${r.role}`).join('\n'),
   });

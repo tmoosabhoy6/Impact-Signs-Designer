@@ -1,0 +1,62 @@
+[
+  {
+    "role": "subhead",
+    "text": "IN HONOR OF",
+    "style": {
+      "bold": true
+    }
+  },
+  {
+    "role": "headline",
+    "text": "Joyce Conklin-Repp Vankirk",
+    "style": {
+      "bold": true,
+      "smallCaps": true
+    }
+  },
+  {
+    "role": "subhead",
+    "text": "AND",
+    "style": {
+      "bold": true
+    }
+  },
+  {
+    "role": "headline",
+    "text": "Dallas (Pete) Vankirk",
+    "style": {
+      "bold": true,
+      "smallCaps": true
+    }
+  },
+  {
+    "role": "subhead",
+    "text": "FOUNDERS OF RACCOON RIVER PET RESCUE",
+    "style": {
+      "bold": true
+    }
+  },
+  {
+    "role": "body",
+    "text": "With vision, generosity, and an unshakable love for animals, you turned compassion into action and a dream into reality."
+  },
+  {
+    "role": "body",
+    "text": "Your compassion, vision, and dedication created a safe haven for countless animals in need. Because of your love, so many now know the joy of a forever home."
+  },
+  {
+    "role": "body",
+    "text": "Raccoon River Pet Rescue stands today as a testament to your kindness and the lives forever changed by it."
+  },
+  {
+    "role": "body",
+    "text": "“Saving one animal won’t change the world,\nbut it will change the world for that one animal.”",
+    "style": {
+      "italic": true
+    }
+  },
+  {
+    "role": "footer",
+    "text": "— ANONYMOUS"
+  }
+]

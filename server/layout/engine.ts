@@ -2,11 +2,13 @@
 // The same layout drives the AI concept (as a reference drawing), the proof and the
 // vector production file, so all three agree.
 //
-// The "classic" preset reproduces the real Heritage Foundation production file
-// (production_32241.ai, 12x18): image frame 0.542 W wide, body type 46.3 pt with a
-// 64.6 pt line pitch, headline 56.3 pt, subhead 50.1 pt, stack centered in the field.
-import { getCatalog, mustOption } from '../catalog.js';
-import { measure, missingGlyphs, resolveFont, wrapText, type OTFont } from '../text/fonts.js';
+// Measured references:
+//  - production_32241.ai (12x18): image frame 0.542 W wide, body 46.3 pt on a 64.6 pt pitch,
+//    headline 56.3 pt, subhead 50.1 pt, ¼" single border, the stack centered in the field.
+//  - Structure of Merit outline art (7x5) and Camp Southern Ground (12x16): double-line border
+//    band / gap / inner line, growing with the plaque's shorter side.
+import { getCatalog, mustOption, type BorderOption } from '../catalog.js';
+import { loadFontFile, measure, missingGlyphs, resolveFont, SMALL_CAPS_SCALE, wrapText, type OTFont } from '../text/fonts.js';
 import type { LayoutPresetId, PlaqueLayout, PlaqueSpec, Rect, TextLine, TextStyle, Wording, WordingRole } from '../../shared/types.js';
 
 export interface LayoutInput {
@@ -17,13 +19,17 @@ export interface LayoutInput {
   /** width / height of the logo, if any. */
   logoAspect?: number | null;
   logoSlot?: 'auto' | 'top' | 'middle' | 'bottom';
+  /** Put the image after this wording block; null/undefined = image first (top or left). */
+  imageAfterBlock?: number | null;
+  /** The job's own font file (custom font). */
+  customFontFile?: string | null;
 }
 
 interface PresetDef {
   id: LayoutPresetId;
   label: string;
   description: string;
-  /** Image frame width as a fraction of plaque width when the image sits on top. */
+  /** Image frame width as a fraction of plaque width when the image is in the column. */
   topImageFrac: number;
   /** Image column width as a fraction of the content width when the image sits left. */
   sideImageFrac: number;
@@ -49,7 +55,7 @@ export const PRESETS: PresetDef[] = [
   {
     id: 'portrait',
     label: 'Feature Image',
-    description: 'Larger image as the hero; the text block is set slightly smaller and tighter beneath it.',
+    description: 'Larger image as the hero; the text block is set slightly smaller and tighter around it.',
     topImageFrac: 0.64,
     sideImageFrac: 0.48,
     headline: 1.2,
@@ -77,7 +83,7 @@ const GAP = {
   subheadToBody: 2.715,
   headlineToBody: 2.4,
   bodyLeading: 1.395,
-  paragraph: 2.0,
+  paragraph: 1.85,
   toFooter: 2.4,
   textToLogo: 1.1,
   logoToText: 2.2,
@@ -89,40 +95,61 @@ const BODY_FRAC = 0.0536;
 /** Inner photo window inset inside the raised image frame (1/8 in on the real file). */
 const FRAME_INSET_IN = 0.125;
 
+/** Border geometry for this plaque size (double-line scales with the shorter side). */
+export function borderGeometry(border: BorderOption, W: number, H: number) {
+  const s = (border as BorderOption & { scaling?: { perInch: Record<string, number>; fromIn: number; max: Record<string, number> } }).scaling;
+  const grow = (key: 'widthIn' | 'gapIn' | 'innerLineIn', base: number) =>
+    s ? Math.min(s.max[key] ?? Infinity, base + (s.perInch[key] ?? 0) * Math.max(0, Math.min(W, H) - s.fromIn)) : base;
+  return {
+    band: grow('widthIn', border.widthIn),
+    gap: border.gapIn ? grow('gapIn', border.gapIn) : 0,
+    inner: border.innerLineIn ? grow('innerLineIn', border.innerLineIn) : 0,
+  };
+}
+
+interface StyledText {
+  text: string;
+  /** Offset of the line's anchor from the column center (center-aligned) … */
+  dx: number;
+  /** … or from the column's left edge (left-aligned). */
+  left?: number;
+}
+
 type Item =
   | { kind: 'frame'; w: number; h: number }
   | { kind: 'logo'; w: number; h: number }
-  | { kind: 'text'; role: WordingRole; lines: string[]; size: number; leading: number; style?: TextStyle; font: OTFont };
+  | { kind: 'text'; role: WordingRole; lines: StyledText[]; size: number; leading: number; style: TextStyle; face: OTFont; faceFile: string; width: number };
 
 interface Placed {
   frame?: Rect;
   logo?: Rect;
-  lines: { text: string; role: WordingRole; baseline: number; size: number; style?: TextStyle }[];
+  lines: (StyledText & { role: WordingRole; baseline: number; size: number; style: TextStyle; faceFile: string })[];
+  rules: { y: number; w: number; t: number }[];
   height: number;
   maxLineWidth: number;
 }
 
-function capHeightRatio(font: OTFont): number {
+export function capHeightRatio(font: OTFont): number {
   const os2 = (font.tables as { os2?: { sCapHeight?: number } }).os2;
   return os2?.sCapHeight ? os2.sCapHeight / font.unitsPerEm : 0.66;
 }
 
 /** Stacks items vertically; returns positions relative to the stack's top (y = 0). */
-function stack(items: Item[], B: number, gapMul: number, font: OTFont): Placed {
-  const cap = capHeightRatio(font);
-  const out: Placed = { lines: [], height: 0, maxLineWidth: 0 };
-  let cursor = 0; // bottom of the previous box, or the previous baseline
+function stack(items: Item[], B: number, gapMul: number): Placed {
+  const out: Placed = { lines: [], rules: [], height: 0, maxLineWidth: 0 };
+  let cursor = 0; // bottom of the previous box, or the previous baseline (+ rule)
   let prev: Item | null = null;
   for (const item of items) {
     if (item.kind === 'frame' || item.kind === 'logo') {
       let top = 0;
-      if (prev?.kind === 'text') top = cursor + (item.kind === 'logo' ? GAP.textToLogo : GAP.textToFrame) * B * gapMul;
+      if (prev?.kind === 'text') top = cursor + (item.kind === 'logo' ? GAP.textToLogo : GAP.textToFrame) * B * gapMul + GAP.descent * B;
       else if (prev) top = cursor + 1.2 * B * gapMul;
       const r = { x: 0, y: top, w: item.w, h: item.h };
       if (item.kind === 'frame') out.frame = r;
       else out.logo = r;
       cursor = top + item.h;
     } else {
+      const cap = capHeightRatio(item.face);
       let first: number;
       if (!prev) first = cap * item.size;
       else if (prev.kind === 'frame') first = cursor + GAP.frameToText * B * gapMul;
@@ -133,16 +160,25 @@ function stack(items: Item[], B: number, gapMul: number, font: OTFont): Placed {
           pair === 'headline>subhead' ? GAP.headlineToSubhead
           : pair === 'subhead>body' ? GAP.subheadToBody
           : pair === 'headline>body' ? GAP.headlineToBody
-          : item.role === 'footer' ? GAP.toFooter
-          : prev.role === item.role ? GAP.paragraph
+          : item.role === 'footer' && prev.role === 'body' ? GAP.toFooter
+          : prev.role === item.role ? (item.role === 'headline' || item.role === 'subhead' ? 1.25 * (item.size / B) : GAP.paragraph)
           : GAP.headlineToSubhead;
         first = cursor + g * B * (prev.role === item.role ? 1 : gapMul);
       }
-      item.lines.forEach((text, i) => {
-        out.lines.push({ text, role: item.role, baseline: first + i * item.leading, size: item.size, ...(item.style ? { style: item.style } : {}) });
-        out.maxLineWidth = Math.max(out.maxLineWidth, measure(item.font, text, item.size, item.style));
+      const rows = new Map<number, number>(); // row index -> baseline (columns share rows)
+      item.lines.forEach((l, i) => {
+        const row = (l as StyledText & { row?: number }).row ?? i;
+        const baseline = first + row * item.leading;
+        rows.set(row, baseline);
+        out.lines.push({ ...l, role: item.role, baseline, size: item.size, style: item.style, faceFile: item.faceFile });
       });
-      cursor = first + (item.lines.length - 1) * item.leading;
+      out.maxLineWidth = Math.max(out.maxLineWidth, item.width);
+      cursor = Math.max(...rows.values());
+      if (item.style.ruleBelow) {
+        const t = Math.max(0.03, item.size * 0.05);
+        out.rules.push({ y: cursor + item.size * 0.42, w: 0, t });
+        cursor += item.size * 0.7;
+      }
     }
     prev = item;
   }
@@ -150,21 +186,45 @@ function stack(items: Item[], B: number, gapMul: number, font: OTFont): Placed {
   return out;
 }
 
-function textItems(wording: Wording | null, B: number, p: PresetDef, font: OTFont, maxWidth: number, fontId: string): Item[] {
+function roleMul(role: WordingRole, p: PresetDef) {
+  return role === 'headline' ? p.headline : role === 'subhead' ? p.subhead : role === 'footer' ? 0.85 : p.body;
+}
+
+function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number): Item[] {
   const items: Item[] = [];
-  const blocks = (wording?.blocks ?? []).filter((b) => b.text.trim());
-  // Keep the customer's order, but group consecutive blocks of the same role.
+  const blocks = (input.wording?.blocks ?? []).filter((b) => b.text.trim());
   for (const b of blocks) {
-    const mul = b.role === 'headline' ? p.headline : b.role === 'subhead' ? p.subhead : b.role === 'footer' ? 0.85 : p.body;
-    const blockFont = b.style ? resolveFont(fontId, b.style).font : font;
-    let size = B * mul * (b.style?.sizeScale ?? 1);
+    const style = b.style ?? {};
+    const rf = resolveFont(style.font ?? input.spec.font, style, input.customFontFile);
+    const face = rf.font;
+    let size = B * roleMul(b.role, p) * Math.min(2.5, Math.max(0.4, style.size ?? 1));
+    const cols = Math.max(1, Math.min(4, style.columns ?? 1));
+    if (cols > 1) {
+      // Donor-list columns: entries fill columns top to bottom.
+      const entries = b.text.split('\n').map((t) => t.trim()).filter(Boolean);
+      const perCol = Math.ceil(entries.length / cols);
+      const colW = maxWidth / cols;
+      const longest = Math.max(...entries.map((e) => measure(face, e, size, style.smallCaps)));
+      if (longest > colW * 0.94) size = Math.max(size * 0.4, (size * colW * 0.94) / longest);
+      const lines: (StyledText & { row: number })[] = entries.map((text, i) => {
+        const c = Math.floor(i / perCol);
+        const row = i % perCol;
+        const colLeft = -maxWidth / 2 + c * colW;
+        return style.align === 'left' ? { text, dx: 0, left: colLeft + colW * 0.03, row } : { text, dx: colLeft + colW / 2, row };
+      });
+      items.push({ kind: 'text', role: b.role, lines, size, leading: 1.25 * size, style, face, faceFile: rf.file, width: maxWidth });
+      continue;
+    }
     // Name and organization lines should stay on one line: shrink them (up to 25%) before wrapping.
     if ((b.role === 'headline' || b.role === 'subhead') && !b.text.includes('\n')) {
-      const natural = measure(blockFont, b.text, size, b.style);
+      const natural = measure(face, b.text, size, style.smallCaps);
       if (natural > maxWidth) size = Math.max(size * 0.75, (size * maxWidth) / natural);
     }
     const leading = b.role === 'body' || b.role === 'footer' ? GAP.bodyLeading * size : 1.15 * size;
-    items.push({ kind: 'text', role: b.role, lines: wrapText(blockFont, b.text, size, maxWidth, b.style), size, leading, font: blockFont, ...(b.style ? { style: b.style } : {}) });
+    const wrapped = wrapText(face, b.text, size, maxWidth, style.smallCaps);
+    const width = Math.max(0, ...wrapped.map((t) => measure(face, t, size, style.smallCaps)));
+    const lines: StyledText[] = wrapped.map((text) => (style.align === 'left' ? { text, dx: 0, left: -maxWidth / 2 } : { text, dx: 0 }));
+    items.push({ kind: 'text', role: b.role, lines, size, leading, style, face, faceFile: rf.file, width });
   }
   return items;
 }
@@ -175,42 +235,66 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   const W = spec.widthIn;
   const H = spec.heightIn;
   const border = mustOption('borders', spec.border);
-  const bw = border.widthIn;
+  const geo = borderGeometry(border, W, H);
+  const bw = geo.band;
   const field: Rect = { x: bw, y: bw, w: W - 2 * bw, h: H - 2 * bw };
+  // Content stays inside a double border's inner line.
+  const innerOffset = geo.gap + geo.inner;
+  const content: Rect = { x: field.x + innerOffset, y: field.y + innerOffset, w: field.w - 2 * innerOffset, h: field.h - 2 * innerOffset };
   const warnings: string[] = [];
-  const { font, licensed, label: fontLabel } = resolveFont(spec.font);
-  if (!licensed) warnings.push(`${fontLabel} is not installed; an open stand-in with matching proportions is used.`);
+
+  const main = resolveFont(spec.font, {}, input.customFontFile);
+  if (spec.font === 'custom' && !input.customFontFile) {
+    warnings.push(`Custom font "${spec.customFontName ?? 'not named'}" has no font file yet: a stand-in is used. Upload the font file to the job.`);
+  } else if (!main.licensed) {
+    warnings.push(`${main.label} is not installed; an open stand-in with matching proportions is used.`);
+  }
 
   const hasImage = spec.imageOption !== 'none';
   const photoAspect = Math.min(1.8, Math.max(0.55, input.photoAspect || 0.9));
   const orientation = photoAspect > 1.1 ? 'landscape' : photoAspect < 0.91 ? 'portrait' : 'square';
-  const imageLeft = hasImage && orientation === 'landscape' && W >= H;
+  const imageAfter = input.imageAfterBlock ?? null;
+  const imageLeft = hasImage && orientation === 'landscape' && W >= H && imageAfter == null;
   const hasLogo = !!input.logoAspect;
   const logoAspect = Math.min(6, Math.max(0.3, input.logoAspect || 1));
 
-  // Inner margin for side-by-side layouts.
-  const pad = Math.max(0.35, 0.07 * Math.min(field.w, field.h));
+  // Face screws / rosettes sit in the field corners and keep text away from them.
+  const mounting = spec.mounting;
+  const screwD = mounting === 'rosettes' ? Math.min(0.5, 0.06 * Math.min(W, H)) : mounting === 'screws-through-face' ? Math.min(0.25, 0.045 * Math.min(W, H)) : 0;
+  const screwInset = screwD ? Math.max(0.2, 0.05 * Math.min(W, H)) + screwD / 2 : 0;
+  const screws = screwD
+    ? [
+        { cx: content.x + screwInset, cy: content.y + screwInset },
+        { cx: content.x + content.w - screwInset, cy: content.y + screwInset },
+        { cx: content.x + screwInset, cy: content.y + content.h - screwInset },
+        { cx: content.x + content.w - screwInset, cy: content.y + content.h - screwInset },
+      ].map((s) => ({ ...s, d: screwD }))
+    : [];
+  const screwKeepOut = screwD ? screwInset + screwD : 0;
+
+  const pad = Math.max(0.35, 0.07 * Math.min(content.w, content.h));
   const B0 = BODY_FRAC * Math.min(W, H);
   const allText = (input.wording?.blocks ?? []).map((b) => b.text).join(' ');
-  const missing = missingGlyphs(font, allText);
+  const missing = missingGlyphs(main.font, allText);
   if (missing.length) warnings.push(`The font cannot draw: ${missing.join(' ')}`);
 
   let slot = input.logoSlot ?? 'auto';
-  if (slot === 'auto') slot = hasImage && !imageLeft ? 'bottom' : 'top';
+  if (slot === 'auto') slot = hasImage && !imageLeft && imageAfter == null ? 'bottom' : 'top';
 
   let best: Placed | null = null;
-  let colX = field.x;
-  let colW = field.w;
+  let colX = content.x;
+  let colW = content.w;
   let frameRect: Rect | null = null;
   let scale = 1;
-  // Text-only plaques may grow the type to fill the field; image layouts keep the measured sizes.
   const textOnly = !hasImage;
-  const fillLimit = textOnly ? 0.72 : 1;
-  for (scale = textOnly ? 1.8 : 1; scale >= 0.3; scale -= 0.02) {
+  // Text-only plaques set their type large (Kathleen Awe, Sax-Zim Bog, Hadar Family Hall).
+  const dense = (input.wording?.blocks.length ?? 0) >= 6;
+  const fillLimit = textOnly ? (dense ? 0.92 : 0.82) : 1;
+  for (scale = textOnly ? 3.2 : 1; scale >= 0.25; scale -= 0.02) {
     const B = B0 * scale;
     if (imageLeft) {
-      const contentW = field.w - 2 * pad;
-      const contentH = field.h - 2 * pad;
+      const contentW = content.w - 2 * pad;
+      const contentH = content.h - 2 * pad;
       let fw = contentW * preset.sideImageFrac * Math.min(1, scale + 0.15);
       let fh = fw / photoAspect;
       if (fh > contentH) {
@@ -218,10 +302,10 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
         fw = fh * photoAspect;
       }
       const gutter = 0.06 * contentW;
-      colX = field.x + pad + fw + gutter;
+      colX = content.x + pad + fw + gutter;
       colW = contentW - fw - gutter;
-      frameRect = { x: field.x + pad, y: field.y + (field.h - fh) / 2, w: fw, h: fh };
-      const items = textItems(input.wording, B, preset, font, colW, spec.font);
+      frameRect = { x: content.x + pad, y: content.y + (content.h - fh) / 2, w: fw, h: fh };
+      const items = textItems(input, B, preset, colW);
       if (hasLogo) {
         const lh = Math.min(0.16 * contentH, (0.5 * colW) / logoAspect) * scale;
         const logo: Item = { kind: 'logo', w: lh * logoAspect, h: lh };
@@ -229,25 +313,32 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
         else if (slot === 'middle') items.splice(Math.min(items.length, 2), 0, logo);
         else items.unshift(logo);
       }
-      const placed = stack(items, B, preset.gaps, font);
+      const placed = stack(items, B, preset.gaps);
       best = placed;
       if (placed.height <= contentH * fillLimit && placed.maxLineWidth <= colW + 1e-6) break;
     } else {
-      colX = field.x;
-      colW = field.w;
-      const maxText = field.w * 0.92;
+      colX = content.x;
+      colW = content.w;
+      const maxText = Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
+      const texts = textItems(input, B, preset, maxText);
       const items: Item[] = [];
+      let frame: Item | null = null;
       if (hasImage) {
-        let fw = W * preset.topImageFrac * Math.min(1, scale + 0.1);
+        let fw = W * preset.topImageFrac * (imageAfter == null ? 1 : 1.15) * Math.min(1, scale + 0.1);
         let fh = fw / photoAspect;
-        const maxFh = field.h * 0.55;
+        const maxFh = content.h * (imageAfter == null ? 0.55 : 0.5);
         if (fh > maxFh) {
           fh = maxFh;
           fw = fh * photoAspect;
         }
-        items.push({ kind: 'frame', w: fw, h: fh });
+        frame = { kind: 'frame', w: fw, h: fh };
       }
-      items.push(...textItems(input.wording, B, preset, font, maxText, spec.font));
+      const after = imageAfter == null ? -1 : Math.min(imageAfter, texts.length - 1);
+      if (frame && after < 0) items.push(frame);
+      texts.forEach((t, i) => {
+        items.push(t);
+        if (frame && i === after) items.push(frame);
+      });
       if (hasLogo) {
         const lh = Math.min(0.12 * H, (0.4 * W) / logoAspect) * scale;
         const logo: Item = { kind: 'logo', w: lh * logoAspect, h: lh };
@@ -255,41 +346,54 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
         else if (slot === 'middle') {
           const firstBody = items.findIndex((i) => i.kind === 'text' && i.role === 'body');
           items.splice(firstBody >= 0 ? firstBody : items.length, 0, logo);
-        } else items.splice(hasImage ? 1 : 0, 0, logo);
+        } else items.splice(frame && after < 0 ? 1 : 0, 0, logo);
       }
-      const placed = stack(items, B, preset.gaps, font);
+      const placed = stack(items, B, preset.gaps);
       best = placed;
-      const avail = field.h - 2 * Math.max(0.3, 0.05 * field.h);
+      const avail = content.h - 2 * Math.max(0.3, 0.05 * content.h, screwD ? screwInset * 0.6 : 0);
       if (placed.height <= avail * fillLimit && placed.maxLineWidth <= maxText + 1e-6) break;
     }
   }
   if (!best) throw new Error('Layout failed');
-  if (scale < 0.3) warnings.push('The wording does not fit comfortably at a readable size. Consider a larger plaque or less text.');
+  if (scale < 0.25) warnings.push('The wording does not fit comfortably at a readable size. Consider a larger plaque or less text.');
 
   // Center the stack vertically in its area.
-  const areaTop = imageLeft ? field.y + pad : field.y;
-  const areaH = imageLeft ? field.h - 2 * pad : field.h;
+  const areaTop = imageLeft ? content.y + pad : content.y;
+  const areaH = imageLeft ? content.h - 2 * pad : content.h;
   const dy = areaTop + (areaH - best.height) / 2;
   const cx = colX + colW / 2;
+  const textWidth = imageLeft ? colW : Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
 
-  const lines: TextLine[] = best.lines.map((l) => ({ text: l.text, role: l.role, cx, baseline: l.baseline + dy, size: l.size, ...(l.style ? { style: l.style } : {}) }));
+  const lines: TextLine[] = best.lines.map((l) => ({
+    text: l.text,
+    role: l.role,
+    cx: cx + l.dx,
+    baseline: l.baseline + dy,
+    size: l.size,
+    style: Object.keys(l.style).length ? l.style : undefined,
+    face: l.faceFile,
+    ...(l.left != null ? { x: cx + l.left } : {}),
+  }));
+  const rules: Rect[] = best.rules.map((r) => ({ x: cx - (textWidth * 0.94) / 2, y: r.y + dy - r.t / 2, w: textWidth * 0.94, h: r.t }));
   if (!imageLeft && best.frame) {
     frameRect = { x: (W - best.frame.w) / 2, y: best.frame.y + dy, w: best.frame.w, h: best.frame.h };
   }
   const logo = best.logo ? { x: cx - best.logo.w / 2, y: best.logo.y + dy, w: best.logo.w, h: best.logo.h } : null;
 
-  // Minimum letter heights (cap height): 3/8 in for mixed case, 1/4 in for all caps.
-  const cap = capHeightRatio(font);
+  // Minimum letter heights: capitals ¼", mixed case ⅜" cap height (≈ ¼" lowercase).
+  let minLetterIn = Infinity;
   for (const l of lines) {
-    const allCaps = l.text === l.text.toUpperCase() && /[A-Z]/.test(l.text);
-    const min = allCaps ? 0.25 : 0.375;
-    if (cap * l.size < min - 1e-3) {
-      warnings.push(`"${l.text.slice(0, 30)}${l.text.length > 30 ? '…' : ''}" is ${(cap * l.size).toFixed(2)} in tall, below the ${min} in casting minimum.`);
-      break;
-    }
+    const cap = capHeightRatio(resolveFontFace(l.face) ?? main.font);
+    const hasLower = /[a-z]/.test(l.text);
+    const letter = cap * l.size * (l.style?.smallCaps && hasLower ? SMALL_CAPS_SCALE : 1);
+    minLetterIn = Math.min(minLetterIn, hasLower && !l.style?.smallCaps ? letter * (0.25 / 0.375) : letter);
+  }
+  if (minLetterIn < 0.25 - 1e-3) {
+    warnings.push(`The smallest letters are ${minLetterIn.toFixed(2)}" tall, below the ¼" casting minimum.`);
   }
 
   const inset = Math.min(FRAME_INSET_IN, 0.04 * Math.min(frameRect?.w ?? 1, frameRect?.h ?? 1));
+  const innerLineCenter = geo.gap + geo.inner / 2;
   return {
     preset: preset.id,
     presetLabel: preset.label,
@@ -300,8 +404,10 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
       id: border.id,
       widthIn: bw,
       verified: border.verified,
-      innerLineIn: border.innerLineIn,
-      innerLine: border.gapIn ? { x: field.x + border.gapIn, y: field.y + border.gapIn, w: field.w - 2 * border.gapIn, h: field.h - 2 * border.gapIn } : undefined,
+      innerLineIn: geo.inner || undefined,
+      innerLine: geo.inner
+        ? { x: field.x + innerLineCenter, y: field.y + innerLineCenter, w: field.w - 2 * innerLineCenter, h: field.h - 2 * innerLineCenter }
+        : undefined,
     },
     field,
     imageFrame: hasImage && frameRect
@@ -309,8 +415,19 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
       : null,
     logo,
     lines,
+    rules,
+    screws,
+    minLetterIn: Number.isFinite(minLetterIn) ? +minLetterIn.toFixed(3) : null,
     warnings,
   };
+}
+
+function resolveFontFace(file?: string): OTFont | null {
+  try {
+    return file ? loadFontFile(file) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function computeAllLayouts(input: LayoutInput): PlaqueLayout[] {

@@ -1,0 +1,10 @@
+{
+  "id": "32717-camp-southern-ground",
+  "jobNumber": "32717",
+  "name": "Camp Southern Ground (Mike Dobbs)",
+  "description": "12\" x 16\" bronze, double-line border, photo relief portrait. Standard proof",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "photo": "photo.png",
+  "proofStyle": "standard"
+}

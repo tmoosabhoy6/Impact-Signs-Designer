@@ -1,0 +1,27 @@
+[
+  {
+    "role": "subhead",
+    "text": "CHABAD CENTER"
+  },
+  {
+    "role": "footer",
+    "text": "FOR JEWISH LIFE"
+  },
+  {
+    "role": "headline",
+    "text": "The\nHadar Family\nHall",
+    "style": {
+      "bold": true,
+      "font": "helvetica",
+      "size": 1.7
+    }
+  },
+  {
+    "role": "subhead",
+    "text": "Dedicated with Love\nby the Hadar Family Foundation.",
+    "style": {
+      "italic": true,
+      "bold": true
+    }
+  }
+]

@@ -5,6 +5,8 @@ export interface ProjectPayload {
   concepts: ConceptRecord[];
   outputs: OutputRecord[];
   layouts: (PlaqueLayout & { photoPpi: number | null })[] | null;
+  /** The DESCRIPTION header the Description-sheet proof writes from the spec. */
+  autoDescription: string | null;
 }
 
 export class ApiError extends Error {

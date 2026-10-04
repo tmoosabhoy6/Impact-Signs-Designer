@@ -6,7 +6,8 @@ services:
     runtime: docker
     plan: starter
     healthCheckPath: /api/health
-    autoDeploy: true
+    branch: claude/blissful-mccarthy-63trmd
+    autoDeployTrigger: checksPass
     disk:
       name: studio-data
       mountPath: /var/data

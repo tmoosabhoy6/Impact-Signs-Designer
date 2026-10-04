@@ -3,19 +3,29 @@
 Impact Signs' internal tool for cast bronze plaques. It takes an order and produces:
 
 1. **Three concept images** of the finished plaque, generated with OpenAI's image model (`gpt-image-2.5-sunburst-2026-09-08`). Each uses a different production-realistic layout.
-2. **The customer proof PDF** on the locked Impact Signs proof template (the Liquid Mercury layout). It shows the chosen image, red dimension brackets, the finish and paint-fill icons from the asset library, the mounting diagram, the impactsigns.com wordmark and the red disclaimer.
+2. **The customer proof PDF** in one of Impact Signs' three locked proof styles, each measured from real proofs:
+   - **Standard** (Liquid Mercury): red dimension brackets, mounting diagram, finish and paint-fill swatches, disclaimer.
+   - **Description sheet** (Awe, Raccoon River): DESCRIPTION header with ORDER#/VERSION, blue dimensions, captioned option tiles, and a Visual Scale panel (a 6 ft person on the ground or beside an 8 ft wall, or a photo of the site).
+   - **Order version + outline art** (Structure of Merit): an "ORDER # – VERSION" header, side view and process captions, plus a second page with the production outline art.
 3. **The vector production PDF**, built like `production_32241.ai`: plaque-size page, one ink (black = raised metal, white = recessed field), all text as outlines, no images, and an empty placeholder window for the photo.
 
-![Workspace](docs/screens/03-workspace.png)
+![Workspace](docs/screens/03-raccoon-river-b-proof.png)
 
 ---
 
 ## How a designer uses it
 
 1. **Sign in** with your name and the team password.
-2. **New plaque job:** enter the job number (e.g. `32241`) and a short name.
+2. **New plaque job:** enter the job number (e.g. `32241`) and a short name. Or click **Open** under **Start from an example** to load one of 11 real past orders, ready to generate.
 3. **01 Specification:** paste the order spec exactly as written and click **Read specification**. The app fills in a spec sheet from the catalog. Anything the order didn't state gets an amber **Assumed** tag; check those and change any dropdown if needed.
-4. **02 Customer wording:** upload the customer's Word .docx or paste the text. The text is kept character for character. Each line gets a role (headline, subhead, body, footer), which you can change.
+4. **02 Customer wording:** upload the customer's Word .docx or paste the text. The text is kept character for character. Each line gets a role (headline, subhead, body, footer), which you can change. Under each line, small buttons set:
+   - **I / B / Sc**: italic, bold, small capitals.
+   - **A− / A+**: size.
+   - **Columns**: for donor lists.
+   - **Rule**: a raised line under a heading.
+   - **Font**: a different font for that line only.
+
+   When there is a photo, a **Photo goes here** marker sets its position; use ↑ / ↓ to move it between lines.
 5. **03 Customer files:** add the photo, logo (SVG or PDF/AI preferred) and any hand-drawn sketch. The app warns if the photo is low resolution for its size on the plaque.
 6. **04 Concepts:** click **Generate 3 concepts**. Images stream in as they render (about a minute). Under each image you can:
    - **Use this one** to pick it for the proof.
@@ -23,7 +33,7 @@ Impact Signs' internal tool for cast bronze plaques. It takes an order and produ
    - **Fix** with a short instruction (e.g. *"correct the spelling of Feulner"*, *"make the border thinner"*). Only that change is made, and the result is saved as a new version (v2, v3…).
 
    Every image is automatically **spell-checked**: the app reads the text back and compares it with the customer's wording.
-7. **05 Customer proof:** click **Create proof PDF**. If the spell check found a difference, the app stops and shows it. Fix the image first, or confirm you've checked it.
+7. **05 Customer proof:** pick the **Proof style**. For Description sheets, choose the scale panel (person, site photo or none) and adjust the auto-written DESCRIPTION header if needed. Optionally add a red note under the plaque. Then click **Create proof PDF**. If the spell check found a difference, the app stops and shows it: fix the image first, or confirm you've checked it. Each new proof is a new version (v2, v3…).
 8. **06 Vector production PDF:** click **Create vector PDF**. A preflight checklist confirms page size, no fonts, no images and one ink, and warns about stand-in fonts, traced logos and minimum letter heights. Download it and open it in Illustrator (it opens directly, like the .ai files).
 
 Nothing is ever overwritten: every image, proof and production file is kept as its own version.
@@ -32,7 +42,7 @@ Nothing is ever overwritten: every image, proof and production file is kept as i
 
 ## Getting it online on Render.com (one time, about 10 minutes)
 
-Do these once. Afterwards every change pushed to the branch redeploys by itself, so the link always shows the latest version.
+Do these once. Afterwards changes pushed to the branch redeploy only after the automated checks pass.
 
 **Before you start: OpenAI account (5 minutes)**
 1. Go to [platform.openai.com](https://platform.openai.com) → **API keys** → **Create new secret key**. Copy it somewhere safe. Also **revoke the old key** that was pasted in chat.
@@ -79,7 +89,7 @@ The Starter plan plus the 5 GB disk costs about $7–9/month. Jobs, images and P
 |---|---|
 | [`assets/`](assets/README.md) | The **static icon library**: finishes, paint colors, textures, borders and image-type examples. Proof icons are pulled from here, never generated. The README lists the exact file names. **Admin → Asset Library** shows what's present. |
 | [`brand-assets/`](brand-assets/README.md) | Logo and licensed font files (Myriad Pro for proof labels; Times / Garamond / Minion / Franklin / Helvetica for plaque text). |
-| [`references/`](references/README.md) | Real example jobs (spec, wording, photo, final proof, production file). Used to measure the templates and in the automated tests. |
+| [`references/`](references/README.md) | 11 real example jobs (spec, wording, photo, final proof, production file). Used to measure the templates, power **Start from an example**, and run the automated tests. |
 | [`data/catalog.json`](data/catalog.json) | Every option the app offers (finishes and their upcharges, colors, textures, borders, fonts, image types, mountings, size limits) and which icon each uses. To add an option, add it here and drop its icon into `assets/`. |
 | [`server/prompts/`](server/prompts) | The instructions sent to the image model with every request. Edit them to tune the look; the version is recorded on every image. Shown read-only in **Admin → Image prompts**. |
 
@@ -98,7 +108,20 @@ After generation, the app crops the image to the plaque's exact proportions (so 
 
 ---
 
-## Running it on a computer (developers)
+## Run it on your computer or in Codex
+
+Open this project folder in Terminal, or ask Codex to run these commands. Install Node.js 22 or 24 first if your computer does not have Node and npm.
+
+1. Run `npm install` once.
+2. Copy `.env.example` to `.env`. Open that file and fill in `OPENAI_API_KEY` and `APP_PASSWORD`. Keep the key private; never put it in a browser field or commit the file.
+3. Run `npm run build && npm start`, then open [localhost:8080](http://localhost:8080). Keep Terminal open while using the app.
+4. For a no-cost demonstration, run `npm run demo` instead. Images are simulated and spelling checks are skipped. On a fresh data folder, the Heritage example appears automatically; all 11 examples are under **Start from an example**.
+
+In Codex cloud, set `OPENAI_API_KEY` as a runtime environment variable, not a setup-only secret, and allow agent internet access to `api.openai.com`. Never paste the key into source code. Local Codex can use the git-ignored `.env` file.
+
+The **Fix** box distinguishes appearance edits from changes to the order. “Double line border” changes the catalog specification and regenerates the image, proof and vector together. “Change Founder to Chairman” changes exactly that text. Version chips show **edit / spec / wording**, and **Undo order change** restores the previous order without deleting images. Unsupported or ambiguous requests are refused with catalog alternatives.
+
+### Verification commands
 
 ```bash
 npm install
@@ -108,10 +131,16 @@ npm run build && npm start  # http://localhost:8080
 ```
 
 - `npm test` runs the golden tests: the Heritage Foundation job must reproduce the real proof and production file within 2 pt, the production PDF must pass preflight, and more.
-- `npm run samples` writes sample proof and production files to [`output/samples/`](output/samples).
-- `node scripts/screens.mjs` captures screenshots into `docs/screens/` (needs a running server).
-- `python3 scripts/build_proof_template.py` rebuilds the static proof template from the real proof, if the proof design ever changes.
+- `npm run samples` rebuilds every example job in its proof style next to the real proof: see [`output/samples/README.md`](output/samples/README.md).
+- `node scripts/screens.mjs` drives the whole app in a browser (sign in, example jobs, generate, proof, vector PDF) and saves screenshots to `docs/screens/` (needs a running server, demo mode recommended).
+- `python3 scripts/build_proof_template.py` re-cuts the fixed proof parts (disclaimers, mounting diagrams, wordmark and person outlines) from the real proofs, if a proof design ever changes.
 
 Optional system tool: **Poppler** (`pdftocairo`), installed automatically in the Docker image. It reads PDF/.ai uploads and renders proof previews.
+
+For screenshots, install Chromium once with `npx playwright-core install chromium`, start the server in demo mode, then run `BASE=http://localhost:8080 PW=test node scripts/screens.mjs` (use your own team password). The script also verifies the Fix plan, refusal and Undo flow, and refuses to run against live mode. `CHROME` can point to an existing Chromium executable.
+
+For paid live verification, run `BASE=http://localhost:8080 PW=test node scripts/verify-live.mjs`. It creates new verification jobs, streams three concepts for each of the three specified examples, and saves previews and checked PDFs in a new timestamped `output/live/` folder. It never auto-confirms a spelling warning. Image costs are usage-based estimates; planner and spelling-reader calls are additional.
+
+GitHub Actions runs tests, type checking, build and offline samples on Node 22 and 24 for pushes and pull requests. Render's Blueprint waits for passing checks. Use the Docker Blueprint with a persistent disk for production: the free Node service's temporary filesystem is not safe storage for customer jobs. Sites and Vercel are not drop-in hosts for this Express/SQLite/Poppler app.
 
 See [`docs/DECISIONS.md`](docs/DECISIONS.md) for design decisions and what is still unverified.

@@ -1,0 +1,12 @@
+{
+  "id": "32885-raccoon-river",
+  "jobNumber": "32885",
+  "name": "Raccoon River Pet Rescue",
+  "description": "18\" x 24\" bronze with full-color UV photo between text blocks. Description-sheet proof with wall scale",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "imageAfterBlock": 3,
+  "proofStyle": "description",
+  "visualScale": "person",
+  "photo": "photo.png"
+}

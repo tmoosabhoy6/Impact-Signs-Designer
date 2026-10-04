@@ -1,0 +1,10 @@
+{
+  "id": "32240-sax-zim-bog",
+  "jobNumber": "32240",
+  "name": "Friends of Sax-Zim Bog",
+  "description": "8\" x 5\" bronze, four countersunk face screws, custom font (Clarendon Fortune Bold). Description sheet without scale figure",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "proofStyle": "description",
+  "visualScale": "none"
+}

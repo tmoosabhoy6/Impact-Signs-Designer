@@ -11,7 +11,7 @@ import { getCatalog, mustOption } from './catalog.js';
 import { assetLibraryStatus } from './assets.js';
 import { checkPassword, clearSession, issueSession, requireAuth, sessionUser } from './auth.js';
 import {
-  deleteProject, getConcept, getOutput, getProject, listConcepts, listOutputs, listProjects,
+  blankProject, deleteProject, getConcept, getOutput, getProject, listConcepts, listOutputs, listProjects,
   newId, now, projectDir, saveConcept, saveOutput, saveProject, spentToday, db,
 } from './db.js';
 import { parseSpec } from './parse/spec.js';
@@ -19,11 +19,12 @@ import { docxToText, parseWording } from './parse/wording.js';
 import { storeUpload, uploadPath, photoPpi, type UploadKind } from './uploads.js';
 import { PRESETS } from './layout/engine.js';
 import { createExampleJob, listExamples } from './examples.js';
-import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFor, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
+import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFor, matchesSnapshot, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
 import { applyWordingEdits, planInstruction } from './ai/instruct.js';
 import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
 import { PROMPT_FILES, promptVersion, readPrompt } from './ai/prompts.js';
-import { buildProofPdf } from './pdf/proof.js';
+import { buildProof } from './pdf/proofs/index.js';
+import { autoDescription } from './pdf/proofs/description-text.js';
 import { buildProductionPdf } from './pdf/production.js';
 import { preflight } from './pdf/preflight.js';
 import { resolveFont } from './text/fonts.js';
@@ -138,14 +139,11 @@ api.post('/examples/:id', ah(async (req, res) => {
 }));
 
 api.post('/projects', express.json(), (req, res) => {
-  const t = now();
-  const p: Project = {
-    id: newId('p'),
+  const p = blankProject({
     jobNumber: String(req.body?.jobNumber ?? '').trim().slice(0, 40),
     name: String(req.body?.name ?? '').trim().slice(0, 120) || 'Untitled plaque',
-    specText: '', parse: null, spec: null, wordingText: '', wording: null, uploads: {},
-    selectedConceptId: null, logoSlot: 'auto', proofStyle: 'standard', proofDescription: null, createdBy: userName(req), createdAt: t, updatedAt: t,
-  };
+    createdBy: userName(req),
+  });
   saveProject(p);
   res.json({ project: p });
 });
@@ -165,7 +163,7 @@ function projectPayload(p: Project) {
       console.error(e);
     }
   }
-  return { project: p, concepts, outputs, layouts };
+  return { project: p, concepts, outputs, layouts, autoDescription: p.spec ? autoDescription(p.spec, p.wording, { fontStated: !(p.parse?.assumed ?? []).includes('font') }) : null };
 }
 
 api.get('/projects/:id', ah((req, res) => res.json(projectPayload(loadProject(req)))));
@@ -183,9 +181,15 @@ api.patch('/projects/:id', express.json(), ah((req, res) => {
   if (typeof b.name === 'string') p.name = b.name.trim().slice(0, 120);
   if (b.spec) {
     const s = { ...(p.spec ?? b.spec), ...b.spec };
-    for (const [k, g] of [['finish', 'finishes'], ['backgroundColor', 'backgroundColors'], ['backgroundTexture', 'backgroundTextures'], ['border', 'borders'], ['font', 'fonts'], ['imageOption', 'imageOptions'], ['mounting', 'mountings'], ['process', 'processes']] as const) {
+    for (const [k, g] of [['material', 'materials'], ['finish', 'finishes'], ['backgroundColor', 'backgroundColors'], ['backgroundTexture', 'backgroundTextures'], ['border', 'borders'], ['font', 'fonts'], ['imageOption', 'imageOptions'], ['mounting', 'mountings'], ['process', 'processes']] as const) {
       mustOption(g, s[k]);
     }
+    if (s.backgroundColor === 'custom') {
+      const cp = s.customPaint ?? { name: 'Custom color', hex: '#1D2B5E' };
+      s.customPaint = { name: String(cp.name).slice(0, 60), hex: /^#[0-9a-f]{6}$/i.test(cp.hex) ? cp.hex : '#1D2B5E' };
+    }
+    if (s.font === 'custom') s.customFontName = String(s.customFontName ?? 'Custom font').slice(0, 80);
+    for (const k of ['thicknessIn', 'stakeLengthIn'] as const) s[k] = s[k] == null || s[k] === '' ? null : Number(s[k]) || null;
     const { minIn, maxIn } = getCatalog().sizeLimits;
     for (const d of ['widthIn', 'heightIn'] as const) {
       s[d] = Number(s[d]);
@@ -198,6 +202,11 @@ api.patch('/projects/:id', express.json(), ah((req, res) => {
   if (b.wording?.blocks) p.wording = { blocks: b.wording.blocks, notes: p.wording?.notes ?? [] };
   if (['auto', 'top', 'middle', 'bottom'].includes(b.logoSlot)) p.logoSlot = b.logoSlot;
   if (['standard', 'description', 'etched'].includes(b.proofStyle)) p.proofStyle = b.proofStyle;
+  if (['person', 'site', 'none'].includes(b.visualScale)) p.visualScale = b.visualScale;
+  if (['standard', 'photo'].includes(b.disclaimer)) p.disclaimer = b.disclaimer;
+  if (b.proofNote === null || typeof b.proofNote === 'string') p.proofNote = b.proofNote ? String(b.proofNote).slice(0, 400) : null;
+  if (b.imageAfterBlock === null || Number.isInteger(b.imageAfterBlock)) p.imageAfterBlock = b.imageAfterBlock;
+  if (b.siteMountHeightIn === null || (typeof b.siteMountHeightIn === 'number' && b.siteMountHeightIn > 0)) p.siteMountHeightIn = b.siteMountHeightIn;
   if (b.proofDescription === null || typeof b.proofDescription === 'string') p.proofDescription = b.proofDescription ? String(b.proofDescription).slice(0, 2000) : null;
   saveProject(p);
   res.json(projectPayload(p));
@@ -228,7 +237,7 @@ api.post('/projects/:id/wording', upload.single('file'), ah(async (req, res) => 
 api.post('/projects/:id/upload/:kind', upload.single('file'), ah(async (req, res) => {
   let p = loadProject(req);
   const kind = String(req.params.kind) as UploadKind;
-  if (!['photo', 'logo', 'sketch'].includes(kind)) throw new Error('Unknown upload type.');
+  if (!['photo', 'logo', 'sketch', 'site', 'font'].includes(kind)) throw new Error('Unknown upload type.');
   if (!req.file) throw new Error('No file received.');
   if (/\.(pdf|ai|eps)$/i.test(req.file.originalname) && !hasPoppler) throw new Error('PDF/.ai files cannot be read on this computer. Upload a PNG, JPG or SVG.');
   p = await storeUpload(p, kind, req.file.originalname, req.file.buffer);
@@ -325,11 +334,8 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   if (!c.hasImage) throw new Error('Wait for a finished image before editing it.');
   checkLimits(p.id);
   const previous = plan.kind === 'visual' ? undefined : contentSnapshot(p);
-  if (plan.kind === 'visual' && c.snapshot && JSON.stringify(c.snapshot.spec) !== JSON.stringify(p.spec)) {
-    return res.status(409).json({ error: 'Use this version first to restore its plaque options, then apply the visual edit.' });
-  }
-  if (plan.kind === 'visual' && c.snapshot && JSON.stringify(c.snapshot.wording) !== JSON.stringify(p.wording)) {
-    return res.status(409).json({ error: 'Use this version first to restore its wording, then apply the visual edit.' });
+  if (plan.kind === 'visual' && c.snapshot && !matchesSnapshot(p, c.snapshot)) {
+    return res.status(409).json({ error: 'Use this version first to restore its options, wording and files, then apply the visual edit.' });
   }
   if (plan.kind === 'spec') {
     if (!p.spec) throw new Error('Confirm the plaque specification first.');
@@ -340,8 +346,13 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
       p.parse.notes = p.parse.notes.filter((n) => n.kind !== 'assumed' || !(n.field in plan.specPatch));
     }
   } else if (plan.kind === 'wording') {
+    const imageAnchor = p.imageAfterBlock == null ? null : p.wording?.blocks[p.imageAfterBlock]?.id;
     p.wording = applyWordingEdits(p.wording, plan.wordingEdits);
     p.wordingText = p.wording.blocks.map((b) => b.text).join('\n');
+    if (imageAnchor) {
+      const index = p.wording.blocks.findIndex((b) => b.id === imageAnchor);
+      p.imageAfterBlock = index >= 0 ? index : null;
+    }
   }
   if (!p.wording?.blocks.length) throw new Error('Add the customer wording first.');
   if (p.spec?.imageOption !== 'none' && !p.uploads.photo) throw new Error('Upload the photo before requesting this image treatment.');
@@ -358,7 +369,7 @@ api.post('/concepts/:id/undo', express.json(), ah((req, res) => {
   if (!c?.previous || (c.plan?.kind !== 'spec' && c.plan?.kind !== 'wording')) return res.status(422).json({ error: 'This version has no order change to undo.' });
   const p = getProject(c.projectId)!;
   if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) return res.status(409).json({ error: 'Wait for this job’s images to finish before undoing.' });
-  if (c.snapshot && (JSON.stringify(p.spec) !== JSON.stringify(c.snapshot.spec) || JSON.stringify(p.wording) !== JSON.stringify(c.snapshot.wording))) {
+  if (c.snapshot && !matchesSnapshot(p, c.snapshot)) {
     return res.status(409).json({ error: 'The order has changed since this version. Use this version first, then undo its change.' });
   }
   Object.assign(p, structuredClone(c.previous));
@@ -413,13 +424,41 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
   const c = getConcept(String(req.body?.conceptId ?? p.selectedConceptId ?? ''));
   if (!c || c.projectId !== p.id || !c.hasImage) throw new Error('Select one of the generated images first.');
   p = projectForConcept(p, c);
-  if (c.spellcheck && !c.spellcheck.ok && !req.body?.acknowledged) {
-    return res.status(409).json({ error: 'The spelling check found wording differences in this image.', differences: c.spellcheck.differences });
+  if ((!c.spellcheck?.ok || (!config.mockAI && !c.spellcheck.checked)) && req.body?.acknowledged !== true) {
+    return res.status(409).json({ error: c.spellcheck?.checked ? 'The spelling check found wording differences in this image.' : 'This image has not completed a spelling check. Proofread it before confirming.', differences: c.spellcheck?.differences ?? [] });
   }
   p.selectedConceptId = c.id;
   saveProject(p);
-  const pdf = await buildProofPdf({ jobNumber: p.jobNumber || 'draft', spec: p.spec!, plaqueImage: fs.readFileSync(conceptFile(c, 'image.png')) });
-  const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'proof', conceptId: c.id, fileName: `Proof - ${p.jobNumber || 'draft'}.pdf`, preflight: null, createdAt: now() };
+  const layout = layoutFor(p, c.preset);
+  const version = listOutputs(p.id).filter((x) => x.kind === 'proof').length + 1;
+  let productionPdf: Buffer | null = null;
+  if (p.proofStyle === 'etched') {
+    const logoFile = uploadPath(p, 'logo');
+    productionPdf = (
+      await buildProductionPdf({
+        jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout,
+        logoPng: layout.logo && logoFile ? fs.readFileSync(logoFile) : null, customFontFile: uploadPath(p, 'font'),
+      })
+    ).pdf;
+  }
+  const pdf = await buildProof(p.proofStyle, {
+    jobNumber: p.jobNumber || 'draft',
+    version,
+    spec: p.spec!,
+    wording: p.wording,
+    layout,
+    plaqueImage: fs.readFileSync(conceptFile(c, 'image.png')),
+    proofNote: p.proofNote,
+    disclaimer: p.disclaimer,
+    description: p.proofDescription,
+    fontStated: !(p.parse?.assumed ?? []).includes('font'),
+    visualScale: p.visualScale,
+    sitePhoto: uploadPath(p, 'site'),
+    siteMountHeightIn: p.siteMountHeightIn,
+    productionPdf,
+  });
+  const fileName = `Proof - ${p.jobNumber || 'draft'}${version > 1 ? ` v${version}` : ''}.pdf`;
+  const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'proof', conceptId: c.id, fileName, preflight: null, createdAt: now() };
   fs.writeFileSync(outputFile(o), pdf);
   saveOutput(o);
   res.json({ output: o, ...projectPayload(p) });
@@ -436,8 +475,9 @@ api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
   const logoPng = layout.logo && logoFile ? fs.readFileSync(logoFile) : null;
   const result = await buildProductionPdf({
     jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout, logoPng, logoFromVector: p.uploads.logo?.vectorSource,
+    customFontFile: uploadPath(p, 'font'),
   });
-  const checks = await preflight(result.pdf, layout, { logoTraced: !!logoPng, fontLicensed: resolveFont(p.spec!.font).licensed });
+  const checks = await preflight(result.pdf, layout, { logoTraced: !!logoPng, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed });
   const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'production', conceptId: c?.id ?? null, fileName: result.fileName, preflight: checks, createdAt: now() };
   fs.writeFileSync(outputFile(o), result.pdf);
   saveOutput(o);

@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import { projectDir } from './db.js';
 import type { Project } from '../shared/types.js';
 
-export type UploadKind = 'photo' | 'logo' | 'sketch';
+export type UploadKind = 'photo' | 'logo' | 'sketch' | 'site' | 'font';
 
 const VECTOR_EXT = /\.(svg|pdf|ai|eps)$/i;
 
@@ -32,6 +32,11 @@ export async function storeUpload(project: Project, kind: UploadKind, originalNa
   const origFile = path.join(dir, `${kind}-${stamp}-original${ext}`);
   fs.writeFileSync(origFile, data);
 
+  if (kind === 'font') {
+    if (!/\.(otf|ttf|woff)$/i.test(ext)) throw new Error('Font files must be .otf, .ttf or .woff.');
+    return { ...project, uploads: { ...project.uploads, font: { file: path.basename(origFile), name: originalName } } };
+  }
+
   let png: Buffer;
   if (/\.(pdf|ai|eps)$/i.test(ext)) png = pdfToPng(origFile, kind === 'logo' ? 600 : 200);
   else if (ext === '.svg') png = await sharp(data, { density: 600 }).png().toBuffer();
@@ -48,6 +53,7 @@ export async function storeUpload(project: Project, kind: UploadKind, originalNa
   if (kind === 'photo') uploads.photo = { file: pngName, name: originalName, width: meta.width ?? 0, height: meta.height ?? 0 };
   if (kind === 'logo') uploads.logo = { file: pngName, name: originalName, width: meta.width ?? 0, height: meta.height ?? 0, vectorSource: VECTOR_EXT.test(ext) };
   if (kind === 'sketch') uploads.sketch = { file: pngName, name: originalName };
+  if (kind === 'site') uploads.site = { file: pngName, name: originalName, width: meta.width ?? 0, height: meta.height ?? 0 };
   return { ...project, uploads };
 }
 

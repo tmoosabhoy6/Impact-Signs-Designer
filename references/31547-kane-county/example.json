@@ -1,0 +1,9 @@
+{
+  "id": "31547-kane-county",
+  "jobNumber": "31547",
+  "name": "Forest Preserve District of Kane County",
+  "description": "36\" x 24\" bronze donor plaque: ruled section headings and 3- and 4-column name lists. Standard proof",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "proofStyle": "standard"
+}

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { api } from '../server/routes';
 import { config } from '../server/config';
 import { createExampleJob } from '../server/examples';
-import { getConcept, getProject, listConcepts, newId, saveConcept, spentToday } from '../server/db';
+import { getConcept, getProject, listConcepts, newId, saveConcept, saveProject, spentToday } from '../server/db';
 import { newConceptRecord } from '../server/ai/pipeline';
 import type { ConceptRecord, Project } from '../shared/types';
 
@@ -87,5 +87,25 @@ describe('instruction routes in demo mode', () => {
     await (await post(`/concepts/${first.id}/fix`, { instruction: 'black paint' })).text();
     expect((await post(`/concepts/${first.id}/undo`)).status).toBe(409);
     expect(getProject(p.id)?.spec?.backgroundColor).toBe('black');
+  });
+  it('preserves the image anchor when inserting a wording block and restores it on undo', async () => {
+    const { p, c } = await fixture();
+    p.imageAfterBlock = 0;
+    saveProject(p);
+    await (await post(`/concepts/${c.id}/fix`, { instruction: 'add a line "Recognition" at the top' })).text();
+    expect(getProject(p.id)?.imageAfterBlock).toBe(1);
+    const version = listConcepts(p.id).at(-1)!;
+    await post(`/concepts/${version.id}/undo`);
+    expect(getProject(p.id)?.imageAfterBlock).toBe(0);
+  });
+  it('does not silently approve an unchecked live proof', async () => {
+    const { p, c } = await fixture();
+    const mock = config.mockAI;
+    config.mockAI = false;
+    try {
+      const response = await post(`/projects/${p.id}/proof`, { conceptId: c.id });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ error: expect.stringContaining('not completed a spelling check') });
+    } finally { config.mockAI = mock; }
   });
 });

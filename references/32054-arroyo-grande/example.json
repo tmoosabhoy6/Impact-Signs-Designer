@@ -1,0 +1,9 @@
+{
+  "id": "32054-arroyo-grande",
+  "jobNumber": "32054",
+  "name": "City of Arroyo Grande",
+  "description": "6\" x 2\" bronze, two lines of capitals. Standard proof",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "proofStyle": "standard"
+}

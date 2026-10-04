@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileText, ImagePlus, PenLine, Trash2, Upload } from 'lucide-react';
+import { FileText, ImagePlus, PenLine, Trash2, Type, Upload } from 'lucide-react';
 import { api, type ProjectPayload } from '../api';
-import { assetUrl, SPEC_FIELDS, type Catalog } from '../catalog';
+import { assetUrl, SPEC_FIELDS, type Catalog, type CatalogOption } from '../catalog';
 import { Button, Chip, Notice, Panel } from './ui';
-import type { PlaqueSpec, WordingBlock, WordingRole } from '../../../shared/types';
+import type { PlaqueSpec, TextStyle, WordingBlock, WordingRole } from '../../../shared/types';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void };
 
@@ -13,6 +13,8 @@ Satin finish with raised lettering and border
 Recessed, paint-filled background (Dark Oxide or Leatherette)
 relief image
 Blind mounting`;
+
+export { UploadSlot };
 
 export function OrderPanel(props: Props) {
   return (
@@ -92,8 +94,10 @@ function SpecSection({ data, catalog, onChange }: Props) {
               </dd>
             </div>
             {SPEC_FIELDS.map((f) => {
-              const options = catalog.catalog[f.group];
-              const value = p.spec![f.key];
+              const options = (catalog.catalog[f.group] as CatalogOption[]).filter(
+                (o) => f.group !== 'finishes' || (o.materials ?? ['bronze']).includes(p.spec!.material),
+              );
+              const value = p.spec![f.key] as string;
               const opt = options.find((o) => o.id === value);
               return (
                 <div key={f.key} className="flex items-center py-1.5">
@@ -110,7 +114,15 @@ function SpecSection({ data, catalog, onChange }: Props) {
                       aria-label={f.label}
                       className={`h-8 max-w-[190px] rounded-[3px] border bg-white px-1.5 text-[13px] outline-none focus:border-navy ${assumed.has(f.key) ? 'border-amber/50' : 'border-line'}`}
                       value={value}
-                      onChange={(e) => save({ [f.key]: e.target.value } as Partial<PlaqueSpec>)}
+                      onChange={(e) => {
+                        const patch = { [f.key]: e.target.value } as Partial<PlaqueSpec>;
+                        // Switching material also switches to a finish made for it.
+                        if (f.key === 'material') {
+                          const fin = catalog.catalog.finishes.find((o) => (o.materials ?? ['bronze']).includes(e.target.value));
+                          if (fin) patch.finish = fin.id;
+                        }
+                        save(patch);
+                      }}
                     >
                       {options.map((o) => (
                         <option key={o.id} value={o.id}>
@@ -123,7 +135,54 @@ function SpecSection({ data, catalog, onChange }: Props) {
                 </div>
               );
             })}
+            {p.spec.backgroundColor === 'custom' && (
+              <Row label="Custom paint">
+                <TextInput label="Custom paint name" value={p.spec.customPaint?.name ?? ''} placeholder="Dark Blue 2050" onCommit={(v) => save({ customPaint: { name: v, hex: p.spec!.customPaint?.hex ?? '#1D2B5E' } })} />
+                <input
+                  type="color"
+                  aria-label="Custom paint color"
+                  className="h-8 w-9 cursor-pointer rounded-[3px] border border-line bg-white p-0.5"
+                  value={p.spec.customPaint?.hex ?? '#1D2B5E'}
+                  onChange={(e) => save({ customPaint: { name: p.spec!.customPaint?.name ?? 'Custom color', hex: e.target.value } })}
+                />
+              </Row>
+            )}
+            {p.spec.font === 'custom' && (
+              <Row label="Custom font">
+                <TextInput label="Custom font name" value={p.spec.customFontName ?? ''} placeholder="Clarendon Fortune Bold" onCommit={(v) => save({ customFontName: v })} />
+              </Row>
+            )}
+            {p.spec.mounting === 'garden-stake' && (
+              <Row label="Stake length">
+                <SizeInput label="Garden stake length in inches" value={p.spec.stakeLengthIn ?? 24} onCommit={(v) => save({ stakeLengthIn: v })} />
+                <span className="font-mono text-[12px] text-muted">in</span>
+              </Row>
+            )}
+            <Row label="Thickness (optional)">
+              <TextInput
+                label="Plate thickness in inches"
+                value={p.spec.thicknessIn ? String(p.spec.thicknessIn) : ''}
+                placeholder="0.25"
+                width="w-16"
+                onCommit={(v) => save({ thicknessIn: v ? Number(v) || null : null })}
+              />
+              <span className="font-mono text-[12px] text-muted">in</span>
+            </Row>
           </dl>
+          {p.spec.font === 'custom' && (
+            <div className="mt-2">
+              <UploadSlot
+                kind="font"
+                label="Font file"
+                hint="The customer's font (.otf / .ttf / .woff), used for the vector file and the layout."
+                accept=".otf,.ttf,.woff"
+                file={p.uploads.font}
+                data={data}
+                onChange={onChange}
+                noPreview
+              />
+            </div>
+          )}
           {(p.parse?.notes ?? []).filter((n) => n.kind !== 'assumed').length > 0 && (
             <ul className="mt-3 space-y-1.5">
               {p.parse!.notes
@@ -138,6 +197,35 @@ function SpecSection({ data, catalog, onChange }: Props) {
         </div>
       )}
     </Panel>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center py-1.5">
+      <dt className="text-graphite">{label}</dt>
+      <span className="leader" />
+      <dd className="flex items-center gap-1.5">{children}</dd>
+    </div>
+  );
+}
+
+function TextInput({ value, onCommit, label, placeholder, width = 'w-40' }: { value: string; onCommit: (v: string) => void; label: string; placeholder?: string; width?: string }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const commit = () => {
+    if (v.trim() !== value) onCommit(v.trim());
+  };
+  return (
+    <input
+      aria-label={label}
+      placeholder={placeholder}
+      className={`h-8 ${width} rounded-[3px] border border-line px-2 text-[13px] outline-none focus:border-navy`}
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && commit()}
+    />
   );
 }
 
@@ -162,6 +250,82 @@ function SizeInput({ value, onCommit, label }: { value: number; onCommit: (v: nu
   );
 }
 
+/** Where the photo sits among the lines; arrows move it up or down. */
+function ImageMarker({ index, count, onMove }: { index: number; count: number; onMove: (to: number | null) => void }) {
+  return (
+    <div className="my-1 flex items-center gap-2 rounded-[3px] border border-dashed border-bronze bg-bronze/10 px-2 py-1 text-[12px] text-[#7a5a32]">
+      <ImagePlus className="h-3.5 w-3.5" />
+      <span className="flex-1">Photo goes here</span>
+      <button className="rounded px-1.5 hover:bg-bronze/20 disabled:opacity-30" disabled={index < 0} onClick={() => onMove(index - 1 < 0 ? null : index - 1)} aria-label="Move the photo up">
+        ↑
+      </button>
+      <button className="rounded px-1.5 hover:bg-bronze/20 disabled:opacity-30" disabled={index >= count - 1} onClick={() => onMove(index + 1)} aria-label="Move the photo down">
+        ↓
+      </button>
+    </div>
+  );
+}
+
+/** Per-line type controls: italic, bold, small caps, size, font, columns, rule. */
+function StyleBar({ style, catalog, onChange }: { style: TextStyle; catalog: Catalog; onChange: (s: TextStyle) => void }) {
+  const toggle = (k: 'italic' | 'bold' | 'smallCaps' | 'ruleBelow') => onChange({ ...style, [k]: !style[k] || undefined });
+  const btn = (on: boolean) =>
+    `h-6 min-w-6 rounded-[3px] border px-1.5 text-[11px] ${on ? 'border-navy bg-navy text-white' : 'border-line bg-white text-graphite hover:border-navy/50'}`;
+  const size = style.size ?? 1;
+  return (
+    <div className="mt-1 mb-2 ml-[100px] flex flex-wrap items-center gap-1">
+      <button className={`${btn(!!style.italic)} italic`} onClick={() => toggle('italic')} title="Italic" aria-pressed={!!style.italic}>
+        I
+      </button>
+      <button className={`${btn(!!style.bold)} font-bold`} onClick={() => toggle('bold')} title="Bold" aria-pressed={!!style.bold}>
+        B
+      </button>
+      <button className={btn(!!style.smallCaps)} style={{ fontVariant: 'small-caps' }} onClick={() => toggle('smallCaps')} title="Small capitals" aria-pressed={!!style.smallCaps}>
+        Sc
+      </button>
+      <span className="mx-1 h-4 w-px bg-line" />
+      <button className={btn(false)} onClick={() => onChange({ ...style, size: Math.max(0.5, +(size - 0.1).toFixed(2)) })} title="Smaller" aria-label="Smaller">
+        A−
+      </button>
+      <span className="w-9 text-center font-mono text-[11px] text-muted">{Math.round(size * 100)}%</span>
+      <button className={btn(false)} onClick={() => onChange({ ...style, size: Math.min(2.5, +(size + 0.1).toFixed(2)) })} title="Larger" aria-label="Larger">
+        A+
+      </button>
+      <span className="mx-1 h-4 w-px bg-line" />
+      <select
+        aria-label="Columns"
+        className="h-6 rounded-[3px] border border-line bg-white px-1 text-[11px]"
+        value={style.columns ?? 1}
+        onChange={(e) => onChange({ ...style, columns: Number(e.target.value) > 1 ? Number(e.target.value) : undefined, align: Number(e.target.value) > 1 ? style.align ?? 'left' : style.align })}
+        title="Set this block's lines in columns (donor lists)"
+      >
+        {[1, 2, 3, 4].map((n) => (
+          <option key={n} value={n}>
+            {n === 1 ? '1 column' : `${n} columns`}
+          </option>
+        ))}
+      </select>
+      <button className={btn(!!style.ruleBelow)} onClick={() => toggle('ruleBelow')} title="Raised line under this heading" aria-pressed={!!style.ruleBelow}>
+        ― rule
+      </button>
+      <select
+        aria-label="Font for this line"
+        className="h-6 max-w-[110px] rounded-[3px] border border-line bg-white px-1 text-[11px]"
+        value={style.font ?? ''}
+        onChange={(e) => onChange({ ...style, font: e.target.value || undefined })}
+        title="Font for this line only"
+      >
+        <option value="">Plaque font</option>
+        {catalog.catalog.fonts.filter((f) => f.id !== 'custom').map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 const ROLES: { id: WordingRole; label: string }[] = [
   { id: 'headline', label: 'Headline' },
   { id: 'subhead', label: 'Subhead' },
@@ -169,8 +333,10 @@ const ROLES: { id: WordingRole; label: string }[] = [
   { id: 'footer', label: 'Footer' },
 ];
 
-function WordingSection({ data, onChange }: Props) {
+function WordingSection({ data, catalog, onChange }: Props) {
   const p = data.project;
+  const hasImage = !!p.spec && p.spec.imageOption !== 'none';
+  const setImageAfter = async (to: number | null) => onChange(await api.patch<ProjectPayload>(`/projects/${p.id}`, { imageAfterBlock: to }));
   const [text, setText] = useState(p.wordingText);
   const [blocks, setBlocks] = useState<WordingBlock[]>(p.wording?.blocks ?? []);
   const [busy, setBusy] = useState(false);
@@ -232,27 +398,37 @@ function WordingSection({ data, onChange }: Props) {
       {blocks.length > 0 && (
         <div className="mt-4 space-y-2">
           <div className="label">Lines on the plaque, top to bottom</div>
+          {hasImage && p.imageAfterBlock == null && <ImageMarker onMove={(to) => setImageAfter(to)} index={-1} count={blocks.length} />}
           {blocks.map((b, i) => (
-            <div key={b.id} className="flex gap-2">
-              <select
-                aria-label="Line role"
-                value={b.role}
-                className="h-8 w-[92px] shrink-0 rounded-[3px] border border-line bg-white px-1 text-[12px] outline-none focus:border-navy"
-                onChange={(e) => setBlocks(blocks.map((x, j) => (j === i ? { ...x, role: e.target.value as WordingRole } : x)))}
-              >
-                {ROLES.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-              <textarea
-                aria-label={`Line ${i + 1}`}
-                value={b.text}
-                rows={Math.min(5, Math.max(1, Math.ceil(b.text.length / 42)))}
-                className={`w-full resize-none rounded-[3px] border border-line px-2 py-1 text-[13px] leading-snug outline-none focus:border-navy ${b.role === 'headline' ? 'font-semibold' : ''}`}
-                onChange={(e) => setBlocks(blocks.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
+            <div key={b.id}>
+              <div className="flex gap-2">
+                <select
+                  aria-label="Line role"
+                  value={b.role}
+                  className="h-8 w-[92px] shrink-0 rounded-[3px] border border-line bg-white px-1 text-[12px] outline-none focus:border-navy"
+                  onChange={(e) => setBlocks(blocks.map((x, j) => (j === i ? { ...x, role: e.target.value as WordingRole } : x)))}
+                >
+                  {ROLES.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  aria-label={`Line ${i + 1}`}
+                  value={b.text}
+                  rows={Math.min(6, Math.max(1, b.text.split('\n').length, Math.ceil(b.text.length / 42)))}
+                  className={`w-full resize-none rounded-[3px] border border-line px-2 py-1 text-[13px] leading-snug outline-none focus:border-navy ${b.style?.bold || b.role === 'headline' ? 'font-semibold' : ''} ${b.style?.italic ? 'italic' : ''}`}
+                  style={b.style?.smallCaps ? { fontVariant: 'small-caps' } : undefined}
+                  onChange={(e) => setBlocks(blocks.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
+                />
+              </div>
+              <StyleBar
+                style={b.style ?? {}}
+                catalog={catalog}
+                onChange={(style) => setBlocks(blocks.map((x, j) => (j === i ? { ...x, style } : x)))}
               />
+              {hasImage && p.imageAfterBlock === i && <ImageMarker onMove={(to) => setImageAfter(to)} index={i} count={blocks.length} />}
             </div>
           ))}
           {dirty && (
@@ -325,9 +501,10 @@ function FilesSection({ data, onChange }: Props) {
 }
 
 function UploadSlot({
-  kind, label, hint, accept, file, data, onChange, extra,
+  kind, label, hint, accept, file, data, onChange, extra, noPreview,
 }: {
-  kind: 'photo' | 'logo' | 'sketch';
+  kind: 'photo' | 'logo' | 'sketch' | 'site' | 'font';
+  noPreview?: boolean;
   label: string;
   hint: string;
   accept: string;
@@ -352,7 +529,7 @@ function UploadSlot({
       setBusy(false);
     }
   };
-  const Icon = kind === 'sketch' ? PenLine : ImagePlus;
+  const Icon = kind === 'sketch' ? PenLine : kind === 'font' ? Type : ImagePlus;
   return (
     <div>
       <div
@@ -370,7 +547,7 @@ function UploadSlot({
         className={`flex items-center gap-3 rounded-[3px] border p-2 transition-colors ${drag ? 'border-navy bg-navy-50' : 'border-line'} ${file ? '' : 'border-dashed'}`}
       >
         <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[2px] bg-paper">
-          {file ? <img src={`/api/projects/${p.id}/files/${kind}?f=${file.file}`} alt={label} className="h-full w-full object-contain" /> : <Icon className="h-5 w-5 text-muted" />}
+          {file && !noPreview ? <img src={`/api/projects/${p.id}/files/${kind}?f=${file.file}`} alt={label} className="h-full w-full object-contain" /> : <Icon className="h-5 w-5 text-muted" />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-display text-[14px] font-semibold uppercase tracking-wide">{label}</div>

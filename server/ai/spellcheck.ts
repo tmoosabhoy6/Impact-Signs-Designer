@@ -14,12 +14,16 @@ const norm = (s: string) =>
     .trim();
 
 /** Word-level diff (longest common subsequence). Returns the mismatched stretches. */
-export function compareWording(expectedLines: string[], seenLines: string[]): SpellcheckResult['differences'] {
+export function compareWording(expectedLines: string[], seenLines: string[], smallCapsLines: boolean[] = []): SpellcheckResult['differences'] {
   const a = norm(expectedLines.join(' ')).split(' ').filter(Boolean);
   const b = norm(seenLines.join(' ')).split(' ').filter(Boolean);
+  // Small-cap glyphs are deliberately uppercase, while stored customer wording
+  // remains verbatim. Only those styled tokens allow OCR capitalization changes.
+  const flexible = expectedLines.flatMap((line, index) => norm(line).split(' ').filter(Boolean).map(() => !!smallCapsLines[index]));
+  const same = (i: number, j: number) => a[i] === b[j] || (flexible[i] && a[i].toUpperCase() === b[j].toUpperCase());
   const dp = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
   for (let i = a.length - 1; i >= 0; i--)
-    for (let j = b.length - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    for (let j = b.length - 1; j >= 0; j--) dp[i][j] = same(i, j) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
   const diffs: SpellcheckResult['differences'] = [];
   let i = 0;
   let j = 0;
@@ -31,7 +35,7 @@ export function compareWording(expectedLines: string[], seenLines: string[]): Sp
     seen = [];
   };
   while (i < a.length || j < b.length) {
-    if (i < a.length && j < b.length && a[i] === b[j]) {
+    if (i < a.length && j < b.length && same(i, j)) {
       flush();
       i++;
       j++;
@@ -42,7 +46,7 @@ export function compareWording(expectedLines: string[], seenLines: string[]): Sp
   return diffs;
 }
 
-export async function spellcheckImage(png: Buffer, expectedLines: string[]): Promise<SpellcheckResult> {
+export async function spellcheckImage(png: Buffer, expectedLines: string[], smallCapsLines: boolean[] = []): Promise<SpellcheckResult> {
   if (!expectedLines.length) return { ok: true, checked: false, differences: [], message: 'No text to check.' };
   if (config.mockAI || !config.openaiKey) {
     return { ok: true, checked: false, differences: [], message: 'Spelling check skipped (demo mode). Proofread the image yourself.' };
@@ -50,6 +54,7 @@ export async function spellcheckImage(png: Buffer, expectedLines: string[]): Pro
   try {
     const res = await openai().responses.create({
       model: config.visionModel,
+      store: false,
       input: [
         {
           role: 'user',
@@ -63,7 +68,7 @@ export async function spellcheckImage(png: Buffer, expectedLines: string[]): Pro
     });
     const parsed = JSON.parse(res.output_text || '{}') as { lines?: string[] };
     const seen = Array.isArray(parsed.lines) ? parsed.lines.map(String) : [];
-    const differences = compareWording(expectedLines, seen);
+    const differences = compareWording(expectedLines, seen, smallCapsLines);
     return {
       ok: differences.length === 0,
       checked: true,

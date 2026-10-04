@@ -1,0 +1,30 @@
+[
+  {
+    "role": "subhead",
+    "text": "City of Santa Barbara",
+    "style": {
+      "bold": true
+    }
+  },
+  {
+    "role": "headline",
+    "text": "Structure of Merit",
+    "style": {
+      "smallCaps": true
+    }
+  },
+  {
+    "role": "subhead",
+    "text": "Constructed 1930",
+    "style": {
+      "smallCaps": true
+    }
+  },
+  {
+    "role": "subhead",
+    "text": "Designated\nAugust 13, 2025",
+    "style": {
+      "bold": true
+    }
+  }
+]
