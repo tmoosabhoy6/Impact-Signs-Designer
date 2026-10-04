@@ -1,0 +1,40 @@
+[
+  {
+    "label": "Page size",
+    "ok": true,
+    "detail": "864.0 x 1296.0 pt (plaque 12\" x 18\" at 72 pt/in)"
+  },
+  {
+    "label": "No fonts (all text outlined)",
+    "ok": true,
+    "detail": "All text is vector outlines"
+  },
+  {
+    "label": "No raster images",
+    "ok": true,
+    "detail": "100% vector"
+  },
+  {
+    "label": "One ink (#231F20 + white)",
+    "ok": true,
+    "detail": "Only rich black #231F20 (raised) and white (recessed)"
+  },
+  {
+    "label": "Letter heights",
+    "ok": true,
+    "detail": "All lines meet the 3/8\" (mixed case) / 1/4\" (all caps) minimum",
+    "warnOnly": true
+  },
+  {
+    "label": "Font",
+    "ok": false,
+    "detail": "Open stand-in used. Add the licensed font to brand-assets/fonts/ for exact letterforms.",
+    "warnOnly": true
+  },
+  {
+    "label": "Border geometry",
+    "ok": true,
+    "detail": "Matches measured production files",
+    "warnOnly": true
+  }
+]

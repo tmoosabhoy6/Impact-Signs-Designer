@@ -1,0 +1,36 @@
+# One-click deploy on Render.com: New > Blueprint > pick this repository.
+# Render asks for the two secret values (OPENAI_API_KEY, APP_PASSWORD) during setup.
+services:
+  - type: web
+    name: plaque-proof-studio
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      name: studio-data
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: OPENAI_IMAGE_MODEL
+        value: gpt-image-2.5-sunburst-2026-09-08
+      - key: OPENAI_VISION_MODEL
+        value: gpt-5.4-mini
+      - key: IMAGE_QUALITY
+        value: high
+      - key: IMAGE_LONG_EDGE
+        value: "1536"
+      - key: MOCK_AI
+        value: "0"
+      - key: DATA_DIR
+        value: /var/data
+      - key: MAX_IMAGE_CALLS_PER_PROJECT
+        value: "40"
+      - key: DAILY_BUDGET_USD
+        value: "40"

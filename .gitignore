@@ -8,3 +8,4 @@ data-store/
 .DS_Store
 coverage/
 __pycache__/
+data-store-test/

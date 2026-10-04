@@ -1,0 +1,103 @@
+@import 'tailwindcss';
+@import '@fontsource/barlow/400.css';
+@import '@fontsource/barlow/500.css';
+@import '@fontsource/barlow/600.css';
+@import '@fontsource/barlow-semi-condensed/500.css';
+@import '@fontsource/barlow-semi-condensed/600.css';
+@import '@fontsource/barlow-semi-condensed/700.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/* Impact Signs brand: navy from the logo, red and ink from the customer proof sheet. */
+@theme {
+  --color-navy: #2e3092;
+  --color-navy-700: #252774;
+  --color-navy-50: #eef0fa;
+  --color-signal: #ed1c24;
+  --color-dim: #ec2128;
+  --color-ink: #231f20;
+  --color-graphite: #3b3b40;
+  --color-muted: #6b6b73;
+  --color-line: #dcdde3;
+  --color-paper: #f5f6f8;
+  --color-panel: #ffffff;
+  --color-stage: #1d1e22;
+  --color-stage-2: #26272c;
+  --color-bronze: #c49a6c;
+  --color-amber: #b26a00;
+  --color-amber-50: #fff4e0;
+  --color-ok: #1f7a4d;
+  --color-ok-50: #e7f5ee;
+  --font-sans: 'Barlow', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Barlow Semi Condensed', 'Barlow', ui-sans-serif, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 2px;
+}
+
+.label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Spec sheet rows: label .......... value, like an engineering datasheet */
+.leader {
+  flex: 1;
+  border-bottom: 1px dotted var(--color-line);
+  margin: 0 0.5rem 0.35rem;
+  min-width: 1rem;
+}
+
+.stage {
+  background-color: var(--color-stage);
+  background-image: radial-gradient(ellipse 70% 55% at 50% 35%, #2c2d33 0%, var(--color-stage) 70%);
+}
+
+.plaque-shadow {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 18px 40px -12px rgba(0, 0, 0, 0.65),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes sheen {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, #2a2b30 0%, #34353b 50%, #2a2b30 100%);
+  background-size: 200% 100%;
+  animation: sheen 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
