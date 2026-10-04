@@ -19,6 +19,7 @@ import { docxToText, parseWording } from './parse/wording.js';
 import { storeUpload, uploadPath, photoPpi, type UploadKind } from './uploads.js';
 import { PRESETS } from './layout/engine.js';
 import { createExampleJob, listExamples } from './examples.js';
+import { upscaleRouter } from './upscale-routes.js';
 import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFor, matchesSnapshot, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
 import { applyWordingEdits, planInstruction } from './ai/instruct.js';
 import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
@@ -117,6 +118,9 @@ api.post('/health/test-image', genLimiter, ah(async (_req, res) => {
 api.get('/catalog', (_req, res) => res.json({ catalog: getCatalog(), presets: PRESETS.map(({ id, label, description }) => ({ id, label, description })) }));
 api.get('/admin/assets', (_req, res) => res.json({ assets: assetLibraryStatus() }));
 api.get('/admin/prompts', (_req, res) => res.json({ version: promptVersion(), files: PROMPT_FILES.map((f) => ({ name: f, text: readPrompt(f) })) }));
+
+// ---------- AI Upscaler (separate from jobs) ----------
+api.use('/upscales', upscaleRouter);
 
 // ---------- Projects ----------
 api.get('/projects', (_req, res) => {

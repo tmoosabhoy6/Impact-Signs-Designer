@@ -7,6 +7,7 @@ export function Logo({ className = 'h-6' }: { className?: string }) {
 }
 
 export function TopBar({ me, center, right }: { me: Me; center?: ReactNode; right?: ReactNode }) {
+  const onUpscaler = window.location.pathname.startsWith('/upscaler');
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white">
       <div className="flex h-14 items-center gap-4 px-4 md:px-5">
@@ -21,6 +22,19 @@ export function TopBar({ me, center, right }: { me: Me; center?: ReactNode; righ
           <Logo />
           <span className="hidden h-5 w-px bg-line sm:block" />
           <span className="hidden font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-ink sm:block">Plaque Proof Studio</span>
+        </a>
+        <a
+          href="/upscaler"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('/upscaler');
+          }}
+          aria-current={onUpscaler ? 'page' : undefined}
+          className={`${center ? 'hidden sm:flex' : 'flex'} h-14 shrink-0 items-center border-b-[3px] px-1 font-display text-[13px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[14px] ${
+            onUpscaler ? 'border-signal text-navy' : 'border-transparent text-graphite hover:text-navy'
+          }`}
+        >
+          AI Upscaler
         </a>
         <div className="min-w-0 flex-1">{center}</div>
         <div className="flex shrink-0 items-center gap-3 text-[13px]">

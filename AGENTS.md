@@ -55,6 +55,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Production PDF | `server/pdf/production.ts`, `server/pdf/trace.ts` (logo → vector), `server/pdf/preflight.ts` |
 | API | `server/routes.ts` (generation streams as Server-Sent Events) |
 | Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx`, `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx` |
+| AI Upscaler | `server/ai/upscale.ts` (prompt, sizing, fidelity check, tone lock), `server/upscale-routes.ts` (`/api/upscales`), `shared/upscale.ts`, `client/src/pages/Upscaler.tsx`; files in `DATA_DIR/upscales/<id>/`. Independent of jobs and the layout engine. |
 | Examples | `references/<job>/example.json` + `server/examples.ts` (tests, samples and scripts only; not shown in the app, never seeded) |
 | Tests | `tests/golden.test.ts` |
 

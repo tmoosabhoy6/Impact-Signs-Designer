@@ -4,6 +4,7 @@ import { Login } from './pages/Login';
 import { Jobs } from './pages/Jobs';
 import { Workspace } from './pages/Workspace';
 import { Admin } from './pages/Admin';
+import { Upscaler } from './pages/Upscaler';
 import { Spinner } from './components/ui';
 
 export interface Me {
@@ -46,5 +47,6 @@ export function App() {
   const job = path.match(/^\/jobs\/([a-z]+_[a-f0-9]+)/);
   if (job) return <Workspace key={job[1]} projectId={job[1]} me={me} />;
   if (path.startsWith('/admin')) return <Admin me={me} />;
+  if (path.startsWith('/upscaler')) return <Upscaler me={me} />;
   return <Jobs me={me} />;
 }

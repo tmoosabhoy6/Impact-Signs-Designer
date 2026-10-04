@@ -38,6 +38,17 @@ Impact Signs' internal tool for cast bronze plaques. It takes an order and produ
 
 Nothing is ever overwritten: every image, proof and production file is kept as its own version.
 
+### AI Upscaler
+
+The **AI Upscaler** tab, next to **Plaque Proof Studio** at the top, enlarges a low-resolution image just enough to be usable, without changing it. It is separate from jobs.
+
+1. Drop in or choose an image (PNG, JPG, WebP, TIFF or GIF, up to 30 MB).
+2. Pick **720p** or **1080p**. The short side becomes 720 or 1080 px and the proportions stay the same. Pick the smallest size that works: the less the image is enlarged, the less the AI has to fill in. Images that are already that size are refused, at no cost.
+3. Click **Upscale image** (about 30 to 90 seconds). The original and the upscale appear side by side with a **% match** score. The score comes from shrinking the upscale back to the original size and comparing them.
+4. Download the **upscaled PNG**, or the **standard upscale (no AI)**: a plain enlargement with nothing added. Use the standard one if the match warning says the AI changed something.
+
+How it stays faithful: the image model (`OPENAI_IMAGE_MODEL`, the same one used for concepts) gets a Lanczos enlargement of the original, high input fidelity, and a prompt that forbids any change. If the result still lines up with the original, the original's broad tones and colors are locked back in, so only fine detail comes from the AI. Transparent images keep their own transparency. Upscales count toward `DAILY_BUDGET_USD`, are listed under **Recent upscales**, and can be deleted there.
+
 ---
 
 ## Getting it online on Render.com (one time, about 10 minutes)
