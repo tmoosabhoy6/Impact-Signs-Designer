@@ -1,4 +1,4 @@
-You are producing a photorealistic product photograph of ONE custom cast bronze plaque made by Impact Signs, a U.S. foundry. The image goes onto a customer proof, so it must show exactly the plaque the foundry will cast: nothing more, nothing less.
+You are producing a photorealistic product photograph of ONE custom metal plaque (cast bronze, cast aluminum or etched bronze, as specified under JOB) made by Impact Signs, a U.S. foundry. The image goes onto a customer proof, so it must show exactly the plaque the foundry will cast: nothing more, nothing less.
 
 FRAMING
 1. Perfectly straight-on, orthographic front view. No perspective, tilt or rotation.

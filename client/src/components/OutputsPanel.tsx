@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, Download, ExternalLink, FileCheck2, FileCog, AlertTriangle, XCircle } from 'lucide-react';
 import { api, ApiError, conceptUrl, type ProjectPayload } from '../api';
 import { assetUrl, type Catalog } from '../catalog';
 import { Button, Notice, Panel } from './ui';
+import { UploadSlot } from './OrderPanel';
 import type { OutputRecord } from '../../../shared/types';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void };
@@ -74,6 +75,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
         ) : (
           <p className="text-[13px] text-muted">Choose “Use this one” under a concept to put it on the proof.</p>
         )}
+        <ProofSettings data={data} catalog={catalog} onChange={onChange} />
         <Button className="mt-3 w-full" disabled={!selected} busy={busy === 'proof'} onClick={() => makeProof(false)}>
           <FileCheck2 className="h-4 w-4" /> Create proof PDF
         </Button>
@@ -127,6 +129,110 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
         )}
         {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
       </Panel>
+    </div>
+  );
+}
+
+function ProofSettings({ data, catalog, onChange }: Props) {
+  const p = data.project;
+  const [desc, setDesc] = useState(p.proofDescription ?? '');
+  const [note, setNote] = useState(p.proofNote ?? '');
+  const [error, setError] = useState('');
+  useEffect(() => setDesc(p.proofDescription ?? ''), [p.proofDescription]);
+  useEffect(() => setNote(p.proofNote ?? ''), [p.proofNote]);
+  const save = async (patch: Record<string, unknown>) => {
+    setError('');
+    try {
+      onChange(await api.patch<ProjectPayload>(`/projects/${p.id}`, patch));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  const style = catalog.catalog.proofStyles.find((s) => s.id === p.proofStyle);
+  const wallMount = !!p.spec && catalog.catalog.mountings.find((m) => m.id === p.spec!.mounting)?.scale !== 'ground';
+  const sel = 'h-8 w-full rounded-[3px] border border-line bg-white px-1.5 text-[13px] outline-none focus:border-navy';
+  return (
+    <div className="mt-4 space-y-3 border-t border-line pt-3">
+      <label className="block">
+        <span className="label">Proof style</span>
+        <select className={`mt-1 ${sel}`} value={p.proofStyle} onChange={(e) => save({ proofStyle: e.target.value })}>
+          {catalog.catalog.proofStyles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+        {style && <span className="mt-1 block text-[12px] leading-snug text-muted">{style.description}</span>}
+      </label>
+
+      {p.proofStyle === 'description' && (
+        <>
+          <label className="block">
+            <span className="label">Scale panel</span>
+            <select className={`mt-1 ${sel}`} value={p.visualScale} onChange={(e) => save({ visualScale: e.target.value })}>
+              <option value="person">6 ft person {wallMount ? 'beside an 8 ft wall' : 'on the ground'}</option>
+              <option value="site">Photo of the site (approximate)</option>
+              <option value="none">None: option tiles along the bottom</option>
+            </select>
+          </label>
+          {p.visualScale === 'site' && (
+            <UploadSlot kind="site" label="Site photo" hint="Photo of the wall or spot where the plaque goes." accept="image/*" file={p.uploads.site} data={data} onChange={onChange} />
+          )}
+          {(p.visualScale === 'site' || (p.visualScale === 'person' && wallMount)) && (
+            <label className="flex items-center justify-between gap-2 text-[13px]">
+              <span className="text-graphite">{p.visualScale === 'site' ? 'Mounting height shown' : 'Plaque center height'}</span>
+              <span className="flex items-center gap-1">
+                <input
+                  className="h-8 w-16 rounded-[3px] border border-line px-1.5 text-right font-mono outline-none focus:border-navy"
+                  defaultValue={p.siteMountHeightIn ?? 60}
+                  inputMode="decimal"
+                  onBlur={(e) => save({ siteMountHeightIn: Number(e.target.value) > 0 ? Number(e.target.value) : null })}
+                  aria-label="Height in inches"
+                />
+                <span className="font-mono text-[12px] text-muted">in</span>
+              </span>
+            </label>
+          )}
+          <label className="block">
+            <span className="label flex items-center justify-between">
+              Description header
+              {p.proofDescription && (
+                <button className="text-[11px] normal-case tracking-normal text-navy hover:underline" onClick={() => save({ proofDescription: null })}>
+                  Use automatic
+                </button>
+              )}
+            </span>
+            <textarea
+              className="mt-1 h-28 w-full resize-y rounded-[3px] border border-line px-2 py-1 text-[12px] leading-snug outline-none focus:border-navy"
+              value={desc || data.autoDescription || ''}
+              onChange={(e) => setDesc(e.target.value)}
+              onBlur={() => desc && desc !== (p.proofDescription ?? '') && desc !== data.autoDescription && save({ proofDescription: desc })}
+            />
+            <span className="text-[11px] text-muted">{p.proofDescription ? 'Edited by hand.' : 'Written from the spec; edit to override.'}</span>
+          </label>
+        </>
+      )}
+
+      <label className="block">
+        <span className="label">Red note under the plaque (optional)</span>
+        <textarea
+          className="mt-1 h-14 w-full resize-y rounded-[3px] border border-line px-2 py-1 text-[12px] leading-snug outline-none focus:border-navy"
+          placeholder="Note: Small letters are currently at minimum required height (1/4’’)"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onBlur={() => note !== (p.proofNote ?? '') && save({ proofNote: note || null })}
+        />
+      </label>
+      {p.proofStyle === 'standard' && (
+        <label className="block">
+          <span className="label">Disclaimer</span>
+          <select className={`mt-1 ${sel}`} value={p.disclaimer} onChange={(e) => save({ disclaimer: e.target.value })}>
+            <option value="standard">Simulated appearance, actual product finish may vary…</option>
+            <option value="photo">Photo for scale and placement only…</option>
+          </select>
+        </label>
+      )}
+      {error && <Notice tone="error">{error}</Notice>}
     </div>
   );
 }

@@ -6,6 +6,8 @@ export interface CatalogOption {
   hex?: string;
   upcharge?: string;
   verified?: boolean;
+  materials?: string[];
+  scale?: 'wall' | 'ground';
 }
 
 export interface Catalog {
@@ -19,11 +21,15 @@ export interface Catalog {
     imageOptions: CatalogOption[];
     mountings: CatalogOption[];
     materials: CatalogOption[];
+    processes: CatalogOption[];
+    proofStyles: { id: string; label: string; description: string }[];
   };
   presets: { id: string; label: string; description: string }[];
 }
 
 export const SPEC_FIELDS = [
+  { key: 'material', group: 'materials', label: 'Material' },
+  { key: 'process', group: 'processes', label: 'Process' },
   { key: 'finish', group: 'finishes', label: 'Plaque finish' },
   { key: 'backgroundColor', group: 'backgroundColors', label: 'Background color' },
   { key: 'backgroundTexture', group: 'backgroundTextures', label: 'Background texture' },

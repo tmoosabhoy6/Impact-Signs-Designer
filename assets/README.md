@@ -60,3 +60,22 @@ If an icon is missing, the proof falls back to a flat color square (paint colors
 > The image-type examples are the 100 x 100 px files you uploaded (BAS / Photo / Etched / FULL UV examples).
 > **Full-size photos (1000 px or more) will noticeably improve how well the AI reproduces each treatment.**
 > `medium-oxidized.jpg` is currently identical to `chemical-oxidized.jpg` (the two uploaded oxidized files were the same image). Replace it if Medium Oxidized has its own photo.
+
+## Mounting drawings (`assets/mounting/`), used on the proofs
+| Mounting | File | Used on |
+|---|---|---|
+| Blind studs | (vector diagram lifted from the real Liquid Mercury proof) | Standard proof |
+| Blind studs (tile) | `assets/mounting/blind-studs.png` | Description sheet tiles |
+| Garden Stake | `assets/mounting/garden-stake.png` | Standard proof column and Description tiles |
+| Countersunk Screws | `assets/mounting/screws-through-face.png` | Standard proof column and Description tiles |
+
+## Description-sheet tiles (`assets/description-tiles/`)
+| Tile | File |
+|---|---|
+| Plate with coin (Satin Bronze) | `assets/description-tiles/plate.png` |
+| Single line border (3-D) | `assets/description-tiles/border-single-line.png` |
+| Double line border (3-D) | `assets/description-tiles/border-double-line.png` |
+
+For other finishes the tile falls back to the finish swatch. Add `border-bevel-edge.png` and `border-none.png` for those borders.
+
+All of these were extracted from the real proofs you sent (Awe, Raccoon River, Hadar, Sax-Zim Bog, Audubon, Honeywell). Higher-resolution originals would look sharper.
