@@ -78,9 +78,10 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
 }
 
 export function buildFixPrompt(instruction: string, layout: PlaqueLayout | null, hasLayoutRef: boolean): string {
-  return fill(readPrompt('fix.md'), {
+  const body = fill(readPrompt('fix.md'), {
     instruction: instruction.trim().replace(/\.?$/, '.'),
     layoutNote: hasLayoutRef ? 'Image 2 is the exact flat layout drawing; the text and positions must match it.' : '',
     text: layout ? layoutText(layout) : '(unchanged)',
   });
+  return `${readPrompt('house_rules.md')}\n\n${body}`;
 }

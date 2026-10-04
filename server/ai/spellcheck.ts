@@ -2,7 +2,7 @@
 // word by word with the customer's wording. The image model draws the letters itself and
 // can misspell, so every concept is checked before it can go on a proof.
 import { config } from '../config.js';
-import { openai } from './images.js';
+import { friendlyError, openai } from './images.js';
 import { readPrompt } from './prompts.js';
 import type { SpellcheckResult } from '../../shared/types.js';
 
@@ -71,6 +71,6 @@ export async function spellcheckImage(png: Buffer, expectedLines: string[]): Pro
       message: differences.length ? `${differences.length} wording difference${differences.length > 1 ? 's' : ''} found. Use "Fix" or regenerate.` : 'Wording matches the customer text.',
     };
   } catch (e) {
-    return { ok: true, checked: false, differences: [], message: `Spelling check could not run (${(e as Error).message}). Proofread the image yourself.` };
+    return { ok: true, checked: false, differences: [], message: `Spelling check could not run (${friendlyError(e)}). Proofread the image yourself.` };
   }
 }

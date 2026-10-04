@@ -1,6 +1,11 @@
-Image 1 is a photorealistic product photograph of a cast bronze plaque that fills the whole image edge to edge. Apply ONLY this change: {{instruction}}
+EDIT MODE. Image 1 is the current photograph of this plaque. Image 2 is its exact flat layout drawing.
+Change ONLY this: {{instruction}}
+Everything not named in that change must stay exactly the same:
+- the framing (the plaque still fills the image edge to edge), camera angle and lighting
+- every word and letter, the finish, paint, texture, border, image and logo
+- every position and size
 
-Keep everything else identical: framing (the plaque still fills the image edge to edge), layout, sizes and positions, every word and letter, finish, paint color, texture, border, image and logo, lighting.
+If the change cannot be made without touching something else, make the smallest possible change.
 {{layoutNote}}
 The text on the plaque must read exactly:
 {{text}}

@@ -5,6 +5,7 @@ import OpenAI, { toFile } from 'openai';
 import sharp from 'sharp';
 import { config } from '../config.js';
 import type { RefImage } from './prompts.js';
+import type { ImageEditParamsBase, ImageGenerateParamsBase } from 'openai/resources/images';
 
 export interface ImageUsage {
   input_tokens?: number;
@@ -23,6 +24,8 @@ export interface ImageRequest {
 export interface ImageResult {
   png: Buffer;
   usage: ImageUsage | null;
+  size?: string;
+  quality?: string;
 }
 
 export interface ImageAdapter {
@@ -46,11 +49,45 @@ export function costUsd(usage: ImageUsage | null): number {
   return (text * p.textIn + image * p.imageIn + out * p.imageOut) / 1_000_000;
 }
 
+function errorDetails(e: unknown): { status?: number; code?: string; param?: string; message: string } {
+  if (!e || typeof e !== 'object') return { message: String(e) };
+  const err = e as { status?: number; code?: string; param?: string; message?: string; error?: unknown; cause?: unknown };
+  const nested = err.error && typeof err.error === 'object' ? err.error as typeof err : undefined;
+  const cause = err.cause && typeof err.cause === 'object' ? err.cause as typeof err : undefined;
+  return { status: err.status ?? nested?.status, code: err.code ?? nested?.code ?? cause?.code, param: err.param ?? nested?.param, message: nested?.message ?? err.message ?? cause?.message ?? 'Unknown error' };
+}
+
+const COMPATIBLE_PARAMS = ['partial_images', 'stream', 'background', 'quality', 'output_format', 'size'] as const;
+type ImageParams = ImageEditParamsBase | ImageGenerateParamsBase;
+
+/** Only a rejected optional parameter gets one retry; no retries after paid output. */
+export async function withImageCompatibility<T>(params: ImageParams, send: (params: ImageParams) => Promise<T>): Promise<T> {
+  try {
+    return await send(params);
+  } catch (e) {
+    const err = errorDetails(e);
+    if (err.status !== 400 || !/unknown|unsupported|not supported|invalid|not allowed|unrecognized/i.test(err.message + ' ' + err.code)) throw e;
+    const param = COMPATIBLE_PARAMS.find((p) => err.param === p)
+      ?? COMPATIBLE_PARAMS.find((p) => new RegExp(`\\b${p}\\b`).test(err.message));
+    if (!param || params[param] === undefined) throw e;
+    const retry = { ...params };
+    if (param === 'size') {
+      const [w, h] = String(params.size).split('x').map(Number);
+      retry.size = w > h ? '1536x1024' : h > w ? '1024x1536' : '1024x1024';
+      if (retry.size === params.size) delete retry.size;
+    } else if (param === 'quality' && (params.quality === 'xhigh' || params.quality === 'max')) retry.quality = 'high';
+    else delete retry[param];
+    if (param === 'stream') delete retry.partial_images;
+    console.info(`OpenAI image compatibility: ${param} ${retry[param] === undefined ? 'dropped' : `changed to ${retry[param]}`}. Retrying once.`);
+    return await send(retry);
+  }
+}
+
 /** Turns API errors into sentences a designer can act on. */
 export function friendlyError(e: unknown): string {
-  const err = e as { status?: number; code?: string; message?: string; error?: { message?: string; code?: string } };
-  const msg = err?.error?.message || err?.message || String(e);
-  const code = err?.code || err?.error?.code || '';
+  const err = errorDetails(e);
+  const msg = (config.openaiKey ? err.message.split(config.openaiKey).join('[redacted key]') : err.message).replace(/sk-[A-Za-z0-9_-]+/g, '[redacted key]');
+  const code = err.code || '';
   const where = 'Fix it at platform.openai.com, then try again.';
   if (err?.status === 401) return 'OpenAI rejected the API key. Check OPENAI_API_KEY in the server settings (Render → Environment).';
   if (/organization must be verified|verify your organization|organization verification/i.test(msg)) {
@@ -60,11 +97,14 @@ export function friendlyError(e: unknown): string {
     return `The OpenAI account has no credit left. Add credit under platform.openai.com → Billing. ${where}`;
   }
   if (err?.status === 429) return 'OpenAI rate limit reached. Wait a minute and try again.';
+  if (err.status === 403) return 'OpenAI denied this request. Check that the key’s project has permission to use the configured model.';
+  if (err.status && err.status >= 500) return 'OpenAI is temporarily unavailable. Try again in a few minutes.';
+  if (err.status === 400 && /unknown|unsupported|invalid|not supported/i.test(msg)) return `OpenAI could not accept the image settings after the compatibility retry. Check the configured quality and size. (${msg})`;
   if (code === 'moderation_blocked' || /safety|moderation/i.test(msg)) return `OpenAI's safety filter blocked this image: ${msg}`;
   if (err?.status === 404 || code === 'model_not_found' || /does not exist|do not have access|not have access to model/i.test(msg)) {
     return `The image model "${config.imageModel}" is not available to this API key. Check the model name (OPENAI_IMAGE_MODEL) and that the key's project has access to it. (${msg})`;
   }
-  if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|Connection error|fetch failed/i.test(msg)) return 'Could not reach OpenAI from the server (network problem). Try again in a minute.';
+  if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|ECONNRESET|Connection error|fetch failed|timed out/i.test(msg + ' ' + code)) return 'Could not reach OpenAI from the server (network problem). Try again in a minute.';
   return `Image generation failed: ${msg}`;
 }
 
@@ -75,7 +115,7 @@ export async function testImage(): Promise<{ png: Buffer; ms: number; costUsd: n
     const png = await sharp({ create: { width: 512, height: 512, channels: 3 as const, background: '#C49A6C' } }).png().toBuffer();
     return { png, ms: Date.now() - t0, costUsd: 0, model: 'mock (demo mode)' };
   }
-  const res = await openai().images.generate({
+  const res = await withImageCompatibility({
     model: config.imageModel,
     prompt:
       'Photorealistic, straight-on product photo of a small cast bronze plaque filling the frame: satin brushed bronze raised border and raised serif lettering reading exactly "IMPACT SIGNS TEST", on a recessed dark oxide leatherette-textured background.',
@@ -83,7 +123,7 @@ export async function testImage(): Promise<{ png: Buffer; ms: number; costUsd: n
     quality: 'low',
     n: 1,
     output_format: 'png',
-  });
+  }, (params) => openai().images.generate({ ...params, stream: false } as ImageGenerateParamsBase & { stream: false }));
   const b64 = res.data?.[0]?.b64_json;
   if (!b64) throw new Error('OpenAI returned no image.');
   return { png: Buffer.from(b64, 'base64'), ms: Date.now() - t0, costUsd: costUsd((res.usage as ImageUsage) ?? null), model: config.imageModel };
@@ -93,7 +133,8 @@ const realAdapter: ImageAdapter = {
   name: 'openai',
   async run(req) {
     const files = await Promise.all(req.images.map((r) => toFile(r.file, r.name, { type: r.mime })));
-    const stream = await openai().images.edit({
+    let delivered = false;
+    return withImageCompatibility({
       model: config.imageModel,
       image: files,
       prompt: req.prompt,
@@ -104,14 +145,30 @@ const realAdapter: ImageAdapter = {
       n: 1,
       stream: true,
       partial_images: 2,
+    }, async (params) => {
+      try {
+        const res = await openai().images.edit(params as ImageEditParamsBase);
+        if (Symbol.asyncIterator in res) {
+          let final: ImageResult | null = null;
+          for await (const ev of res) {
+            delivered = true;
+            if (ev.type === 'image_edit.partial_image') req.onPartial?.(Buffer.from(ev.b64_json, 'base64'));
+            else if (ev.type === 'image_edit.completed') final = { png: Buffer.from(ev.b64_json, 'base64'), usage: ev.usage as ImageUsage, size: ev.size, quality: ev.quality };
+          }
+          if (!final) throw new Error('The image model returned no image.');
+          return final;
+        }
+        const b64 = res.data?.[0]?.b64_json;
+        if (!b64) throw new Error('The image model returned no image.');
+        const png = await sharp(Buffer.from(b64, 'base64')).png().toBuffer();
+        const { width, height } = await sharp(png).metadata();
+        return { png, usage: res.usage ?? null, size: `${width}x${height}`, quality: params.quality ?? 'auto' };
+      } catch (e) {
+        // Once a partial has arrived, the request may have incurred a charge.
+        if (delivered) throw new Error(friendlyError(e));
+        throw e;
+      }
     });
-    let final: ImageResult | null = null;
-    for await (const ev of stream) {
-      if (ev.type === 'image_edit.partial_image') req.onPartial?.(Buffer.from(ev.b64_json, 'base64'));
-      else if (ev.type === 'image_edit.completed') final = { png: Buffer.from(ev.b64_json, 'base64'), usage: ev.usage as ImageUsage };
-    }
-    if (!final) throw new Error('The image model returned no image.');
-    return final;
   },
 };
 
