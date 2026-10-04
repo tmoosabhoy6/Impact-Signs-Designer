@@ -1,0 +1,9 @@
+{
+  "id": "32782-audubon",
+  "jobNumber": "32782",
+  "name": "Audubon (Eleanor Eisenmenger)",
+  "description": "8\" x 6\" bronze garden-stake plaque, brown paint, sans type. Standard proof with garden-stake diagram",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "proofStyle": "standard"
+}

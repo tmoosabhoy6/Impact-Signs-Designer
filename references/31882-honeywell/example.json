@@ -1,0 +1,13 @@
+{
+  "id": "31882-honeywell",
+  "jobNumber": "31882",
+  "name": "Honeywell (Jacob Sarfati)",
+  "description": "8\" x 12\" brushed aluminum garden-stake memorial with photo between the lines. Standard proof with a red note",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "photo": "photo.png",
+  "imageAfterBlock": 2,
+  "proofStyle": "standard",
+  "proofNote": "Note: Small letters are currently at minimum required height (1/4’’)\nand cannot be made smaller nor set in lower case type",
+  "disclaimer": "photo"
+}

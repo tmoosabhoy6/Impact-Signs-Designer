@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 import { config } from '../config.js';
-import { mustOption } from '../catalog.js';
+import { mustOption, paintHex, paintLabel } from '../catalog.js';
 import { findAsset } from '../assets.js';
 import { computeLayout } from '../layout/engine.js';
 import { preparePhoto, renderFlatPng } from '../render/flat.js';
@@ -32,6 +32,8 @@ export function layoutFor(project: Project, preset: LayoutPresetId): PlaqueLayou
       photoAspect: photo ? photo.width / photo.height : null,
       logoAspect: logo ? logo.width / logo.height : null,
       logoSlot: project.logoSlot,
+      imageAfterBlock: project.imageAfterBlock,
+      customFontFile: uploadPath(project, 'font'),
     },
     preset,
   );
@@ -77,10 +79,10 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   const finish = mustOption('finishes', spec.finish);
   await add(`the ${finish.label} finish swatch (color and sheen of all raised metal)`, findAsset(finish.asset), 'finish-swatch.png');
   const paint = mustOption('backgroundColors', spec.backgroundColor);
-  const paintAsset = findAsset(paint.asset);
+  const paintAsset = spec.backgroundColor === 'custom' ? null : findAsset(paint.asset);
   refs.push({
-    role: `the ${paint.label} paint color of the recessed background`,
-    file: paintAsset ? await asPng(paintAsset) : await solidSwatch(paint.hex ?? '#231F20'),
+    role: `the ${paintLabel(spec)} paint color of the recessed background`,
+    file: paintAsset ? await asPng(paintAsset) : await solidSwatch(paintHex(spec)),
     name: 'paint-swatch.png',
     mime: 'image/png',
   });
@@ -88,6 +90,8 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   await add(`the ${texture.label} background texture`, findAsset(texture.asset), 'texture-swatch.png');
   const border = mustOption('borders', spec.border);
   await add(`an example of the ${border.label}`, findAsset(border.asset), 'border-example.png');
+  const mounting = mustOption('mountings', spec.mounting);
+  if (layout.screws.length && mounting.diagram) await add(`how the ${mounting.label} look`, findAsset(mounting.diagram as string), 'mounting-example.png');
   const logo = uploadPath(project, 'logo');
   if (layout.logo && logo) await add('the customer logo (reproduce exactly as raised metal)', logo, 'customer-logo.png');
   const sketch = uploadPath(project, 'sketch');

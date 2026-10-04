@@ -81,3 +81,21 @@ export function mustOption<G extends OptionGroup>(group: G, id: string): Catalog
   if (!o) throw new Error(`Unknown ${group} option "${id}"`);
   return o;
 }
+
+import type { PlaqueSpec } from '../shared/types.js';
+
+/** Paint color of the recessed field (custom paint matches carry their own color). */
+export function paintHex(spec: PlaqueSpec): string {
+  if (spec.backgroundColor === 'custom' && spec.customPaint?.hex) return spec.customPaint.hex;
+  return findOption('backgroundColors', spec.backgroundColor)?.hex ?? '#231F20';
+}
+
+export function paintLabel(spec: PlaqueSpec): string {
+  if (spec.backgroundColor === 'custom') return spec.customPaint?.name || 'Custom color';
+  return findOption('backgroundColors', spec.backgroundColor)?.label ?? spec.backgroundColor;
+}
+
+export function fontLabel(spec: PlaqueSpec): string {
+  if (spec.font === 'custom') return spec.customFontName || 'Custom font';
+  return findOption('fonts', spec.font)?.label ?? spec.font;
+}

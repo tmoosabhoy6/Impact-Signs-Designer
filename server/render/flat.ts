@@ -3,21 +3,23 @@
 // position and every letter, and only turns the flat drawing into real cast metal.
 // It is also used as the stand-in concept image in mock mode.
 import sharp from 'sharp';
-import { mustOption } from '../catalog.js';
-import { resolveFont, type OTFont } from '../text/fonts.js';
-import type { PlaqueLayout, PlaqueSpec } from '../../shared/types.js';
+import { mustOption, paintHex } from '../catalog.js';
+import { loadFontFile, measure, resolveFont, textPath } from '../text/fonts.js';
+import type { PlaqueLayout, PlaqueSpec, TextLine } from '../../shared/types.js';
 
-export function textPathData(font: OTFont, text: string, cx: number, baseline: number, size: number): string {
-  const w = font.getAdvanceWidth(text, size);
-  return font.getPath(text, cx - w / 2, baseline, size).toPathData(3);
+/** One line of a layout as SVG path data (centered on cx, or from x when left-aligned). */
+export function linePathData(line: TextLine, fallbackFontId: string, unitsPerIn: number): string {
+  const face = line.face ? loadFontFile(line.face) : resolveFont(fallbackFontId).font;
+  const k = unitsPerIn;
+  const sc = line.style?.smallCaps;
+  const width = measure(face, line.text, line.size, sc);
+  const x = line.x ?? line.cx - width / 2;
+  return textPath(face, line.text, x * k, line.baseline * k, line.size * k, sc);
 }
 
 /** All text of a layout as one SVG path, in the given units per inch. */
 export function layoutTextPath(layout: PlaqueLayout, fontId: string, unitsPerIn: number): string {
-  const { font } = resolveFont(fontId);
-  return layout.lines
-    .map((l) => textPathData(font, l.text, l.cx * unitsPerIn, l.baseline * unitsPerIn, l.size * unitsPerIn))
-    .join(' ');
+  return layout.lines.map((l) => linePathData(l, fontId, unitsPerIn)).join(' ');
 }
 
 const shade = (hex: string, f: number) => {
@@ -48,9 +50,10 @@ export function layoutToSvg(layout: PlaqueLayout, spec: PlaqueSpec, opts: FlatOp
   const W = layout.widthIn * k;
   const H = layout.heightIn * k;
   const finish = mustOption('finishes', spec.finish);
-  const paint = mustOption('backgroundColors', spec.backgroundColor);
   const metal = finish.hex ?? '#C49A6C';
-  const field = paint.hex ?? '#231F20';
+  const field = paintHex(spec);
+  const rr = (x: { x: number; y: number; w: number; h: number }) =>
+    `x="${(x.x * k).toFixed(2)}" y="${(x.y * k).toFixed(2)}" width="${(x.w * k).toFixed(2)}" height="${(x.h * k).toFixed(2)}"`;
   const r = (x: { x: number; y: number; w: number; h: number }) =>
     `x="${(x.x * k).toFixed(2)}" y="${(x.y * k).toFixed(2)}" width="${(x.w * k).toFixed(2)}" height="${(x.h * k).toFixed(2)}"`;
   const parts: string[] = [];
@@ -81,6 +84,13 @@ export function layoutToSvg(layout: PlaqueLayout, spec: PlaqueSpec, opts: FlatOp
     } else {
       parts.push(`<rect ${r(layout.logo)} fill="none" stroke="${metal}" stroke-dasharray="6 4" stroke-width="2"/>`);
     }
+  }
+  for (const r of layout.rules ?? []) parts.push(`<rect ${rr(r)} fill="${metal}"/>`);
+  for (const sc of layout.screws ?? []) {
+    parts.push(`<circle cx="${(sc.cx * k).toFixed(2)}" cy="${(sc.cy * k).toFixed(2)}" r="${((sc.d / 2) * k).toFixed(2)}" fill="${shade(metal, 0.15)}" stroke="${shade(metal, -0.45)}" stroke-width="${(0.02 * k).toFixed(2)}"/>`);
+    const a = (sc.d / 2) * 0.55 * k;
+    const t = Math.max(1, (sc.d / 9) * k);
+    parts.push(`<path d="M${(sc.cx * k - a).toFixed(2)} ${(sc.cy * k).toFixed(2)} H${(sc.cx * k + a).toFixed(2)} M${(sc.cx * k).toFixed(2)} ${(sc.cy * k - a).toFixed(2)} V${(sc.cy * k + a).toFixed(2)}" stroke="${shade(metal, -0.6)}" stroke-width="${t.toFixed(2)}"/>`);
   }
   parts.push(`<path d="${layoutTextPath(layout, spec.font, k)}" fill="${metal}"/>`);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`;

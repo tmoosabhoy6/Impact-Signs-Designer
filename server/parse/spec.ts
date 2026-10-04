@@ -89,7 +89,21 @@ const DEFAULTS: PlaqueSpec = {
   process: 'cast',
   thicknessIn: null,
   stakeLengthIn: null,
+  customFontName: null,
+  customPaint: null,
 };
+
+/** A rough paint color from a custom paint name ("Dark Blue 2050"); the designer confirms it. */
+export function guessPaintHex(name: string): string {
+  const n = name.toLowerCase();
+  const base: [RegExp, string][] = [
+    [/navy|blue/, '#1D2B5E'], [/green|hunter|forest/, '#1F3B2A'], [/red|burgundy|maroon/, '#5A1A1E'],
+    [/gr[ae]y|slate|charcoal/, '#3A3C40'], [/brown|bronze|chocolate/, '#4A3426'], [/black/, '#111111'],
+    [/white|ivory|cream/, '#E8E4D8'], [/tan|beige|sand/, '#A08B6A'], [/gold|yellow/, '#9C7A2B'],
+  ];
+  const hit = base.find(([re]) => re.test(n));
+  return hit ? hit[1] : '#2A2A2A';
+}
 
 // Phrases that are understood but carry no option (so their lines are not reported as unrecognized).
 const KNOWN_PHRASES = [/recessed/i, /paint[- ]?fill/i, /plaque/i, /raised/i, /background/i, /mount/i, /layout/i, /lettering/i, /letters/i, /^copy\s*:/i, /^order\s*#/i, /^description\s*:/i];
@@ -100,6 +114,8 @@ function stripHeaderWords(line: string): string {
     .replace(/^description\s*[:꞉]\s*/i, '')
     .replace(/order\s*#\s*\d+/gi, '')
     .replace(/qty\.?\s*\d+\s*(set|sets|pcs?|pieces?)?/gi, '')
+    .replace(/^qty\.?$/i, '')
+    .replace(/^\d+\s*(set|sets|pcs?|pieces?)\b\s*/i, '')
     .trim();
 }
 
@@ -138,17 +154,11 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
   };
 
   // Material
-  const lower = lines.join('\n').toLowerCase();
-  if (/alumin(i)?um/.test(lower)) {
-    notes.push({
-      field: 'material',
-      kind: 'unavailable',
-      message: 'Aluminum plaques are handled in a separate app. This studio produces cast bronze; the job is set to Cast Bronze.',
-    });
-  }
   const mat = matchOption('materials', lines);
-  if (mat) used.add(mat.line);
-  else assume('material', 'Material not stated. Assumed Cast Bronze.');
+  if (mat) {
+    spec.material = mat.option.id;
+    used.add(mat.line);
+  } else assume('material', 'Material not stated. Assumed Cast Bronze.');
 
   // Size
   const sizeLine = lines.find((l) => parseSize(l));
@@ -170,24 +180,44 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
     assumed.add('heightIn');
   }
 
-  // Finish
+  // Finish (only finishes made for this material)
   const fin = matchOption('finishes', lines);
-  if (fin) {
+  const finishFits = (id: string) => ((catalog.finishes.find((f) => f.id === id)?.materials as string[] | undefined) ?? ['bronze']).includes(spec.material);
+  if (fin && !finishFits(fin.option.id)) {
+    const alt = catalog.finishes.find((f) => finishFits(f.id));
+    if (alt) {
+      notes.push({ field: 'finish', kind: 'info', message: `"${fin.alias}" read as ${alt.label} for ${label('materials', spec.material)}.` });
+      spec.finish = alt.id;
+      used.add(fin.line);
+    }
+  } else if (fin) {
     spec.finish = fin.option.id;
     used.add(fin.line);
     if (['satin', 'brushed'].includes(fin.alias)) {
       notes.push({ field: 'finish', kind: 'info', message: `"${fin.alias}" read as ${fin.option.label}.` });
     }
-  } else assume('finish', `Finish not stated. Assumed ${label('finishes', spec.finish)}.`);
+  } else {
+    const alt = catalog.finishes.find((f) => finishFits(f.id));
+    if (alt) spec.finish = alt.id;
+    assume('finish', `Finish not stated. Assumed ${label('finishes', spec.finish)}.`);
+  }
 
   // Background color and texture (look first at lines about the background / paint fill)
   const bgLines = lines.filter((l) => /background|paint|fill|field/i.test(l));
   const scope = bgLines.length ? bgLines : lines;
   const color = matchOption('backgroundColors', scope);
   const texture = matchOption('backgroundTextures', scope);
-  if (color) {
+  // "Background painted Dark Blue 2050 with …": a color that is not in the catalog is a custom paint match.
+  const painted = scope.join(' ').match(/(?:background|field)\s+painted\s+(.+?)(?:\s+with\b|$)/i);
+  const paintedName = painted?.[1].replace(/\s+/g, ' ').trim();
+  if (color && (!paintedName || paintedName.toLowerCase().includes(color.alias))) {
     spec.backgroundColor = color.option.id;
     used.add(color.line);
+  } else if (paintedName) {
+    spec.backgroundColor = 'custom';
+    spec.customPaint = { name: paintedName, hex: guessPaintHex(paintedName) };
+    scope.filter((l) => l.includes(painted![1].trim().split(' ')[0])).forEach((l) => used.add(l));
+    assume('backgroundColor', `"${paintedName}" is a custom paint color. Confirm the color swatch (preview color is an estimate).`);
   } else assume('backgroundColor', `Background color not stated. Assumed ${label('backgroundColors', spec.backgroundColor)}.`);
   if (texture) {
     spec.backgroundTexture = texture.option.id;
@@ -211,11 +241,18 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
     assume('border', 'A border is requested without a style. Assumed Single Line Border.');
   } else assume('border', 'Border not mentioned. Assumed Single Line Border.');
 
-  // Font
-  const font = matchOption('fonts', lines);
-  if (font) {
+  // Font ("Font: Clarendon Fortune Bold" that is not in the catalog becomes a custom font)
+  const fontPhrase = lines.join('\n').match(/font\s*:\s*([^\n.]+)/i)?.[1].trim();
+  const font = matchOption('fonts', fontPhrase ? [fontPhrase] : lines);
+  if (font && (!fontPhrase || fontPhrase.toLowerCase().startsWith(font.alias.split(' ')[0]))) {
     spec.font = font.option.id;
     used.add(font.line);
+    lines.filter((l) => /font\s*:/i.test(l)).forEach((l) => used.add(l));
+  } else if (fontPhrase) {
+    spec.font = 'custom';
+    spec.customFontName = fontPhrase;
+    lines.filter((l) => /font\s*:/i.test(l)).forEach((l) => used.add(l));
+    notes.push({ field: 'font', kind: 'unavailable', message: `"${fontPhrase}" is not one of our standard fonts. Upload the font file to this job to use it; until then a stand-in is shown.` });
   } else assume('font', `Font not stated. Assumed ${label('fonts', spec.font)}.`);
 
   // Image
@@ -252,6 +289,14 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
   }
   if (spec.process === 'reverse-etched' && spec.imageOption === 'etched-photo' && !lines.some((l) => /etched photo|photo etch/i.test(l))) {
     spec.imageOption = 'none';
+    assumed.delete('imageOption');
+  }
+  // Reverse-etched backgrounds are smooth unless a texture is named.
+  if (spec.process === 'reverse-etched' && !texture) {
+    spec.backgroundTexture = 'smooth';
+    assumed.delete('backgroundTexture');
+    const i = notes.findIndex((n) => n.field === 'backgroundTexture' && n.kind === 'assumed');
+    if (i >= 0) notes.splice(i, 1);
   }
 
   // Thickness and garden stake length.

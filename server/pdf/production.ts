@@ -6,7 +6,7 @@
 //    (the relief / etch / print artwork is produced separately)
 import { PDFDocument, rgb, type PDFPage } from 'pdf-lib';
 import { resolveFont } from '../text/fonts.js';
-import { textPathData } from '../render/flat.js';
+import { linePathData } from '../render/flat.js';
 import { traceLogo } from './trace.js';
 import type { PlaqueLayout, PlaqueSpec, Rect } from '../../shared/types.js';
 
@@ -22,6 +22,7 @@ export interface ProductionInput {
   layout: PlaqueLayout;
   logoPng?: Buffer | null;
   logoFromVector?: boolean;
+  customFontFile?: string | null;
 }
 
 export interface ProductionResult {
@@ -101,18 +102,35 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
     }
   }
 
+  // Section rules (raised).
+  for (const r of layout.rules ?? []) rect(r);
+
+  // Face screw / rosette holes: ink ring with a center mark.
+  for (const sc of layout.screws ?? []) {
+    page.drawCircle({ x: sc.cx * PT, y: H - sc.cy * PT, size: (sc.d / 2) * PT, color: WHITE, borderColor: INK, borderWidth: 1.12 });
+    page.drawLine({ start: { x: sc.cx * PT - 3, y: H - sc.cy * PT }, end: { x: sc.cx * PT + 3, y: H - sc.cy * PT }, thickness: 0.75, color: INK });
+    page.drawLine({ start: { x: sc.cx * PT, y: H - sc.cy * PT - 3 }, end: { x: sc.cx * PT, y: H - sc.cy * PT + 3 }, thickness: 0.75, color: INK });
+  }
+  if (layout.screws?.length) notes.push('Screw hole positions are marked; confirm hole size and countersink with production.');
+
   // Text as outlines.
-  const { font, licensed, label } = resolveFont(spec.font);
-  if (!licensed) notes.push(`${label} font file not found in brand-assets/fonts/; text was outlined with an open stand-in of the same proportions.`);
-  drawText(page, layout, font, H);
+  const { licensed, label } = resolveFont(spec.font, {}, input.customFontFile);
+  if (!licensed) {
+    notes.push(
+      spec.font === 'custom'
+        ? `Custom font "${spec.customFontName ?? ''}" was not uploaded; text was outlined with a stand-in. Upload the font file and rebuild.`
+        : `${label} font file not found in brand-assets/fonts/; text was outlined with an open stand-in of the same proportions.`,
+    );
+  }
+  drawText(page, layout, spec.font, H);
 
   const bytes = await doc.save({ useObjectStreams: false });
   return { pdf: Buffer.from(bytes), fileName: productionFileName(input.jobNumber, input.name, spec), notes };
 }
 
-function drawText(page: PDFPage, layout: PlaqueLayout, font: ReturnType<typeof resolveFont>['font'], H: number) {
+function drawText(page: PDFPage, layout: PlaqueLayout, fontId: string, H: number) {
   for (const l of layout.lines) {
-    const d = textPathData(font, l.text, l.cx * PT, l.baseline * PT, l.size * PT);
+    const d = linePathData(l, fontId, PT);
     if (d) page.drawSvgPath(d, { x: 0, y: H, color: INK, borderWidth: 0 });
   }
 }

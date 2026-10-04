@@ -40,15 +40,42 @@ export function saveProject(p: Project) {
   return p;
 }
 /** Fills fields added in later versions, so jobs saved earlier keep working. */
-function upgrade(p: Project): Project {
+export function upgrade(p: Project): Project {
   p.proofStyle ??= 'standard';
   p.proofDescription ??= null;
+  p.imageAfterBlock ??= null;
+  p.visualScale ??= 'person';
+  p.siteMountHeightIn ??= null;
+  p.proofNote ??= null;
+  p.disclaimer ??= 'standard';
+  p.logoSlot ??= 'auto';
+  p.uploads ??= {};
   if (p.spec) {
     p.spec.process ??= 'cast';
     p.spec.thicknessIn ??= null;
     p.spec.stakeLengthIn ??= null;
+    p.spec.customFontName ??= null;
+    p.spec.customPaint ??= null;
   }
   return p;
+}
+
+/** A new, empty job with every field at its default. */
+export function blankProject(fields: Pick<Project, 'jobNumber' | 'name' | 'createdBy'>): Project {
+  const t = now();
+  return upgrade({
+    id: newId('p'),
+    specText: '',
+    parse: null,
+    spec: null,
+    wordingText: '',
+    wording: null,
+    uploads: {},
+    selectedConceptId: null,
+    createdAt: t,
+    updatedAt: t,
+    ...fields,
+  } as Project);
 }
 
 export function getProject(id: string): Project | null {

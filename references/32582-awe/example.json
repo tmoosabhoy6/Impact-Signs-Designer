@@ -1,0 +1,10 @@
+{
+  "id": "32582-awe",
+  "jobNumber": "32582",
+  "name": "Kathleen Awe memorial",
+  "description": "6\" x 4\" bronze garden-stake memorial, text only. Description-sheet proof",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "proofStyle": "description",
+  "visualScale": "person"
+}

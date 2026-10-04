@@ -12,6 +12,17 @@
         "bronze plaque"
       ],
       "prompt": "solid cast bronze, sand-cast then machined, with crisp raised detail"
+    },
+    {
+      "id": "aluminum",
+      "label": "Cast Aluminum",
+      "aliases": [
+        "aluminum",
+        "aluminium",
+        "cast aluminum",
+        "aluminum plaque"
+      ],
+      "prompt": "solid cast aluminum with crisp raised detail"
     }
   ],
   "sizeLimits": {
@@ -37,7 +48,10 @@
         "satin bronze",
         "natural satin brushed bronze"
       ],
-      "prompt": "natural satin brushed bronze: warm golden-tan bronze with a fine straight-line brushed grain, soft low-glare sheen, no mirror reflections"
+      "prompt": "natural satin brushed bronze: warm golden-tan bronze with a fine straight-line brushed grain, soft low-glare sheen, no mirror reflections",
+      "materials": [
+        "bronze"
+      ]
     },
     {
       "id": "chemical-oxidized",
@@ -52,7 +66,10 @@
         "oxidized finish",
         "oxidized"
       ],
-      "prompt": "chemically oxidized bronze: deep chocolate-brown oxidized bronze with brighter hand-relieved highlights on the raised high points"
+      "prompt": "chemically oxidized bronze: deep chocolate-brown oxidized bronze with brighter hand-relieved highlights on the raised high points",
+      "materials": [
+        "bronze"
+      ]
     },
     {
       "id": "verde-patina",
@@ -67,7 +84,10 @@
         "green patina",
         "patina"
       ],
-      "prompt": "verde patina: mottled sage-to-deep green chemical patina over bronze, with bronze showing through on worn raised edges"
+      "prompt": "verde patina: mottled sage-to-deep green chemical patina over bronze, with bronze showing through on worn raised edges",
+      "materials": [
+        "bronze"
+      ]
     },
     {
       "id": "turquoise-patina",
@@ -81,7 +101,10 @@
         "turquoise patina",
         "blue patina"
       ],
-      "prompt": "turquoise patina: mottled blue-green turquoise chemical patina over bronze, bronze showing on the raised edges"
+      "prompt": "turquoise patina: mottled blue-green turquoise chemical patina over bronze, bronze showing on the raised edges",
+      "materials": [
+        "bronze"
+      ]
     },
     {
       "id": "light-oxidized",
@@ -95,7 +118,10 @@
         "light oxide tint",
         "light tint"
       ],
-      "prompt": "light oxidized bronze tint: satin bronze with a light warm brown tint that slightly darkens the metal"
+      "prompt": "light oxidized bronze tint: satin bronze with a light warm brown tint that slightly darkens the metal",
+      "materials": [
+        "bronze"
+      ]
     },
     {
       "id": "medium-oxidized",
@@ -109,7 +135,10 @@
         "medium oxide tint",
         "medium tint"
       ],
-      "prompt": "medium oxidized bronze tint: satin bronze toned to a medium antique brown"
+      "prompt": "medium oxidized bronze tint: satin bronze toned to a medium antique brown",
+      "materials": [
+        "bronze"
+      ]
     },
     {
       "id": "dark-oxidized",
@@ -124,7 +153,10 @@
         "dark tint",
         "statuary"
       ],
-      "prompt": "dark oxidized bronze tint: satin bronze toned to a dark statuary brown, raised faces still readable as metal"
+      "prompt": "dark oxidized bronze tint: satin bronze toned to a dark statuary brown, raised faces still readable as metal",
+      "materials": [
+        "bronze"
+      ]
     },
     {
       "id": "polished",
@@ -139,7 +171,28 @@
         "high polish",
         "polished bronze"
       ],
-      "prompt": "polished bronze: raised faces buffed to a bright mirror-like gold bronze with crisp specular highlights"
+      "prompt": "polished bronze: raised faces buffed to a bright mirror-like gold bronze with crisp specular highlights",
+      "materials": [
+        "bronze"
+      ]
+    },
+    {
+      "id": "brushed-aluminum",
+      "label": "Brushed Aluminum",
+      "proofLabel": "Brushed Aluminum",
+      "upcharge": "",
+      "hex": "#B9BCC0",
+      "asset": "assets/finishes/brushed-aluminum.png",
+      "materials": [
+        "aluminum"
+      ],
+      "aliases": [
+        "brushed aluminum",
+        "brushed aluminium",
+        "satin aluminum",
+        "aluminum finish"
+      ],
+      "prompt": "brushed aluminum: cool silver-grey aluminum with a fine straight-line brushed grain and soft satin sheen"
     }
   ],
   "backgroundColors": [
@@ -187,6 +240,14 @@
         "dark bronze"
       ],
       "prompt": "duranodic bronze paint: a dark architectural bronze-brown baked paint"
+    },
+    {
+      "id": "custom",
+      "label": "Custom color",
+      "hex": "#1D2B5E",
+      "asset": "",
+      "aliases": [],
+      "prompt": "a custom-matched baked paint color"
     }
   ],
   "backgroundTextures": [
@@ -220,6 +281,18 @@
         "pebbled"
       ],
       "prompt": "pebble texture: a coarser rounded pebble grain cast into the recessed field"
+    },
+    {
+      "id": "smooth",
+      "label": "Smooth",
+      "asset": "",
+      "aliases": [
+        "smooth",
+        "no texture",
+        "flat background",
+        "smooth background"
+      ],
+      "prompt": "smooth: no texture, a flat, even painted surface"
     }
   ],
   "borders": [
@@ -255,15 +328,32 @@
       "label": "Double Line Border",
       "asset": "assets/borders/double-line.jpg",
       "aliases": [
+        "double border",
         "double line",
+        "double line border",
         "double-line",
-        "double border"
+        "double-line border",
+        "doubule line"
       ],
-      "widthIn": 0.25,
-      "innerLineIn": 0.0625,
-      "gapIn": 0.25,
-      "verified": false,
-      "prompt": "a double line border: a raised flat border band about 1/4 inch wide at the plaque edge plus a thin raised inner line about 1/4 inch inside it"
+      "widthIn": 0.15,
+      "innerLineIn": 0.1,
+      "gapIn": 0.05,
+      "verified": true,
+      "prompt": "a double line border: a raised flat band at the plaque edge, a narrow recessed gap, then a thinner raised inner line",
+      "scaling": {
+        "note": "Measured: 7x5 (Structure of Merit outline art) 0.15/0.05/0.10 in; 12x16 (Camp Southern Ground proof) 0.28/0.12/0.13 in. Grows linearly with the plaque's shorter side.",
+        "perInch": {
+          "widthIn": 0.018,
+          "gapIn": 0.01,
+          "innerLineIn": 0.004
+        },
+        "fromIn": 5,
+        "max": {
+          "widthIn": 0.5,
+          "gapIn": 0.2,
+          "innerLineIn": 0.2
+        }
+      }
     },
     {
       "id": "bevel-edge",
@@ -350,6 +440,14 @@
       "licensedFile": "brand-assets/fonts/MyriadPro-Regular.otf",
       "standIn": "source-sans-3",
       "prompt": "Myriad, a humanist sans-serif"
+    },
+    {
+      "id": "custom",
+      "label": "Custom font",
+      "aliases": [],
+      "licensedFile": "",
+      "standIn": "tinos",
+      "prompt": "the customer's specified typeface"
     }
   ],
   "imageOptions": [
@@ -441,20 +539,29 @@
       ],
       "prompt": "blind mounted with hidden studs on the back, so no fasteners are visible on the face",
       "diagram": "template:blind",
-      "scale": "wall"
+      "scale": "wall",
+      "tile": "assets/mounting/blind-studs.png"
     },
     {
       "id": "screws-through-face",
-      "label": "Screws Through Face",
+      "label": "Countersunk Screws",
       "aliases": [
-        "screws through face",
+        "(4) countersunk wood screw mount",
+        "countersunk",
+        "countersunk screws",
+        "countersunk wood screw",
+        "countersunk wood screw mount",
         "face screws",
-        "through face",
         "screw mount",
-        "screws"
+        "screws",
+        "screws through face",
+        "through face",
+        "wood screw",
+        "wood screws"
       ],
       "prompt": "mounted with screws through the face, small screw heads visible in each corner within the border",
-      "scale": "wall"
+      "scale": "wall",
+      "diagram": "assets/mounting/screws-through-face.png"
     },
     {
       "id": "rosettes",

@@ -1,0 +1,66 @@
+[
+  {
+    "role": "subhead",
+    "text": "In honor of the Forest Preserve District of Kane County’s Centennial Anniversary – thank you to our generous sponsors:",
+    "style": {
+      "italic": true,
+      "bold": true
+    }
+  },
+  {
+    "role": "subhead",
+    "text": "CORPORATE PARTNERS",
+    "style": {
+      "bold": true,
+      "ruleBelow": true
+    }
+  },
+  {
+    "role": "footer",
+    "text": "SILVER SPONSORS"
+  },
+  {
+    "role": "body",
+    "text": "1. Kane County Cougars Foundation   2. REV Entertainment"
+  },
+  {
+    "role": "footer",
+    "text": "BRONZE SPONSOR"
+  },
+  {
+    "role": "body",
+    "text": "3. Midwest Groundcovers, LLC"
+  },
+  {
+    "role": "subhead",
+    "text": "CENTENNIAL CHAMPIONS",
+    "style": {
+      "bold": true,
+      "ruleBelow": true
+    }
+  },
+  {
+    "role": "body",
+    "text": "4. Ball Horticultural Company\n5. The Conservation Foundation\n6. The Rich Foundation\n7. Arthur R. & Deborah Allan\n8. Anthony Pauline Bartnick\n9. In Memory – Past Members BPDG\n10. The David Compton Family\n11. Dolores Swanson Durrbeck\n12. Christy Ford\n13. Haberthur Family\n14. Dr. Earl & Patricia Hanson\n15. Gerald Hodge\n16. Michael, Leslie, Emma & Madi Juby\n17. Jeffrey M. King Family\n18. Chris & Linda Kious\n19. Kim Haag & Greg Knipp\n20. Mary & William Lenert\n21. Michael Marvin Linder\n22. Andy & Laurie Metanchuk\n23. James & Denise Morgan\n24. Irv & Mary Ochsenschlager Family\n25. David & Jenny Petschke Family\n26. Miceli-Randolph Family\n27. John Rogner\n28. William M. Roth\n29. Laura M. Rudow\n30. Sarah J. Ryerson\n31. Sara Simon & Scott Murray\n32. Bill & Marie Stammet\n33. Rick & Jennifer Williams",
+    "style": {
+      "columns": 3,
+      "align": "left"
+    }
+  },
+  {
+    "role": "subhead",
+    "text": "HERITAGE PARTNERS",
+    "style": {
+      "bold": true,
+      "ruleBelow": true
+    }
+  },
+  {
+    "role": "footer",
+    "text": "ALPHAGRAPHICS ST. CHARLES\nCMSRS. BATES & STRATHMANN\nRACHEL BAUMBACH\nBLAUVELT FAMILY\nTHE BRINKWORTH FAMILY\nWILLIAM & ANNE BURNIDGE\nTHE BUTLER FAMILY\nJAMES & SARAH CAIN\nLAUREL, LAURA, PAT CHESS\nPAUL CLUSEN\nDL DOSADO & FAMILY\nPHIL & SALLY DUNN\nFIA KANE COUNTY\nFRASZ FAMILY\nSCOT, CRYSTAL, TIGS & FREYJA\nTHE GAWRYS-BIXLER FAMILY\nBECKY & CRAIG GILLAM\nPAMELA & JONATHAN GRIPE\nKIMBERLEY HAAG\nCRAIG HANSON & FAMILY\nROGER & JANE HARRIS\nGREG KNIPP\nANITA LEWIS\nMARILYN & KEITH MAGOWAN\nNICHOLAS “NATURE NERD” MCCARNEY\nCRAIG S. MCGREGOR\nTHE MORGAN FAMILY\nSUZI MYERS\nCHRISTOPHER JOHN NASS\nJEFF & JULIE RICKETTS\nSCHLINKMANN FAMILY\nH. JANE SMITH\nTHE SPONSLER FAMILY\nESTHER STEEL FAMILY\nJON, LAUREN & LILA SWANSON\nMAEVE OWEN ELI ALMA OAKES TIGHE\nLENA & HARLAN WALLEY",
+    "style": {
+      "columns": 4,
+      "align": "left"
+    }
+  }
+]

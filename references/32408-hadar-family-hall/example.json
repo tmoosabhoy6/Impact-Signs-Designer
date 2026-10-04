@@ -1,0 +1,17 @@
+{
+  "id": "32408-hadar-family-hall",
+  "jobNumber": "32408",
+  "name": "Hadar Family Hall",
+  "description": "42\" x 36\" bronze, double border, custom paint (Dark Blue 2050). Description sheet with site photo. Note: the order text says 36\"x42 but the plaque is 42\" wide",
+  "spec": "spec.txt",
+  "wording": "wording.json",
+  "specOverrides": {
+    "widthIn": 42,
+    "heightIn": 36,
+    "customPaintHex": "#1D2B5E"
+  },
+  "proofStyle": "description",
+  "visualScale": "site",
+  "sitePhoto": "site-photo.png",
+  "siteMountHeightIn": 60
+}

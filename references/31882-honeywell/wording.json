@@ -1,0 +1,24 @@
+[
+  {
+    "role": "subhead",
+    "text": "In Memory of",
+    "style": {
+      "smallCaps": true
+    }
+  },
+  {
+    "role": "headline",
+    "text": "Jacob Sarfati"
+  },
+  {
+    "role": "footer",
+    "text": "JULY 4TH 1980 - MARCH 16TH 2025"
+  },
+  {
+    "role": "subhead",
+    "text": "Nobody is coming\nIt’s up to us",
+    "style": {
+      "italic": true
+    }
+  }
+]
