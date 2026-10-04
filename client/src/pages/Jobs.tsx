@@ -16,6 +16,66 @@ interface JobRow {
   thumb: string | null;
 }
 
+interface Example {
+  id: string;
+  jobNumber: string;
+  name: string;
+  description: string;
+}
+
+function ExamplePicker() {
+  const [examples, setExamples] = useState<Example[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api.get<{ examples: Example[] }>('/examples').then((d) => setExamples(d.examples)).catch(() => {});
+  }, []);
+  if (!examples.length) return null;
+  return (
+    <div className="mt-6 border border-line bg-white">
+      <div className="space-y-3 p-5">
+        <div>
+          <h2 className="font-display text-[15px] font-semibold uppercase tracking-[0.08em]">Start from an example</h2>
+          <p className="text-[13px] text-muted">Real past orders with their spec, wording and photos already filled in. Good for demos.</p>
+        </div>
+        <ul className="divide-y divide-line border-y border-line">
+          {examples.map((ex) => (
+            <li key={ex.id} className="flex items-center gap-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-[13px] text-navy">{ex.jobNumber}</span>
+                  <span className="truncate text-[14px] font-medium">{ex.name}</span>
+                </div>
+                <div className="truncate text-[12px] text-muted">{ex.description}</div>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                busy={busy === ex.id}
+                disabled={!!busy}
+                onClick={async () => {
+                  setBusy(ex.id);
+                  setError('');
+                  try {
+                    const { project } = await api.post<{ project: Project }>(`/examples/${ex.id}`);
+                    navigate(`/jobs/${project.id}`);
+                  } catch (e) {
+                    setError((e as Error).message);
+                    setBusy(null);
+                  }
+                }}
+              >
+                Open
+              </Button>
+            </li>
+          ))}
+        </ul>
+        {error && <Notice tone="error">{error}</Notice>}
+      </div>
+    </div>
+  );
+}
+
 export function Jobs({ me }: { me: Me }) {
   const [jobs, setJobs] = useState<JobRow[] | null>(null);
   const [jobNumber, setJobNumber] = useState('');
@@ -34,8 +94,9 @@ export function Jobs({ me }: { me: Me }) {
     <div className="min-h-full">
       <TopBar me={me} />
       <main className="mx-auto grid max-w-6xl gap-8 px-4 py-8 md:grid-cols-[340px_1fr] md:px-6">
+        <div className="h-fit">
         <form
-          className="h-fit border border-line bg-white"
+          className="border border-line bg-white"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -66,6 +127,8 @@ export function Jobs({ me }: { me: Me }) {
             </Button>
           </div>
         </form>
+        <ExamplePicker />
+        </div>
 
         <section>
           <div className="mb-3 flex items-end justify-between gap-4">

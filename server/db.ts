@@ -39,9 +39,21 @@ export function saveProject(p: Project) {
   );
   return p;
 }
+/** Fills fields added in later versions, so jobs saved earlier keep working. */
+function upgrade(p: Project): Project {
+  p.proofStyle ??= 'standard';
+  p.proofDescription ??= null;
+  if (p.spec) {
+    p.spec.process ??= 'cast';
+    p.spec.thicknessIn ??= null;
+    p.spec.stakeLengthIn ??= null;
+  }
+  return p;
+}
+
 export function getProject(id: string): Project | null {
   const row = db.prepare('SELECT data FROM projects WHERE id = ?').get(id) as { data: string } | undefined;
-  return row ? (JSON.parse(row.data) as Project) : null;
+  return row ? upgrade(JSON.parse(row.data) as Project) : null;
 }
 export function listProjects(): Project[] {
   return (db.prepare('SELECT data FROM projects ORDER BY updated_at DESC LIMIT 500').all() as { data: string }[]).map((r) => JSON.parse(r.data));

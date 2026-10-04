@@ -30,17 +30,25 @@ Nothing is ever overwritten: every image, proof and production file is kept as i
 
 ---
 
-## Deploying on Render.com (one time, about 10 minutes)
+## Getting it online on Render.com (one time, about 10 minutes)
 
-1. Merge this branch into `main` on GitHub (or note the branch name to use).
-2. Sign in to [render.com](https://render.com) with GitHub, then **New → Blueprint** and pick this repository. Render reads `render.yaml` and sets everything up: the web service, a 5 GB disk for jobs, and all settings.
-3. Render asks for two secret values:
-   - `OPENAI_API_KEY`: your OpenAI API key. **Create a fresh key** at platform.openai.com → API keys, because the one shared in chat should be treated as exposed. Revoke the old one there.
-   - `APP_PASSWORD`: the password your team will type to sign in.
-4. Click **Apply**. The first build takes about 5 minutes. Your app is then live at `https://plaque-proof-studio.onrender.com` (or similar).
-5. Sign in, open **Admin → System** and click **Check the OpenAI connection**. It should say *Model available*.
+Do these once. Afterwards every change pushed to the branch redeploys by itself, so the link always shows the latest version.
 
-The plan in `render.yaml` is Render's "Starter" web service plus a 5 GB disk (about $7–9/month). Every push to the deployed branch redeploys automatically.
+**Before you start: OpenAI account (5 minutes)**
+1. Go to [platform.openai.com](https://platform.openai.com) → **API keys** → **Create new secret key**. Copy it somewhere safe. Also **revoke the old key** that was pasted in chat.
+2. **Billing** → add at least $10 of credit. Image generation does not work on an account with no credit.
+3. **Settings → Organization → General → Verify Organization.** OpenAI requires a verified organization before its image models can be used. It takes a few minutes with an ID check.
+
+**Deploy**
+1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/tmoosabhoy6/Impact-Signs-Designer/tree/claude/blissful-mccarthy-63trmd)** and sign in to Render with GitHub. If Render asks, allow it to access the `Impact-Signs-Designer` repository; it is private, so Render needs permission to read it.
+   - *Or manually:* Render dashboard → **New** → **Blueprint** → choose `Impact-Signs-Designer` → set the branch to **`claude/blissful-mccarthy-63trmd`**.
+2. Render reads `render.yaml` and shows one web service (`plaque-proof-studio`, Starter plan) with a 5 GB disk. It asks for two values:
+   - `OPENAI_API_KEY`: the new key from step 1.
+   - `APP_PASSWORD`: any password your team will use to sign in.
+3. Click **Apply** (or **Deploy Blueprint**). The first build takes about 5 minutes. When it says **Live**, open the address shown at the top, e.g. `https://plaque-proof-studio.onrender.com`.
+4. Sign in, go to **Admin → System** and click **Run a test image**. One small image should appear within about a minute. If something is wrong, the message says exactly what (key, credit, organization verification…).
+
+The Starter plan plus the 5 GB disk costs about $7–9/month. Jobs, images and PDFs are kept between updates.
 
 **No webhook is needed.** The app calls OpenAI and receives each image in the same request, streaming progress to the screen.
 

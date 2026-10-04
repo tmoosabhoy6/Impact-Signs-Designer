@@ -430,12 +430,18 @@
         "blind",
         "blind mounting",
         "blind stud",
-        "blind studs",
+        "blind stud mount",
+        "blind stud mount with pattern",
         "blind stud mounting",
-        "studs",
-        "concealed"
+        "blind stud mounting with pattern",
+        "blind studs",
+        "concealed",
+        "stud mount",
+        "studs"
       ],
-      "prompt": "blind mounted with hidden studs on the back, so no fasteners are visible on the face"
+      "prompt": "blind mounted with hidden studs on the back, so no fasteners are visible on the face",
+      "diagram": "template:blind",
+      "scale": "wall"
     },
     {
       "id": "screws-through-face",
@@ -447,7 +453,8 @@
         "screw mount",
         "screws"
       ],
-      "prompt": "mounted with screws through the face, small screw heads visible in each corner within the border"
+      "prompt": "mounted with screws through the face, small screw heads visible in each corner within the border",
+      "scale": "wall"
     },
     {
       "id": "rosettes",
@@ -457,7 +464,23 @@
         "rosettes",
         "decorative rosettes"
       ],
-      "prompt": "mounted with small decorative bronze rosette caps covering the screws in each corner within the border"
+      "prompt": "mounted with small decorative bronze rosette caps covering the screws in each corner within the border",
+      "scale": "wall"
+    },
+    {
+      "id": "garden-stake",
+      "label": "Garden Stake",
+      "aliases": [
+        "garden stake",
+        "garden-stake",
+        "stake mount",
+        "yard stake",
+        "ground stake",
+        "garden stake mount"
+      ],
+      "prompt": "mounted on a garden stake from the back, so no fasteners are visible on the face",
+      "diagram": "assets/mounting/garden-stake.png",
+      "scale": "ground"
     }
   ],
   "lettering": [
@@ -467,13 +490,71 @@
       "aliases": [
         "raised lettering",
         "raised letters",
-        "raised"
+        "raised",
+        "raised letters and border"
       ],
-      "prompt": "raised lettering cast in the same metal and finish as the plate, with crisp vertical sides"
+      "prompt": "raised lettering in the same metal and finish as the plate, with crisp vertical sides"
     }
   ],
   "coating": "Protective clear polyurethane coating for outdoor durability.",
   "proof": {
     "disclaimer": "Simulated appearance, actual product finish may vary. Effects for illustrative purposes only"
-  }
+  },
+  "processes": [
+    {
+      "id": "cast",
+      "label": "Cast",
+      "aliases": [
+        "cast bronze",
+        "cast",
+        "sand cast",
+        "sand-cast"
+      ],
+      "prompt": "sand-cast bronze: raised elements stand clearly proud of the recessed field (about 1/16 inch), with slightly softened cast edges",
+      "proofFinishNote": "",
+      "proofPaintNote": ""
+    },
+    {
+      "id": "reverse-etched",
+      "label": "Reverse Etched",
+      "aliases": [
+        "reverse etched",
+        "reverse-etched",
+        "etched bronze",
+        "chemically etched",
+        "photo etched plaque",
+        "etched plate"
+      ],
+      "prompt": "reverse-etched bronze: a flat machined bronze plate where the background is chemically etched away, leaving very shallow, razor-crisp, flat-faced letters and border; the etched background is paint-filled; overall flatter and sharper than a casting",
+      "proofFinishNote": "Reverse Etched letters & border",
+      "proofPaintNote": "Reverse Etched background"
+    }
+  ],
+  "thickness": {
+    "defaultIn": 0.25,
+    "options": [
+      0.25,
+      0.375,
+      0.5,
+      0.75,
+      1
+    ]
+  },
+  "proofStyles": [
+    {
+      "id": "standard",
+      "label": "Standard proof",
+      "description": "The Liquid Mercury layout: plaque with red dimension brackets, mounting diagram, finish and paint-fill swatches."
+    },
+    {
+      "id": "description",
+      "label": "Description sheet",
+      "description": "Order description header, blue dimension arrows, captioned option tiles and a Visual Scale figure (like the Awe and Raccoon River proofs)."
+    },
+    {
+      "id": "etched",
+      "label": "Order version + outline art",
+      "description": "\"ORDER # – VERSION\" header, side-view mounting, process captions, plus a second page with the outline art for production (like Structure of Merit)."
+    }
+  ]
 }

@@ -18,8 +18,9 @@ import { parseSpec } from './parse/spec.js';
 import { docxToText, parseWording } from './parse/wording.js';
 import { storeUpload, uploadPath, photoPpi, type UploadKind } from './uploads.js';
 import { PRESETS } from './layout/engine.js';
+import { createExampleJob, listExamples } from './examples.js';
 import { conceptFile, layoutDrawing, layoutFor, newConceptRecord, runConcept, type ConceptEvents } from './ai/pipeline.js';
-import { canvasSize, friendlyError, openai } from './ai/images.js';
+import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
 import { PROMPT_FILES, promptVersion, readPrompt } from './ai/prompts.js';
 import { buildProofPdf } from './pdf/proof.js';
 import { buildProductionPdf } from './pdf/production.js';
@@ -101,6 +102,15 @@ api.get('/health/details', ah(async (req, res) => {
   res.json(out);
 }));
 
+api.post('/health/test-image', genLimiter, ah(async (_req, res) => {
+  try {
+    const r = await testImage();
+    res.json({ ok: true, ms: r.ms, costUsd: r.costUsd, model: r.model, image: `data:image/png;base64,${r.png.toString('base64')}` });
+  } catch (e) {
+    res.json({ ok: false, error: friendlyError(e) });
+  }
+}));
+
 // ---------- Catalog & admin ----------
 api.get('/catalog', (_req, res) => res.json({ catalog: getCatalog(), presets: PRESETS.map(({ id, label, description }) => ({ id, label, description })) }));
 api.get('/admin/assets', (_req, res) => res.json({ assets: assetLibraryStatus() }));
@@ -117,6 +127,15 @@ api.get('/projects', (_req, res) => {
   });
 });
 
+api.get('/examples', (_req, res) => {
+  res.json({ examples: listExamples().map(({ id, jobNumber, name, description, proofStyle }) => ({ id, jobNumber, name, description, proofStyle })) });
+});
+
+api.post('/examples/:id', ah(async (req, res) => {
+  const project = await createExampleJob(String(req.params.id), userName(req));
+  res.json({ project });
+}));
+
 api.post('/projects', express.json(), (req, res) => {
   const t = now();
   const p: Project = {
@@ -124,7 +143,7 @@ api.post('/projects', express.json(), (req, res) => {
     jobNumber: String(req.body?.jobNumber ?? '').trim().slice(0, 40),
     name: String(req.body?.name ?? '').trim().slice(0, 120) || 'Untitled plaque',
     specText: '', parse: null, spec: null, wordingText: '', wording: null, uploads: {},
-    selectedConceptId: null, logoSlot: 'auto', createdBy: userName(req), createdAt: t, updatedAt: t,
+    selectedConceptId: null, logoSlot: 'auto', proofStyle: 'standard', proofDescription: null, createdBy: userName(req), createdAt: t, updatedAt: t,
   };
   saveProject(p);
   res.json({ project: p });
@@ -163,7 +182,7 @@ api.patch('/projects/:id', express.json(), ah((req, res) => {
   if (typeof b.name === 'string') p.name = b.name.trim().slice(0, 120);
   if (b.spec) {
     const s = { ...(p.spec ?? b.spec), ...b.spec };
-    for (const [k, g] of [['finish', 'finishes'], ['backgroundColor', 'backgroundColors'], ['backgroundTexture', 'backgroundTextures'], ['border', 'borders'], ['font', 'fonts'], ['imageOption', 'imageOptions'], ['mounting', 'mountings']] as const) {
+    for (const [k, g] of [['finish', 'finishes'], ['backgroundColor', 'backgroundColors'], ['backgroundTexture', 'backgroundTextures'], ['border', 'borders'], ['font', 'fonts'], ['imageOption', 'imageOptions'], ['mounting', 'mountings'], ['process', 'processes']] as const) {
       mustOption(g, s[k]);
     }
     const { minIn, maxIn } = getCatalog().sizeLimits;
@@ -177,6 +196,8 @@ api.patch('/projects/:id', express.json(), ah((req, res) => {
   }
   if (b.wording?.blocks) p.wording = { blocks: b.wording.blocks, notes: p.wording?.notes ?? [] };
   if (['auto', 'top', 'middle', 'bottom'].includes(b.logoSlot)) p.logoSlot = b.logoSlot;
+  if (['standard', 'description', 'etched'].includes(b.proofStyle)) p.proofStyle = b.proofStyle;
+  if (b.proofDescription === null || typeof b.proofDescription === 'string') p.proofDescription = b.proofDescription ? String(b.proofDescription).slice(0, 2000) : null;
   saveProject(p);
   res.json(projectPayload(p));
 }));

@@ -32,8 +32,11 @@ export interface Catalog {
   borders: BorderOption[];
   fonts: FontOption[];
   imageOptions: Option[];
-  mountings: Option[];
+  mountings: (Option & { diagram?: string; scale?: 'wall' | 'ground' })[];
   lettering: Option[];
+  processes: (Option & { proofFinishNote: string; proofPaintNote: string })[];
+  thickness: { defaultIn: number; options: number[] };
+  proofStyles: { id: string; label: string; description: string }[];
   coating: string;
   proof: { disclaimer: string };
 }
@@ -47,7 +50,8 @@ export type OptionGroup =
   | 'fonts'
   | 'imageOptions'
   | 'mountings'
-  | 'lettering';
+  | 'lettering'
+  | 'processes';
 
 export const OPTION_GROUPS: { key: OptionGroup; label: string }[] = [
   { key: 'materials', label: 'Material' },
@@ -59,6 +63,7 @@ export const OPTION_GROUPS: { key: OptionGroup; label: string }[] = [
   { key: 'imageOptions', label: 'Image option' },
   { key: 'mountings', label: 'Mounting' },
   { key: 'lettering', label: 'Lettering' },
+  { key: 'processes', label: 'Process' },
 ];
 
 let cached: Catalog | null = null;

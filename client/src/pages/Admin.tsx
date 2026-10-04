@@ -50,9 +50,20 @@ export function Admin({ me }: { me: Me }) {
   );
 }
 
+interface TestResult {
+  ok: boolean;
+  error?: string;
+  image?: string;
+  ms?: number;
+  costUsd?: number;
+  model?: string;
+}
+
 function System() {
   const [d, setD] = useState<Record<string, unknown> | null>(null);
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [test, setTest] = useState<TestResult | null>(null);
   const load = (live = false) => {
     setBusy(true);
     api
@@ -84,9 +95,41 @@ function System() {
           </div>
         ))}
       </dl>
-      <Button variant="secondary" busy={busy} onClick={() => load(true)}>
-        Check the OpenAI connection
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          busy={testing}
+          onClick={async () => {
+            setTesting(true);
+            setTest(null);
+            try {
+              setTest(await api.post<TestResult>('/health/test-image'));
+            } catch (e) {
+              setTest({ ok: false, error: (e as Error).message });
+            } finally {
+              setTesting(false);
+            }
+          }}
+        >
+          Run a test image
+        </Button>
+        <Button variant="secondary" busy={busy} onClick={() => load(true)}>
+          Check the OpenAI connection
+        </Button>
+      </div>
+      <p className="text-[13px] text-muted">The test makes one small, low-quality image (about 2 cents) to prove the OpenAI setup works end to end. It takes up to a minute.</p>
+      {testing && <Notice tone="info">Generating a test image… this can take up to a minute.</Notice>}
+      {test && !test.ok && <Notice tone="error">{test.error}</Notice>}
+      {test?.ok && (
+        <div className="flex gap-4 border border-line bg-white p-3">
+          <img src={test.image} alt="Test plaque" className="h-48 w-48 object-cover" />
+          <div className="text-[14px]">
+            <div className="font-semibold text-ok">OpenAI image generation works.</div>
+            <div className="mt-1 font-mono text-[12.5px] text-muted">
+              {test.model} · {((test.ms ?? 0) / 1000).toFixed(1)} s{test.costUsd ? ` · $${test.costUsd.toFixed(3)}` : ''}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

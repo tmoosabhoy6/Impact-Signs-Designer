@@ -31,7 +31,7 @@ describe('spec parser', () => {
     expect(r.spec).toEqual({
       material: 'bronze', widthIn: 12, heightIn: 18, finish: 'natural-satin-brushed-bronze', backgroundColor: 'dark-oxide',
       backgroundTexture: 'leatherette', border: 'single-line', font: 'times-new-roman', imageOption: 'photo-relief',
-      mounting: 'blind-studs', lettering: 'raised',
+      mounting: 'blind-studs', lettering: 'raised', process: 'cast', thicknessIn: null, stakeLengthIn: null,
     });
     expect(r.assumed.sort()).toEqual(['border', 'font', 'imageOption']);
     expect(r.unrecognizedLines).toEqual([]);

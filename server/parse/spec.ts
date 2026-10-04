@@ -86,10 +86,38 @@ const DEFAULTS: PlaqueSpec = {
   imageOption: 'none',
   mounting: 'blind-studs',
   lettering: 'raised',
+  process: 'cast',
+  thicknessIn: null,
+  stakeLengthIn: null,
 };
 
 // Phrases that are understood but carry no option (so their lines are not reported as unrecognized).
-const KNOWN_PHRASES = [/recessed/i, /paint[- ]?fill/i, /plaque/i, /raised/i, /background/i, /mount/i, /layout/i, /lettering/i, /letters/i];
+const KNOWN_PHRASES = [/recessed/i, /paint[- ]?fill/i, /plaque/i, /raised/i, /background/i, /mount/i, /layout/i, /lettering/i, /letters/i, /^copy\s*:/i, /^order\s*#/i, /^description\s*:/i];
+
+/** "Qty. 1 set …", "DESCRIPTION: …" and "ORDER# 32582" are header words, not options. */
+function stripHeaderWords(line: string): string {
+  return line
+    .replace(/^description\s*[:꞉]\s*/i, '')
+    .replace(/order\s*#\s*\d+/gi, '')
+    .replace(/qty\.?\s*\d+\s*(set|sets|pcs?|pieces?)?/gi, '')
+    .trim();
+}
+
+export function parseThickness(text: string): number | null {
+  const m = normalize(text).match(/(\d+(?:\.\d+)?(?:\/\d+)?|\d+[\s-]+\d+\/\d+|[¼½¾⅛⅜⅝⅞])\s*(?:"|in(?:ch(?:es)?)?\.?)?\s*thick/i);
+  if (!m) return null;
+  const raw = m[1];
+  if (/^\d+\/\d+$/.test(raw)) {
+    const [a, b] = raw.split('/').map(Number);
+    return a / b;
+  }
+  return parseInches(raw);
+}
+
+export function parseStakeLength(text: string): number | null {
+  const m = normalize(text).match(/(\d+(?:\.\d+)?)\s*(?:"|in(?:ch(?:es)?)?\.?)?\s*(?:long\s+)?(?:garden\s+|yard\s+|ground\s+)?stake/i);
+  return m ? Number(m[1]) : null;
+}
 
 export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}): ParseResult {
   const catalog = getCatalog();
@@ -98,7 +126,9 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
   const spec: PlaqueSpec = { ...DEFAULTS };
   const lines = normalize(specText)
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    // Description-style orders put everything in sentences: treat each sentence as a line.
+    .flatMap((l) => (l.length > 90 || /\.\s+[A-Z]/.test(l) ? l.split(/(?<=[a-z0-9")])\.\s+(?=[A-Z0-9])/) : [l]))
+    .map((l) => stripHeaderWords(l.trim()).replace(/\.$/, ''))
     .filter(Boolean);
   const used = new Set<string>();
   const label = (group: OptionGroup, id: string) => (catalog[group] as Option[]).find((o) => o.id === id)?.label ?? id;
@@ -190,7 +220,8 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
 
   // Image
   const textOnly = lines.some((l) => /text[- ]only/i.test(l));
-  const img = textOnly ? null : matchOption('imageOptions', lines);
+  const imgLines = lines.map((l) => l.replace(/reverse[- ]etched[^,.;]*/gi, '').replace(/copy\s*:.*$/i, ''));
+  const img = textOnly ? null : matchOption('imageOptions', imgLines);
   if (textOnly) {
     spec.imageOption = 'none';
   } else if (img) {
@@ -212,6 +243,28 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
     spec.mounting = mnt.option.id;
     used.add(mnt.line);
   } else assume('mounting', 'Mounting not stated. Assumed Blind Mount.');
+
+  // Process: cast unless the order says reverse etched.
+  const proc = matchOption('processes', lines);
+  if (proc) {
+    spec.process = proc.option.id;
+    used.add(proc.line);
+  }
+  if (spec.process === 'reverse-etched' && spec.imageOption === 'etched-photo' && !lines.some((l) => /etched photo|photo etch/i.test(l))) {
+    spec.imageOption = 'none';
+  }
+
+  // Thickness and garden stake length.
+  for (const l of lines) {
+    const t = parseThickness(l);
+    if (t && !spec.thicknessIn) spec.thicknessIn = t;
+    const sl = /stake/i.test(l) ? parseStakeLength(l) : null;
+    if (sl && !spec.stakeLengthIn) spec.stakeLengthIn = sl;
+  }
+  if (spec.mounting === 'garden-stake' && !spec.stakeLengthIn) {
+    spec.stakeLengthIn = 24;
+    assume('stakeLengthIn', 'Garden stake length not stated. Assumed 24".');
+  }
 
   // Lettering is always raised for cast plaques.
   const let_ = matchOption('lettering', lines);
