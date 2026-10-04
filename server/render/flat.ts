@@ -4,19 +4,45 @@
 // It is also used as the stand-in concept image in mock mode.
 import sharp from 'sharp';
 import { mustOption } from '../catalog.js';
-import { resolveFont, type OTFont } from '../text/fonts.js';
-import type { PlaqueLayout, PlaqueSpec } from '../../shared/types.js';
+import { measure, resolveFont, type OTFont } from '../text/fonts.js';
+import type { PlaqueLayout, PlaqueSpec, TextStyle } from '../../shared/types.js';
 
-export function textPathData(font: OTFont, text: string, cx: number, baseline: number, size: number): string {
+function glyphPathData(path: ReturnType<OTFont['getPath']>): string {
+  // opentype's roundDecimal turns scientific-notation near-zero coordinates
+  // into NaN. Serialize finite glyph coordinates directly, without changing them.
+  const n = (v: number) => {
+    if (!Number.isFinite(v)) throw new Error('The font returned an invalid outline coordinate.');
+    return String(+v.toFixed(3));
+  };
+  return path.commands.map((c) => {
+    switch (c.type) {
+      case 'Z': return 'Z';
+      case 'M': case 'L': return `${c.type}${n(c.x)} ${n(c.y)}`;
+      case 'Q': return `Q${n(c.x1)} ${n(c.y1)} ${n(c.x)} ${n(c.y)}`;
+      case 'C': return `C${n(c.x1)} ${n(c.y1)} ${n(c.x2)} ${n(c.y2)} ${n(c.x)} ${n(c.y)}`;
+    }
+  }).join('');
+}
+
+export function textPathData(font: OTFont, text: string, cx: number, baseline: number, size: number, style?: TextStyle): string {
+  if (style?.smallCaps) {
+    let x = cx - measure(font, text, size, style) / 2;
+    return [...text].map((ch) => {
+      const letterSize = ch !== ch.toUpperCase() ? size * 0.8 : size;
+      const d = glyphPathData(font.getPath(ch.toUpperCase(), x, baseline, letterSize));
+      x += font.getAdvanceWidth(ch.toUpperCase(), letterSize);
+      return d;
+    }).join(' ');
+  }
   const w = font.getAdvanceWidth(text, size);
-  return font.getPath(text, cx - w / 2, baseline, size).toPathData(3);
+  return glyphPathData(font.getPath(text, cx - w / 2, baseline, size));
 }
 
 /** All text of a layout as one SVG path, in the given units per inch. */
 export function layoutTextPath(layout: PlaqueLayout, fontId: string, unitsPerIn: number): string {
   const { font } = resolveFont(fontId);
   return layout.lines
-    .map((l) => textPathData(font, l.text, l.cx * unitsPerIn, l.baseline * unitsPerIn, l.size * unitsPerIn))
+    .map((l) => textPathData(l.style ? resolveFont(fontId, l.style).font : font, l.text, l.cx * unitsPerIn, l.baseline * unitsPerIn, l.size * unitsPerIn, l.style))
     .join(' ');
 }
 

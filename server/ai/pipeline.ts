@@ -14,7 +14,7 @@ import { buildConceptPrompt, buildFixPrompt, promptVersion, type RefImage } from
 import { canvasSize, costUsd, friendlyError, imageAdapter } from './images.js';
 import { fitToPlaque, smallPreview } from './postprocess.js';
 import { spellcheckImage } from './spellcheck.js';
-import type { ConceptRecord, LayoutPresetId, PlaqueLayout, Project } from '../../shared/types.js';
+import type { ConceptRecord, ContentSnapshot, LayoutPresetId, PlaqueLayout, Project } from '../../shared/types.js';
 
 export interface ConceptEvents {
   onUpdate(c: ConceptRecord): void;
@@ -95,14 +95,22 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   return refs.slice(0, 16);
 }
 
-function checkLimits(projectId: string) {
-  const used = listConcepts(projectId).filter((c) => c.status !== 'error').length;
+export function checkLimits(projectId: string, excludeId?: string) {
+  const used = listConcepts(projectId).filter((c) => c.id !== excludeId && c.status !== 'error').length;
   if (used >= config.maxImageCallsPerProject) {
     throw new Error(`This job has reached its limit of ${config.maxImageCallsPerProject} images (MAX_IMAGE_CALLS_PER_PROJECT).`);
   }
   if (!config.mockAI && spentToday() >= config.dailyBudgetUsd) {
     throw new Error(`Today's image budget of $${config.dailyBudgetUsd} is used up (DAILY_BUDGET_USD). It resets at midnight UTC.`);
   }
+}
+
+export function contentSnapshot(project: Project): ContentSnapshot {
+  return structuredClone({ spec: project.spec, wording: project.wording, wordingText: project.wordingText, parse: project.parse });
+}
+
+export function projectForConcept(project: Project, concept: ConceptRecord): Project {
+  return concept.snapshot ? { ...project, ...structuredClone(concept.snapshot) } : project;
 }
 
 export function newConceptRecord(project: Project, init: Partial<ConceptRecord> & Pick<ConceptRecord, 'preset' | 'kind' | 'batchId'>): ConceptRecord {
@@ -123,19 +131,22 @@ export function newConceptRecord(project: Project, init: Partial<ConceptRecord> 
     error: null,
     hasImage: false,
     createdAt: now(),
+    snapshot: contentSnapshot(project),
     ...init,
   };
 }
 
 /** Runs one generation (new concept, regenerate, or fix of an existing image). */
 export async function runConcept(project: Project, rec: ConceptRecord, ev: ConceptEvents, opts: { quality?: string } = {}): Promise<ConceptRecord> {
+  project = projectForConcept(project, rec);
+  const started = Date.now();
   const update = (patch: Partial<ConceptRecord>) => {
     Object.assign(rec, patch);
     saveConcept(rec);
     ev.onUpdate({ ...rec });
   };
   try {
-    checkLimits(project.id);
+    checkLimits(project.id, rec.id);
     const layout = layoutFor(project, rec.preset);
     const { w, h, size } = canvasSize(project.spec!.widthIn, project.spec!.heightIn);
     const quality = opts.quality || config.imageQuality;
@@ -175,12 +186,12 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     fs.writeFileSync(conceptFile(rec, 'preview.jpg'), await smallPreview(fitted.png, 720));
     const cost = costUsd(result.usage);
     if (cost) addSpend(cost);
-    update({ hasImage: true, usage: result.usage, costUsd: cost, status: 'running' });
+    update({ hasImage: true, usage: result.usage, costUsd: cost, status: 'running', size: result.size ?? size, quality: result.quality ?? quality });
 
     const spellcheck = await spellcheckImage(fitted.png, layout.lines.map((l) => l.text));
-    update({ spellcheck, status: 'done' });
+    update({ spellcheck, status: 'done', durationMs: Date.now() - started });
   } catch (e) {
-    update({ status: 'error', error: friendlyError(e) });
+    update({ status: 'error', error: friendlyError(e), durationMs: Date.now() - started });
   }
   return rec;
 }

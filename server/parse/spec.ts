@@ -61,7 +61,7 @@ function escapeRe(s: string) {
 }
 
 /** Finds the catalog option whose alias appears in the text, preferring the longest alias. */
-function matchOption(group: OptionGroup, lines: string[]): Match | null {
+export function matchOption(group: OptionGroup, lines: string[]): Match | null {
   const options = getCatalog()[group] as Option[];
   const candidates = options
     .flatMap((option) => option.aliases.map((alias) => ({ option, alias })))

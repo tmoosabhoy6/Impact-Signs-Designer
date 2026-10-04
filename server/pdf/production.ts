@@ -104,15 +104,18 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
   // Text as outlines.
   const { font, licensed, label } = resolveFont(spec.font);
   if (!licensed) notes.push(`${label} font file not found in brand-assets/fonts/; text was outlined with an open stand-in of the same proportions.`);
-  drawText(page, layout, font, H);
+  for (const l of layout.lines.filter((l) => l.style)) {
+    if (!resolveFont(spec.font, l.style).licensed) notes.push(`Styled text uses an open stand-in: ${l.text.slice(0, 40)}.`);
+  }
+  drawText(page, layout, font, H, spec.font);
 
   const bytes = await doc.save({ useObjectStreams: false });
   return { pdf: Buffer.from(bytes), fileName: productionFileName(input.jobNumber, input.name, spec), notes };
 }
 
-function drawText(page: PDFPage, layout: PlaqueLayout, font: ReturnType<typeof resolveFont>['font'], H: number) {
+function drawText(page: PDFPage, layout: PlaqueLayout, font: ReturnType<typeof resolveFont>['font'], H: number, fontId: string) {
   for (const l of layout.lines) {
-    const d = textPathData(font, l.text, l.cx * PT, l.baseline * PT, l.size * PT);
+    const d = textPathData(l.style ? resolveFont(fontId, l.style).font : font, l.text, l.cx * PT, l.baseline * PT, l.size * PT, l.style);
     if (d) page.drawSvgPath(d, { x: 0, y: H, color: INK, borderWidth: 0 });
   }
 }

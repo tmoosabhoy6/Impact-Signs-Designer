@@ -43,6 +43,8 @@ export interface TextStyle {
   bold?: boolean;
   /** Lowercase letters drawn as smaller capitals. */
   smallCaps?: boolean;
+  /** Multiplier on this block's normal type size; does not alter preset constants. */
+  sizeScale?: number;
 }
 
 export interface WordingBlock {
@@ -56,6 +58,26 @@ export interface WordingBlock {
 export interface Wording {
   blocks: WordingBlock[];
   notes: string[];
+}
+
+export type WordingEdit =
+  | { op: 'replace_text'; blockId: string; from: string; to: string }
+  | { op: 'insert_block'; afterId: string | null; text: string; role: WordingRole }
+  | { op: 'delete_block'; blockId: string }
+  | { op: 'set_role'; blockId: string; role: WordingRole }
+  | { op: 'set_style'; blockId: string; style: TextStyle };
+
+export type InstructionPlan =
+  | { kind: 'visual'; restated: string }
+  | { kind: 'spec'; restated: string; specPatch: Partial<PlaqueSpec> }
+  | { kind: 'wording'; restated: string; wordingEdits: WordingEdit[] }
+  | { kind: 'refuse'; reason: string; nearestOptions: string[] };
+
+export interface ContentSnapshot {
+  spec: PlaqueSpec | null;
+  wording: Wording | null;
+  wordingText: string;
+  parse: ParseResult | null;
 }
 
 export type LayoutPresetId = 'classic' | 'portrait' | 'statement';
@@ -113,6 +135,11 @@ export interface ConceptRecord {
   spellcheck: SpellcheckResult | null;
   error: string | null;
   hasImage: boolean;
+  plan?: InstructionPlan;
+  previous?: ContentSnapshot;
+  /** Content used to generate this version, including before Undo or a later edit. */
+  snapshot?: ContentSnapshot;
+  durationMs?: number;
   createdAt: string;
 }
 

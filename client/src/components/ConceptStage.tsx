@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Maximize2, RefreshCw, Wand2, X } from 'lucide-react';
-import { api, conceptUrl, stream, type ProjectPayload } from '../api';
+import { api, ApiError, conceptUrl, stream, type ProjectPayload } from '../api';
 import type { Catalog } from '../catalog';
 import { Button, Notice, Spinner, fmtUsd } from './ui';
-import type { ConceptRecord } from '../../../shared/types';
+import type { ConceptRecord, InstructionPlan } from '../../../shared/types';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void; reload: () => void };
 
@@ -21,6 +21,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   const [error, setError] = useState('');
   const [quality, setQuality] = useState('high');
   const [lightbox, setLightbox] = useState<ConceptRecord | null>(null);
+  const [plans, setPlans] = useState<Record<string, InstructionPlan>>({});
 
   const concepts = useMemo(() => {
     const map = new Map(data.concepts.map((c) => [c.id, c]));
@@ -33,18 +34,21 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   if (!p.wording?.blocks.length) blockers.push('add the customer wording');
   if (p.spec && p.spec.imageOption !== 'none' && !p.uploads.photo) blockers.push('upload the photo (or set Image option to No Image)');
 
-  const runStream = async (url: string, body: unknown) => {
+  const runStream = async (url: string, body: unknown, preset?: string) => {
     setRunning(true);
     setError('');
     try {
       await stream(url, body, (e) => {
+        if (e.type === 'plan' && preset) setPlans((m) => ({ ...m, [preset]: e.plan }));
         if (e.type === 'start') setLive((m) => ({ ...m, ...Object.fromEntries(e.concepts.map((c) => [c.id, c])) }));
         if (e.type === 'concept') setLive((m) => ({ ...m, [e.concept.id]: e.concept }));
         if (e.type === 'partial') setPartials((m) => ({ ...m, [e.conceptId]: e.image }));
       });
       await reload();
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof ApiError && e.status === 422 && preset) {
+        setPlans((m) => ({ ...m, [preset]: { kind: 'refuse', reason: e.message, nearestOptions: Array.isArray(e.data.nearestOptions) ? e.data.nearestOptions as string[] : [] } }));
+      } else setError((e as Error).message);
     } finally {
       setRunning(false);
     }
@@ -96,10 +100,24 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
             partials={partials}
             ratio={ratio}
             running={running}
+            plan={plans[preset.id]}
             onOpen={setLightbox}
-            onSelect={async (c) => onChange(await api.post<ProjectPayload>(`/projects/${p.id}/select`, { conceptId: c.id }))}
+            onSelect={async (c) => {
+              setError('');
+              try { onChange(await api.post<ProjectPayload>(`/projects/${p.id}/select`, { conceptId: c.id })); }
+              catch (e) { setError((e as Error).message); }
+            }}
             onRegenerate={(c) => runStream(`/concepts/${c.id}/regenerate`, { quality })}
-            onFix={(c, instruction) => runStream(`/concepts/${c.id}/fix`, { instruction, quality })}
+            onFix={(c, instruction) => runStream(`/concepts/${c.id}/fix`, { instruction, quality }, c.preset)}
+            onUndo={async (c) => {
+              setRunning(true);
+              setError('');
+              try {
+                onChange(await api.post<ProjectPayload>(`/concepts/${c.id}/undo`));
+                setPlans((m) => { const next = { ...m }; delete next[c.preset]; return next; });
+              } catch (e) { setError((e as Error).message); }
+              finally { setRunning(false); }
+            }}
           />
         ))}
       </div>
@@ -117,7 +135,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
 }
 
 function PresetColumn({
-  preset, concepts, data, partials, ratio, running, onOpen, onSelect, onRegenerate, onFix,
+  preset, concepts, data, partials, ratio, running, plan, onOpen, onSelect, onRegenerate, onFix, onUndo,
 }: {
   preset: { id: string; label: string; description: string };
   concepts: ConceptRecord[];
@@ -125,10 +143,12 @@ function PresetColumn({
   partials: Record<string, string>;
   ratio: number;
   running: boolean;
+  plan?: InstructionPlan;
   onOpen: (c: ConceptRecord) => void;
   onSelect: (c: ConceptRecord) => void;
   onRegenerate: (c: ConceptRecord) => void;
   onFix: (c: ConceptRecord, instruction: string) => void;
+  onUndo: (c: ConceptRecord) => void;
 }) {
   const [index, setIndex] = useState<number | null>(null);
   const [fix, setFix] = useState('');
@@ -138,6 +158,10 @@ function PresetColumn({
   const layout = data.layouts?.find((l) => l.preset === preset.id);
   const busy = current && (current.status === 'running' || current.status === 'queued');
   const partial = current ? partials[current.id] : undefined;
+  const shownPlan = plan ?? current?.plan;
+  const planNote = shownPlan?.kind === 'refuse' ? shownPlan.reason
+    : shownPlan?.kind === 'visual' ? 'Visual edit to this image'
+    : shownPlan ? `Interpreted as: ${shownPlan.restated} (updates the proof and vector file)` : '';
 
   return (
     <article className={`flex flex-col rounded-[4px] border bg-stage-2/70 p-3 ${selected ? 'border-bronze ring-1 ring-bronze' : 'border-white/10'}`}>
@@ -185,15 +209,19 @@ function PresetColumn({
               <button
                 key={c.id}
                 onClick={() => setIndex(i)}
-                className={`h-6 min-w-6 rounded-[3px] px-1.5 font-mono text-[11px] ${c.id === current.id ? 'bg-white text-ink' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                className={`h-6 min-w-6 rounded-[3px] px-1.5 font-mono text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-bronze ${c.id === current.id ? 'bg-white text-ink' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                aria-pressed={c.id === current.id}
                 title={c.kind === 'fix' ? `Fix: ${c.note}` : c.kind === 'regenerate' ? 'Regenerated' : 'Original'}
               >
-                v{i + 1}
+                v{i + 1} · {c.plan?.kind === 'spec' ? 'spec' : c.plan?.kind === 'wording' ? 'wording' : c.kind === 'fix' ? 'edit' : c.kind === 'regenerate' ? 'new' : 'original'}
               </button>
             ))}
             <span className="ml-auto font-mono text-[11px] text-white/40">{fmtUsd(current.costUsd)}</span>
           </div>
           {current.kind === 'fix' && <p className="text-[12px] text-white/50">Fix: “{current.note}”</p>}
+          {current.previous && (current.plan?.kind === 'spec' || current.plan?.kind === 'wording') && (
+            <Button size="sm" variant="stage" disabled={running} onClick={() => onUndo(current)}>Undo order change</Button>
+          )}
           {current.status === 'error' && <Notice tone="error">{current.error}</Notice>}
           {current.status === 'done' && current.spellcheck && (
             <div className={`flex items-start gap-1.5 text-[12px] ${current.spellcheck.ok ? (current.spellcheck.checked ? 'text-[#7fd1a6]' : 'text-white/55') : 'text-[#ffb3a6]'}`}>
@@ -211,7 +239,7 @@ function PresetColumn({
           {current.hasImage && (
             <>
               <div className="flex gap-2">
-                <Button size="sm" variant={selected ? 'stage' : 'primary'} className="flex-1" disabled={!!selected} onClick={() => onSelect(current)}>
+                <Button size="sm" variant={selected ? 'stage' : 'primary'} className="flex-1" disabled={!!selected || running} onClick={() => onSelect(current)}>
                   {selected ? 'Selected for proof' : 'Use this one'}
                 </Button>
                 <Button size="sm" variant="stage" disabled={running} onClick={() => { setIndex(null); onRegenerate(current); }} title="Generate this layout again">
@@ -235,11 +263,21 @@ function PresetColumn({
                   placeholder='Fix: e.g. "correct the spelling of Feulner"'
                   className="h-8 min-w-0 flex-1 rounded-[3px] border border-white/15 bg-white/5 px-2 text-[12.5px] text-white placeholder:text-white/35 outline-none focus:border-white/40"
                   aria-label="Describe a fix for this image"
+                  aria-describedby={planNote ? `plan-${preset.id}` : undefined}
+                  maxLength={500}
                 />
                 <Button size="sm" variant="stage" type="submit" disabled={running || !fix.trim()}>
                   Apply
                 </Button>
               </form>
+              {planNote && <p id={`plan-${preset.id}`} role="status" className={`text-[12px] ${shownPlan?.kind === 'refuse' ? 'text-[#ffb3a6]' : 'text-white/65'}`}>{planNote}</p>}
+              {shownPlan?.kind === 'refuse' && shownPlan.nearestOptions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5" aria-label="Available alternatives">
+                  {shownPlan.nearestOptions.map((option) => (
+                    <button key={option} type="button" onClick={() => setFix(`use ${option}`)} className="rounded-[3px] border border-white/20 bg-white/10 px-2 py-1 text-[12px] text-white/80 hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bronze">{option}</button>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>

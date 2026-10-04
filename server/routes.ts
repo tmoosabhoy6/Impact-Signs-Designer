@@ -12,21 +12,22 @@ import { assetLibraryStatus } from './assets.js';
 import { checkPassword, clearSession, issueSession, requireAuth, sessionUser } from './auth.js';
 import {
   deleteProject, getConcept, getOutput, getProject, listConcepts, listOutputs, listProjects,
-  newId, now, projectDir, saveOutput, saveProject, spentToday,
+  newId, now, projectDir, saveConcept, saveOutput, saveProject, spentToday, db,
 } from './db.js';
 import { parseSpec } from './parse/spec.js';
 import { docxToText, parseWording } from './parse/wording.js';
 import { storeUpload, uploadPath, photoPpi, type UploadKind } from './uploads.js';
 import { PRESETS } from './layout/engine.js';
 import { createExampleJob, listExamples } from './examples.js';
-import { conceptFile, layoutDrawing, layoutFor, newConceptRecord, runConcept, type ConceptEvents } from './ai/pipeline.js';
+import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFor, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
+import { applyWordingEdits, planInstruction } from './ai/instruct.js';
 import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
 import { PROMPT_FILES, promptVersion, readPrompt } from './ai/prompts.js';
 import { buildProofPdf } from './pdf/proof.js';
 import { buildProductionPdf } from './pdf/production.js';
 import { preflight } from './pdf/preflight.js';
 import { resolveFont } from './text/fonts.js';
-import type { ConceptRecord, LayoutPresetId, OutputRecord, Project } from '../shared/types.js';
+import type { ConceptRecord, InstructionPlan, LayoutPresetId, OutputRecord, Project } from '../shared/types.js';
 
 export const api = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
@@ -278,8 +279,9 @@ function events(send: (o: unknown) => void): ConceptEvents {
   };
 }
 
-async function runStreamed(res: Response, project: Project, records: ConceptRecord[], quality?: string) {
+async function runStreamed(res: Response, project: Project, records: ConceptRecord[], quality?: string, plan?: InstructionPlan) {
   const s = sse(res);
+  if (plan) s.send({ type: 'plan', plan });
   s.send({ type: 'start', concepts: records });
   await Promise.all(records.map((r) => runConcept(project, r, events(s.send), { quality })));
   s.send({ type: 'end' });
@@ -313,9 +315,57 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   if (!c) throw new Error('Concept not found.');
   const instruction = String(req.body?.instruction ?? '').trim();
   if (instruction.length < 3) throw new Error('Describe the change, for example "make the border thinner".');
+  if (instruction.length > 500) throw new Error('Keep the change to 500 characters or fewer.');
   const p = getProject(c.projectId)!;
-  const rec = newConceptRecord(p, { preset: c.preset, kind: 'fix', batchId: c.batchId, parentId: c.id, note: instruction.slice(0, 500) });
-  await runStreamed(res, p, [rec], pickQuality(req.body?.quality));
+  const plan = await planInstruction(p, c, instruction);
+  if (plan.kind === 'refuse') return res.status(422).json({ error: plan.reason, nearestOptions: plan.nearestOptions });
+  // Planning can take time: do not overwrite an order changed in another tab.
+  if (getProject(p.id)?.updatedAt !== p.updatedAt) return res.status(409).json({ error: 'The order changed while this instruction was being read. Reload and try again.' });
+  if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) return res.status(409).json({ error: 'Wait for this job’s images to finish before editing it.' });
+  if (!c.hasImage) throw new Error('Wait for a finished image before editing it.');
+  checkLimits(p.id);
+  const previous = plan.kind === 'visual' ? undefined : contentSnapshot(p);
+  if (plan.kind === 'visual' && c.snapshot && JSON.stringify(c.snapshot.spec) !== JSON.stringify(p.spec)) {
+    return res.status(409).json({ error: 'Use this version first to restore its plaque options, then apply the visual edit.' });
+  }
+  if (plan.kind === 'visual' && c.snapshot && JSON.stringify(c.snapshot.wording) !== JSON.stringify(p.wording)) {
+    return res.status(409).json({ error: 'Use this version first to restore its wording, then apply the visual edit.' });
+  }
+  if (plan.kind === 'spec') {
+    if (!p.spec) throw new Error('Confirm the plaque specification first.');
+    p.spec = { ...p.spec, ...plan.specPatch };
+    if (p.parse) {
+      p.parse.spec = { ...p.spec };
+      p.parse.assumed = p.parse.assumed.filter((f) => !(f in plan.specPatch));
+      p.parse.notes = p.parse.notes.filter((n) => n.kind !== 'assumed' || !(n.field in plan.specPatch));
+    }
+  } else if (plan.kind === 'wording') {
+    p.wording = applyWordingEdits(p.wording, plan.wordingEdits);
+    p.wordingText = p.wording.blocks.map((b) => b.text).join('\n');
+  }
+  if (!p.wording?.blocks.length) throw new Error('Add the customer wording first.');
+  if (p.spec?.imageOption !== 'none' && !p.uploads.photo) throw new Error('Upload the photo before requesting this image treatment.');
+  // Validate the changed layout before saving any order change.
+  layoutFor(p, c.preset);
+  if (previous) p.selectedConceptId = null;
+  const rec = newConceptRecord(p, { preset: c.preset, kind: plan.kind === 'visual' ? 'fix' : 'regenerate', batchId: c.batchId, parentId: c.id, note: plan.restated, plan, previous });
+  db.transaction(() => { if (previous) saveProject(p); saveConcept(rec); })();
+  await runStreamed(res, p, [rec], pickQuality(req.body?.quality) ?? 'high', plan);
+}));
+
+api.post('/concepts/:id/undo', express.json(), ah((req, res) => {
+  const c = getConcept(String(req.params.id));
+  if (!c?.previous || (c.plan?.kind !== 'spec' && c.plan?.kind !== 'wording')) return res.status(422).json({ error: 'This version has no order change to undo.' });
+  const p = getProject(c.projectId)!;
+  if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) return res.status(409).json({ error: 'Wait for this job’s images to finish before undoing.' });
+  if (c.snapshot && (JSON.stringify(p.spec) !== JSON.stringify(c.snapshot.spec) || JSON.stringify(p.wording) !== JSON.stringify(c.snapshot.wording))) {
+    return res.status(409).json({ error: 'The order has changed since this version. Use this version first, then undo its change.' });
+  }
+  Object.assign(p, structuredClone(c.previous));
+  const parent = c.parentId ? getConcept(c.parentId) : null;
+  p.selectedConceptId = parent?.hasImage ? parent.id : null;
+  saveProject(p);
+  res.json(projectPayload(p));
 }));
 
 api.get('/concepts/:id/:file', ah((req, res) => {
@@ -333,6 +383,8 @@ api.post('/projects/:id/select', express.json(), ah((req, res) => {
   const p = loadProject(req);
   const c = getConcept(String(req.body?.conceptId ?? ''));
   if (!c || c.projectId !== p.id || !c.hasImage) throw new Error('Pick a finished image.');
+  if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) throw new Error('Wait for this job’s images to finish before selecting a version.');
+  if (c.snapshot) Object.assign(p, structuredClone(c.snapshot));
   p.selectedConceptId = c.id;
   saveProject(p);
   res.json(projectPayload(p));
@@ -357,9 +409,10 @@ function pdfPreview(pdf: string, dpi: number): Buffer | null {
 }
 
 api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
-  const p = loadProject(req);
+  let p = loadProject(req);
   const c = getConcept(String(req.body?.conceptId ?? p.selectedConceptId ?? ''));
   if (!c || c.projectId !== p.id || !c.hasImage) throw new Error('Select one of the generated images first.');
+  p = projectForConcept(p, c);
   if (c.spellcheck && !c.spellcheck.ok && !req.body?.acknowledged) {
     return res.status(409).json({ error: 'The spelling check found wording differences in this image.', differences: c.spellcheck.differences });
   }
@@ -373,8 +426,10 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
 }));
 
 api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
-  const p = loadProject(req);
+  let p = loadProject(req);
   const c = getConcept(String(req.body?.conceptId ?? p.selectedConceptId ?? ''));
+  if (c && c.projectId !== p.id) throw new Error('That concept belongs to a different job.');
+  if (c) p = projectForConcept(p, c);
   const preset = (c?.preset ?? req.body?.preset ?? 'classic') as LayoutPresetId;
   const layout = layoutFor(p, preset);
   const logoFile = uploadPath(p, 'logo');

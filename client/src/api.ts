@@ -1,4 +1,4 @@
-import type { ConceptRecord, OutputRecord, PlaqueLayout, Project } from '../../shared/types';
+import type { ConceptRecord, InstructionPlan, OutputRecord, PlaqueLayout, Project } from '../../shared/types';
 
 export interface ProjectPayload {
   project: Project;
@@ -44,6 +44,7 @@ export const api = {
 };
 
 export type StreamEvent =
+  | { type: 'plan'; plan: InstructionPlan }
   | { type: 'start'; concepts: ConceptRecord[] }
   | { type: 'concept'; concept: ConceptRecord }
   | { type: 'partial'; conceptId: string; image: string }

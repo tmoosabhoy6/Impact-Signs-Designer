@@ -7,7 +7,7 @@
 // 64.6 pt line pitch, headline 56.3 pt, subhead 50.1 pt, stack centered in the field.
 import { getCatalog, mustOption } from '../catalog.js';
 import { measure, missingGlyphs, resolveFont, wrapText, type OTFont } from '../text/fonts.js';
-import type { LayoutPresetId, PlaqueLayout, PlaqueSpec, Rect, TextLine, Wording, WordingRole } from '../../shared/types.js';
+import type { LayoutPresetId, PlaqueLayout, PlaqueSpec, Rect, TextLine, TextStyle, Wording, WordingRole } from '../../shared/types.js';
 
 export interface LayoutInput {
   spec: PlaqueSpec;
@@ -92,12 +92,12 @@ const FRAME_INSET_IN = 0.125;
 type Item =
   | { kind: 'frame'; w: number; h: number }
   | { kind: 'logo'; w: number; h: number }
-  | { kind: 'text'; role: WordingRole; lines: string[]; size: number; leading: number };
+  | { kind: 'text'; role: WordingRole; lines: string[]; size: number; leading: number; style?: TextStyle; font: OTFont };
 
 interface Placed {
   frame?: Rect;
   logo?: Rect;
-  lines: { text: string; role: WordingRole; baseline: number; size: number }[];
+  lines: { text: string; role: WordingRole; baseline: number; size: number; style?: TextStyle }[];
   height: number;
   maxLineWidth: number;
 }
@@ -139,8 +139,8 @@ function stack(items: Item[], B: number, gapMul: number, font: OTFont): Placed {
         first = cursor + g * B * (prev.role === item.role ? 1 : gapMul);
       }
       item.lines.forEach((text, i) => {
-        out.lines.push({ text, role: item.role, baseline: first + i * item.leading, size: item.size });
-        out.maxLineWidth = Math.max(out.maxLineWidth, measure(font, text, item.size));
+        out.lines.push({ text, role: item.role, baseline: first + i * item.leading, size: item.size, ...(item.style ? { style: item.style } : {}) });
+        out.maxLineWidth = Math.max(out.maxLineWidth, measure(item.font, text, item.size, item.style));
       });
       cursor = first + (item.lines.length - 1) * item.leading;
     }
@@ -150,20 +150,21 @@ function stack(items: Item[], B: number, gapMul: number, font: OTFont): Placed {
   return out;
 }
 
-function textItems(wording: Wording | null, B: number, p: PresetDef, font: OTFont, maxWidth: number): Item[] {
+function textItems(wording: Wording | null, B: number, p: PresetDef, font: OTFont, maxWidth: number, fontId: string): Item[] {
   const items: Item[] = [];
   const blocks = (wording?.blocks ?? []).filter((b) => b.text.trim());
   // Keep the customer's order, but group consecutive blocks of the same role.
   for (const b of blocks) {
     const mul = b.role === 'headline' ? p.headline : b.role === 'subhead' ? p.subhead : b.role === 'footer' ? 0.85 : p.body;
-    let size = B * mul;
+    const blockFont = b.style ? resolveFont(fontId, b.style).font : font;
+    let size = B * mul * (b.style?.sizeScale ?? 1);
     // Name and organization lines should stay on one line: shrink them (up to 25%) before wrapping.
     if ((b.role === 'headline' || b.role === 'subhead') && !b.text.includes('\n')) {
-      const natural = measure(font, b.text, size);
+      const natural = measure(blockFont, b.text, size, b.style);
       if (natural > maxWidth) size = Math.max(size * 0.75, (size * maxWidth) / natural);
     }
     const leading = b.role === 'body' || b.role === 'footer' ? GAP.bodyLeading * size : 1.15 * size;
-    items.push({ kind: 'text', role: b.role, lines: wrapText(font, b.text, size, maxWidth), size, leading });
+    items.push({ kind: 'text', role: b.role, lines: wrapText(blockFont, b.text, size, maxWidth, b.style), size, leading, font: blockFont, ...(b.style ? { style: b.style } : {}) });
   }
   return items;
 }
@@ -220,7 +221,7 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
       colX = field.x + pad + fw + gutter;
       colW = contentW - fw - gutter;
       frameRect = { x: field.x + pad, y: field.y + (field.h - fh) / 2, w: fw, h: fh };
-      const items = textItems(input.wording, B, preset, font, colW);
+      const items = textItems(input.wording, B, preset, font, colW, spec.font);
       if (hasLogo) {
         const lh = Math.min(0.16 * contentH, (0.5 * colW) / logoAspect) * scale;
         const logo: Item = { kind: 'logo', w: lh * logoAspect, h: lh };
@@ -246,7 +247,7 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
         }
         items.push({ kind: 'frame', w: fw, h: fh });
       }
-      items.push(...textItems(input.wording, B, preset, font, maxText));
+      items.push(...textItems(input.wording, B, preset, font, maxText, spec.font));
       if (hasLogo) {
         const lh = Math.min(0.12 * H, (0.4 * W) / logoAspect) * scale;
         const logo: Item = { kind: 'logo', w: lh * logoAspect, h: lh };
@@ -271,7 +272,7 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   const dy = areaTop + (areaH - best.height) / 2;
   const cx = colX + colW / 2;
 
-  const lines: TextLine[] = best.lines.map((l) => ({ text: l.text, role: l.role, cx, baseline: l.baseline + dy, size: l.size }));
+  const lines: TextLine[] = best.lines.map((l) => ({ text: l.text, role: l.role, cx, baseline: l.baseline + dy, size: l.size, ...(l.style ? { style: l.style } : {}) }));
   if (!imageLeft && best.frame) {
     frameRect = { x: (W - best.frame.w) / 2, y: best.frame.y + dy, w: best.frame.w, h: best.frame.h };
   }

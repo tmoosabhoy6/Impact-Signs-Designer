@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import opentype from 'opentype.js';
 import { fromRoot } from '../config.js';
 import { getCatalog } from '../catalog.js';
+import type { TextStyle } from '../../shared/types.js';
 
 export type OTFont = opentype.Font;
 
@@ -27,17 +28,19 @@ function load(file: string): OTFont {
   return f;
 }
 
-export function standInFile(pkg: string, weight = 400): string {
-  return fromRoot('node_modules', '@fontsource', pkg, 'files', `${pkg}-latin-${weight}-normal.woff`);
+export function standInFile(pkg: string, weight = 400, italic = false): string {
+  return fromRoot('node_modules', '@fontsource', pkg, 'files', `${pkg}-latin-${weight}-${italic ? 'italic' : 'normal'}.woff`);
 }
 
-export function resolveFont(fontId: string): ResolvedFont {
+export function resolveFont(fontId: string, style?: TextStyle): ResolvedFont {
   const opt = getCatalog().fonts.find((f) => f.id === fontId) ?? getCatalog().fonts[0];
-  const licensed = fromRoot(opt.licensedFile);
+  const suffix = style?.bold && style?.italic ? '-BoldItalic' : style?.bold ? '-Bold' : style?.italic ? '-Italic' : '';
+  const licensed = fromRoot(suffix ? opt.licensedFile.replace(/(\.[^.]+)$/, `${suffix}$1`) : opt.licensedFile);
   if (fs.existsSync(licensed)) {
     return { font: load(licensed), fontId: opt.id, label: opt.label, licensed: true, file: licensed };
   }
-  const file = standInFile(opt.standIn);
+  let file = standInFile(opt.standIn, style?.bold ? 700 : 400, style?.italic);
+  if (!fs.existsSync(file)) file = standInFile(opt.standIn, style?.bold ? 700 : 400);
   return { font: load(file), fontId: opt.id, label: opt.label, licensed: false, file };
 }
 
@@ -48,7 +51,8 @@ export function proofLabelFontFile(): { file: string; licensed: boolean } {
   return { file: standInFile('source-sans-3'), licensed: false };
 }
 
-export function measure(font: OTFont, text: string, size: number): number {
+export function measure(font: OTFont, text: string, size: number, style?: TextStyle): number {
+  if (style?.smallCaps) return [...text].reduce((w, ch) => w + font.getAdvanceWidth(ch.toUpperCase(), ch !== ch.toUpperCase() ? size * 0.8 : size), 0);
   return font.getAdvanceWidth(text, size);
 }
 
@@ -62,14 +66,14 @@ export function missingGlyphs(font: OTFont, text: string): string[] {
   return [...missing];
 }
 
-export function wrapText(font: OTFont, text: string, size: number, maxWidth: number): string[] {
+export function wrapText(font: OTFont, text: string, size: number, maxWidth: number, style?: TextStyle): string[] {
   const out: string[] = [];
   for (const hard of text.split('\n')) {
     const words = hard.split(/ +/).filter(Boolean);
     let line = '';
     for (const word of words) {
       const trial = line ? `${line} ${word}` : word;
-      if (!line || measure(font, trial, size) <= maxWidth) line = trial;
+      if (!line || measure(font, trial, size, style) <= maxWidth) line = trial;
       else {
         out.push(line);
         line = word;
