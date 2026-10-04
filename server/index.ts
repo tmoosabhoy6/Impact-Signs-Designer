@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import express from 'express';
 import { config, fromRoot } from './config.js';
 import { api } from './routes.js';
-import { seedIfEmpty } from './examples.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -18,8 +17,6 @@ if (fs.existsSync(dist)) {
   app.use(express.static(dist, { index: false, maxAge: '1h' }));
   app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(fromRoot('dist', 'index.html')));
 }
-
-seedIfEmpty();
 
 app.listen(config.port, () => {
   console.log(`Plaque Proof Studio on http://localhost:${config.port} (${config.mockAI ? 'demo mode' : 'live OpenAI'})`);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Plus } from 'lucide-react';
+import { ArrowRight, Plus, Trash2 } from 'lucide-react';
 import { api } from '../api';
 import { navigate, type Me } from '../App';
 import { TopBar } from '../components/TopBar';
@@ -16,66 +16,6 @@ interface JobRow {
   thumb: string | null;
 }
 
-interface Example {
-  id: string;
-  jobNumber: string;
-  name: string;
-  description: string;
-}
-
-function ExamplePicker() {
-  const [examples, setExamples] = useState<Example[]>([]);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    api.get<{ examples: Example[] }>('/examples').then((d) => setExamples(d.examples)).catch(() => {});
-  }, []);
-  if (!examples.length) return null;
-  return (
-    <div className="mt-6 border border-line bg-white">
-      <div className="space-y-3 p-5">
-        <div>
-          <h2 className="font-display text-[15px] font-semibold uppercase tracking-[0.08em]">Start from an example</h2>
-          <p className="text-[13px] text-muted">Real past orders with their spec, wording and photos already filled in. Good for demos.</p>
-        </div>
-        <ul className="divide-y divide-line border-y border-line">
-          {examples.map((ex) => (
-            <li key={ex.id} className="flex items-center gap-3 py-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-mono text-[13px] text-navy">{ex.jobNumber}</span>
-                  <span className="truncate text-[14px] font-medium">{ex.name}</span>
-                </div>
-                <div className="truncate text-[12px] text-muted">{ex.description}</div>
-              </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                busy={busy === ex.id}
-                disabled={!!busy}
-                onClick={async () => {
-                  setBusy(ex.id);
-                  setError('');
-                  try {
-                    const { project } = await api.post<{ project: Project }>(`/examples/${ex.id}`);
-                    navigate(`/jobs/${project.id}`);
-                  } catch (e) {
-                    setError((e as Error).message);
-                    setBusy(null);
-                  }
-                }}
-              >
-                Open
-              </Button>
-            </li>
-          ))}
-        </ul>
-        {error && <Notice tone="error">{error}</Notice>}
-      </div>
-    </div>
-  );
-}
-
 export function Jobs({ me }: { me: Me }) {
   const [jobs, setJobs] = useState<JobRow[] | null>(null);
   const [jobNumber, setJobNumber] = useState('');
@@ -83,6 +23,23 @@ export function Jobs({ me }: { me: Me }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState('');
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [listError, setListError] = useState('');
+
+  async function removeJob(j: JobRow) {
+    const label = [j.jobNumber, j.name].filter(Boolean).join(' ') || 'this job';
+    if (!window.confirm(`Delete ${label}? Its concepts, proofs and production files will be removed. This cannot be undone.`)) return;
+    setDeleting(j.id);
+    setListError('');
+    try {
+      await api.del(`/projects/${j.id}`);
+      setJobs((cur) => (cur ?? []).filter((x) => x.id !== j.id));
+    } catch (e) {
+      setListError((e as Error).message);
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   useEffect(() => {
     api.get<{ projects: JobRow[] }>('/projects').then((d) => setJobs(d.projects)).catch((e) => setError(e.message));
@@ -115,11 +72,11 @@ export function Jobs({ me }: { me: Me }) {
             <h1 className="font-display text-lg font-semibold uppercase tracking-[0.08em]">New plaque job</h1>
             <label className="block">
               <span className="label">Job / project number</span>
-              <input className="mt-1 h-10 w-full rounded-[3px] border border-line px-3 font-mono outline-none focus:border-navy" placeholder="32241" value={jobNumber} onChange={(e) => setJobNumber(e.target.value)} required />
+              <input className="mt-1 h-10 w-full rounded-[3px] border border-line px-3 font-mono outline-none focus:border-navy" placeholder="Job number" value={jobNumber} onChange={(e) => setJobNumber(e.target.value)} required />
             </label>
             <label className="block">
               <span className="label">Short name</span>
-              <input className="mt-1 h-10 w-full rounded-[3px] border border-line px-3 outline-none focus:border-navy" placeholder="Heritage Foundation" value={name} onChange={(e) => setName(e.target.value)} />
+              <input className="mt-1 h-10 w-full rounded-[3px] border border-line px-3 outline-none focus:border-navy" placeholder="Customer or project name" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
             {error && <Notice tone="error">{error}</Notice>}
             <Button type="submit" busy={busy} className="w-full">
@@ -127,7 +84,6 @@ export function Jobs({ me }: { me: Me }) {
             </Button>
           </div>
         </form>
-        <ExamplePicker />
         </div>
 
         <section className="min-w-0">
@@ -138,6 +94,11 @@ export function Jobs({ me }: { me: Me }) {
             </div>
             <input className="h-9 w-full rounded-[3px] border border-line bg-white px-3 text-[14px] outline-none focus:border-navy sm:w-56" placeholder="Search number or name" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search jobs" />
           </div>
+          {listError && (
+            <div className="mb-3">
+              <Notice tone="error">{listError}</Notice>
+            </div>
+          )}
           <div className="border border-line bg-white">
             {!jobs && (
               <div className="flex items-center gap-2 p-5 text-muted">
@@ -149,14 +110,14 @@ export function Jobs({ me }: { me: Me }) {
             )}
             <ul className="divide-y divide-line">
               {filtered.map((j) => (
-                <li key={j.id}>
+                <li key={j.id} className="flex items-center hover:bg-navy-50/60">
                   <a
                     href={`/jobs/${j.id}`}
                     onClick={(e) => {
                       e.preventDefault();
                       navigate(`/jobs/${j.id}`);
                     }}
-                    className="group flex items-center gap-4 px-4 py-3 hover:bg-navy-50/60"
+                    className="group flex min-w-0 flex-1 items-center gap-4 py-3 pl-4 pr-2"
                   >
                     <div className="grid h-14 w-11 shrink-0 place-items-center overflow-hidden bg-stage">
                       {j.thumb ? <img src={`/api/concepts/${j.thumb}/preview.jpg`} alt="" className="h-full w-full object-contain" /> : <div className="h-8 w-6 border border-bronze/50" />}
@@ -171,8 +132,18 @@ export function Jobs({ me }: { me: Me }) {
                         {j.createdBy} · updated {new Date(j.updatedAt).toLocaleString()}
                       </div>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-navy" />
+                    <ArrowRight className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-navy" />
                   </a>
+                  <button
+                    type="button"
+                    onClick={() => removeJob(j)}
+                    disabled={deleting === j.id}
+                    className="mr-2 grid h-9 w-9 shrink-0 place-items-center rounded-[3px] text-muted hover:bg-white hover:text-signal disabled:opacity-50"
+                    title="Delete job"
+                    aria-label={`Delete job ${j.jobNumber || j.name}`}
+                  >
+                    {deleting === j.id ? <Spinner /> : <Trash2 className="h-4 w-4" />}
+                  </button>
                 </li>
               ))}
             </ul>

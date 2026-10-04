@@ -85,8 +85,14 @@ export function getProject(id: string): Project | null {
 export function listProjects(): Project[] {
   return (db.prepare('SELECT data FROM projects ORDER BY updated_at DESC LIMIT 500').all() as { data: string }[]).map((r) => JSON.parse(r.data));
 }
+/** Removes a job with its concepts, outputs and stored files. */
 export function deleteProject(id: string) {
-  db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+  db.transaction(() => {
+    db.prepare('DELETE FROM concepts WHERE project_id = ?').run(id);
+    db.prepare('DELETE FROM outputs WHERE project_id = ?').run(id);
+    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+  })();
+  if (/^[a-z]+_[a-f0-9]+$/.test(id)) fs.rmSync(path.join(config.dataDir, 'projects', id), { recursive: true, force: true });
 }
 
 // Concepts

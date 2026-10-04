@@ -55,7 +55,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Production PDF | `server/pdf/production.ts`, `server/pdf/trace.ts` (logo → vector), `server/pdf/preflight.ts` |
 | API | `server/routes.ts` (generation streams as Server-Sent Events) |
 | Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx`, `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx` |
-| Examples | `references/<job>/example.json` + `server/examples.ts` (Jobs → "Start from an example") |
+| Examples | `references/<job>/example.json` + `server/examples.ts` (tests, samples and scripts only; not shown in the app, never seeded) |
 | Tests | `tests/golden.test.ts` |
 
 ## How to work

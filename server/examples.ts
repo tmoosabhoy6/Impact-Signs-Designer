@@ -1,9 +1,9 @@
-// Example jobs built from references/<job>/example.json, so the app can be demoed
-// instantly ("Start from an example") and a fresh deployment is never empty.
+// Example jobs built from references/<job>/example.json. Not shown in the app; used by
+// the tests, `npm run samples` and the verification scripts (POST /api/examples/:id).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fromRoot } from './config.js';
-import { blankProject, listProjects, saveProject } from './db.js';
+import { blankProject, saveProject } from './db.js';
 import { parseSpec } from './parse/spec.js';
 import { docxToText, parseWording } from './parse/wording.js';
 import { storeUpload } from './uploads.js';
@@ -82,17 +82,4 @@ export async function createExampleJob(exampleId: string, createdBy: string): Pr
   if (o.customPaintHex && p.spec.customPaint) p.spec.customPaint.hex = o.customPaintHex;
   saveProject(p);
   return p;
-}
-
-/** On a brand-new installation, add the Heritage Foundation example so there is something to demo. */
-export async function seedIfEmpty() {
-  if (listProjects().length) return;
-  const first = listExamples().find((e) => e.id === '32241-edwin-feulner') ?? listExamples()[0];
-  if (!first) return;
-  try {
-    await createExampleJob(first.id, 'Example');
-    console.log(`Seeded example job ${first.jobNumber} (${first.name}).`);
-  } catch (e) {
-    console.warn('Could not seed example job:', (e as Error).message);
-  }
 }

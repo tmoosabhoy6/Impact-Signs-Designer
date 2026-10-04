@@ -18,16 +18,18 @@ await page.screenshot({ path: `${out}/01-sign-in.png` });
 await page.fill('input[autocomplete=name]', 'Designer');
 await page.fill('input[type=password]', process.env.PW || 'impact');
 await page.click('button[type=submit]');
-await page.waitForSelector('text=Start from an example');
+await page.waitForSelector('text=New plaque job');
 const mode = await (await ctx.request.get(`${base}/api/me`)).json();
 if (!mode.mock) throw new Error('Run this screenshot regression against MOCK_AI=1. Use verify-live.mjs for paid live checks.');
 await page.screenshot({ path: `${out}/02-jobs.png` });
 
 async function runExample(jobNumber, shot) {
-  await page.goto(base);
-  await page.waitForSelector('text=Start from an example');
-  const row = page.locator('li', { hasText: jobNumber }).filter({ has: page.locator('button', { hasText: 'Open' }) });
-  await row.locator('button', { hasText: 'Open' }).click();
+  // Examples are not in the app UI; create the job through the API and open it.
+  const { examples } = await (await ctx.request.get(`${base}/api/examples`)).json();
+  const ex = examples.find((e) => e.jobNumber === jobNumber);
+  if (!ex) throw new Error(`No example for job ${jobNumber}`);
+  const { project } = await (await ctx.request.post(`${base}/api/examples/${ex.id}`, { data: {} })).json();
+  await page.goto(`${base}/jobs/${project.id}`);
   await page.waitForSelector('text=Generate 3 concepts');
   await page.waitForTimeout(1200);
   await page.screenshot({ path: `${out}/${shot}-a-order.png` });

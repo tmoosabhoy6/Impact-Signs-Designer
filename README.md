@@ -16,7 +16,7 @@ Impact Signs' internal tool for cast bronze plaques. It takes an order and produ
 ## How a designer uses it
 
 1. **Sign in** with your name and the team password.
-2. **New plaque job:** enter the job number (e.g. `32241`) and a short name. Or click **Open** under **Start from an example** to load one of 11 real past orders, ready to generate.
+2. **New plaque job:** enter the job number and a short name. To remove a job you no longer need, click the trash icon on its row in the Jobs list (this also removes its concepts, proofs and production files).
 3. **01 Specification:** paste the order spec exactly as written and click **Read specification**. The app fills in a spec sheet from the catalog. Anything the order didn't state gets an amber **Assumed** tag; check those and change any dropdown if needed.
 4. **02 Customer wording:** upload the customer's Word .docx or paste the text. The text is kept character for character. Each line gets a role (headline, subhead, body, footer), which you can change. Under each line, small buttons set:
    - **I / B / Sc**: italic, bold, small capitals.
@@ -89,7 +89,7 @@ The Starter plan plus the 5 GB disk costs about $7–9/month. Jobs, images and P
 |---|---|
 | [`assets/`](assets/README.md) | The **static icon library**: finishes, paint colors, textures, borders and image-type examples. Proof icons are pulled from here, never generated. The README lists the exact file names. **Admin → Asset Library** shows what's present. |
 | [`brand-assets/`](brand-assets/README.md) | Logo and licensed font files (Myriad Pro for proof labels; Times / Garamond / Minion / Franklin / Helvetica for plaque text). |
-| [`references/`](references/README.md) | 11 real example jobs (spec, wording, photo, final proof, production file). Used to measure the templates, power **Start from an example**, and run the automated tests. |
+| [`references/`](references/README.md) | 11 real example jobs (spec, wording, photo, final proof, production file). Used to measure the templates, build the sample proofs and run the automated tests. They are not shown in the app. |
 | [`data/catalog.json`](data/catalog.json) | Every option the app offers (finishes and their upcharges, colors, textures, borders, fonts, image types, mountings, size limits) and which icon each uses. To add an option, add it here and drop its icon into `assets/`. |
 | [`server/prompts/`](server/prompts) | The instructions sent to the image model with every request. Edit them to tune the look; the version is recorded on every image. Shown read-only in **Admin → Image prompts**. |
 
@@ -115,7 +115,7 @@ Open this project folder in Terminal, or ask Codex to run these commands. Instal
 1. Run `npm install` once.
 2. Copy `.env.example` to `.env`. Open that file and fill in `OPENAI_API_KEY` and `APP_PASSWORD`. Keep the key private; never put it in a browser field or commit the file.
 3. Run `npm run build && npm start`, then open [localhost:8080](http://localhost:8080). Keep Terminal open while using the app.
-4. For a no-cost demonstration, run `npm run demo` instead. Images are simulated and spelling checks are skipped. On a fresh data folder, the Heritage example appears automatically; all 11 examples are under **Start from an example**.
+4. For a no-cost demonstration, run `npm run demo` instead. Images are simulated and spelling checks are skipped. A fresh data folder starts with an empty Jobs list.
 
 In Codex cloud, set `OPENAI_API_KEY` as a runtime environment variable, not a setup-only secret, and allow agent internet access to `api.openai.com`. Never paste the key into source code. Local Codex can use the git-ignored `.env` file.
 
