@@ -1,0 +1,78 @@
+import fs from 'node:fs';
+import { fromRoot } from './config.js';
+
+export interface Option {
+  id: string;
+  label: string;
+  aliases: string[];
+  prompt: string;
+  asset?: string;
+  proofLabel?: string;
+  hex?: string;
+  upcharge?: string;
+  [k: string]: unknown;
+}
+export interface BorderOption extends Option {
+  widthIn: number;
+  innerLineIn?: number;
+  gapIn?: number;
+  verified: boolean;
+}
+export interface FontOption extends Option {
+  licensedFile: string;
+  standIn: string;
+}
+export interface Catalog {
+  version: string;
+  materials: Option[];
+  sizeLimits: { minIn: number; maxIn: number; typicalMinIn: number; typicalMaxIn: number };
+  finishes: Option[];
+  backgroundColors: Option[];
+  backgroundTextures: Option[];
+  borders: BorderOption[];
+  fonts: FontOption[];
+  imageOptions: Option[];
+  mountings: Option[];
+  lettering: Option[];
+  coating: string;
+  proof: { disclaimer: string };
+}
+
+export type OptionGroup =
+  | 'materials'
+  | 'finishes'
+  | 'backgroundColors'
+  | 'backgroundTextures'
+  | 'borders'
+  | 'fonts'
+  | 'imageOptions'
+  | 'mountings'
+  | 'lettering';
+
+export const OPTION_GROUPS: { key: OptionGroup; label: string }[] = [
+  { key: 'materials', label: 'Material' },
+  { key: 'finishes', label: 'Plaque finish' },
+  { key: 'backgroundColors', label: 'Background color' },
+  { key: 'backgroundTextures', label: 'Background texture' },
+  { key: 'borders', label: 'Border' },
+  { key: 'fonts', label: 'Font' },
+  { key: 'imageOptions', label: 'Image option' },
+  { key: 'mountings', label: 'Mounting' },
+  { key: 'lettering', label: 'Lettering' },
+];
+
+let cached: Catalog | null = null;
+export function getCatalog(): Catalog {
+  if (!cached) cached = JSON.parse(fs.readFileSync(fromRoot('data/catalog.json'), 'utf8')) as Catalog;
+  return cached;
+}
+
+export function findOption<G extends OptionGroup>(group: G, id: string): Catalog[G][number] | undefined {
+  return (getCatalog()[group] as Option[]).find((o) => o.id === id) as Catalog[G][number] | undefined;
+}
+
+export function mustOption<G extends OptionGroup>(group: G, id: string): Catalog[G][number] {
+  const o = findOption(group, id);
+  if (!o) throw new Error(`Unknown ${group} option "${id}"`);
+  return o;
+}

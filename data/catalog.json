@@ -1,0 +1,311 @@
+{
+  "version": "2026-10-04",
+  "notes": "Single source of truth for every plaque option. The parser, the UI, the image prompts and both PDFs read this file. To add an option: add an entry here and drop its icon into the 'asset' path.",
+  "materials": [
+    {
+      "id": "bronze",
+      "label": "Cast Bronze",
+      "aliases": ["bronze", "cast bronze", "plaque - bronze", "bronze plaque"],
+      "prompt": "solid cast bronze, sand-cast then machined, with crisp raised detail"
+    }
+  ],
+  "sizeLimits": { "minIn": 1, "maxIn": 96, "typicalMinIn": 6, "typicalMaxIn": 84 },
+  "finishes": [
+    {
+      "id": "natural-satin-brushed-bronze",
+      "label": "Natural Satin Brushed Bronze",
+      "proofLabel": "Satin Bronze",
+      "upcharge": "",
+      "hex": "#C49A6C",
+      "asset": "assets/finishes/natural-satin-brushed-bronze.png",
+      "aliases": ["satin", "brushed", "satin brushed", "natural satin", "brushed satin", "satin bronze", "natural satin brushed bronze"],
+      "prompt": "natural satin brushed bronze: warm golden-tan bronze with a fine straight-line brushed grain, soft low-glare sheen, no mirror reflections"
+    },
+    {
+      "id": "chemical-oxidized",
+      "label": "Chemical Oxidized",
+      "proofLabel": "Chemical Oxidized",
+      "upcharge": "+15%",
+      "hex": "#7A5A3A",
+      "asset": "assets/finishes/chemical-oxidized.png",
+      "aliases": ["chemical oxidized", "chemically oxidized", "oxidized finish", "oxidized"],
+      "prompt": "chemically oxidized bronze: deep chocolate-brown oxidized bronze with brighter hand-relieved highlights on the raised high points"
+    },
+    {
+      "id": "verde-patina",
+      "label": "Verde Patina",
+      "proofLabel": "Verde Patina",
+      "upcharge": "+30%",
+      "hex": "#5E8C6A",
+      "asset": "assets/finishes/verde-patina.png",
+      "aliases": ["verde", "verde patina", "green patina", "patina"],
+      "prompt": "verde patina: mottled sage-to-deep green chemical patina over bronze, with bronze showing through on worn raised edges"
+    },
+    {
+      "id": "turquoise-patina",
+      "label": "Turquoise Patina",
+      "proofLabel": "Turquoise Patina",
+      "upcharge": "+30%",
+      "hex": "#4FA3A0",
+      "asset": "assets/finishes/turquoise-patina.png",
+      "aliases": ["turquoise", "turquoise patina", "blue patina"],
+      "prompt": "turquoise patina: mottled blue-green turquoise chemical patina over bronze, bronze showing on the raised edges"
+    },
+    {
+      "id": "light-oxidized",
+      "label": "Light Oxidized (tint)",
+      "proofLabel": "Light Oxidized",
+      "upcharge": "",
+      "hex": "#B08458",
+      "asset": "assets/finishes/light-oxidized.png",
+      "aliases": ["light oxidized", "light oxide tint", "light tint"],
+      "prompt": "light oxidized bronze tint: satin bronze with a light warm brown tint that slightly darkens the metal"
+    },
+    {
+      "id": "medium-oxidized",
+      "label": "Medium Oxidized (tint)",
+      "proofLabel": "Medium Oxidized",
+      "upcharge": "",
+      "hex": "#8E6842",
+      "asset": "assets/finishes/medium-oxidized.png",
+      "aliases": ["medium oxidized", "medium oxide tint", "medium tint"],
+      "prompt": "medium oxidized bronze tint: satin bronze toned to a medium antique brown"
+    },
+    {
+      "id": "dark-oxidized",
+      "label": "Dark Oxidized (tint)",
+      "proofLabel": "Dark Oxidized",
+      "upcharge": "",
+      "hex": "#5C432C",
+      "asset": "assets/finishes/dark-oxidized.png",
+      "aliases": ["dark oxidized", "dark oxide tint", "dark tint", "statuary"],
+      "prompt": "dark oxidized bronze tint: satin bronze toned to a dark statuary brown, raised faces still readable as metal"
+    },
+    {
+      "id": "polished",
+      "label": "Polished",
+      "proofLabel": "Polished Bronze",
+      "upcharge": "+50%",
+      "hex": "#D8AE73",
+      "asset": "assets/finishes/polished.png",
+      "aliases": ["polished", "mirror", "high polish", "polished bronze"],
+      "prompt": "polished bronze: raised faces buffed to a bright mirror-like gold bronze with crisp specular highlights"
+    }
+  ],
+  "backgroundColors": [
+    {
+      "id": "dark-oxide",
+      "label": "Dark Oxide",
+      "hex": "#231F20",
+      "asset": "assets/background-colors/dark-oxide.png",
+      "aliases": ["dark oxide", "dark-oxide", "oxide"],
+      "prompt": "dark oxide paint: a near-black warm charcoal-brown baked paint"
+    },
+    {
+      "id": "black",
+      "label": "Black",
+      "hex": "#111111",
+      "asset": "assets/background-colors/black.png",
+      "aliases": ["black"],
+      "prompt": "black paint: a true flat black baked paint"
+    },
+    {
+      "id": "brown",
+      "label": "Brown",
+      "hex": "#4A3426",
+      "asset": "assets/background-colors/brown.png",
+      "aliases": ["brown", "chocolate"],
+      "prompt": "brown paint: a deep chocolate brown baked paint"
+    },
+    {
+      "id": "duranodic-bronze",
+      "label": "Duranodic Bronze",
+      "hex": "#3E3024",
+      "asset": "assets/background-colors/duranodic-bronze.png",
+      "aliases": ["duranodic", "duranodic bronze", "dark bronze"],
+      "prompt": "duranodic bronze paint: a dark architectural bronze-brown baked paint"
+    }
+  ],
+  "backgroundTextures": [
+    {
+      "id": "leatherette",
+      "label": "Leatherette",
+      "asset": "assets/background-textures/leatherette.png",
+      "aliases": ["leatherette", "leather"],
+      "prompt": "leatherette texture: a fine, irregular pebbled leather-grain texture cast into the recessed field"
+    },
+    {
+      "id": "stipple",
+      "label": "Stipple",
+      "asset": "assets/background-textures/stipple.png",
+      "aliases": ["stipple", "stiple", "stippled"],
+      "prompt": "stipple texture: a very fine uniform sand-like stipple cast into the recessed field"
+    },
+    {
+      "id": "pebble",
+      "label": "Pebble",
+      "asset": "assets/background-textures/pebble.png",
+      "aliases": ["pebble", "pebbled"],
+      "prompt": "pebble texture: a coarser rounded pebble grain cast into the recessed field"
+    }
+  ],
+  "borders": [
+    {
+      "id": "single-line",
+      "label": "Single Line Border",
+      "asset": "assets/borders/single-line.png",
+      "aliases": ["single line", "single-line", "single border", "border"],
+      "widthIn": 0.25,
+      "verified": true,
+      "prompt": "a single raised flat border band about 1/4 inch wide running around the plaque edge"
+    },
+    {
+      "id": "none",
+      "label": "No Border",
+      "asset": "assets/borders/none.png",
+      "aliases": ["no border", "borderless", "without border"],
+      "widthIn": 0,
+      "verified": true,
+      "prompt": "no border: the recessed textured field runs right up to the plaque edge"
+    },
+    {
+      "id": "double-line",
+      "label": "Double Line Border",
+      "asset": "assets/borders/double-line.png",
+      "aliases": ["double line", "double-line", "double border"],
+      "widthIn": 0.25,
+      "innerLineIn": 0.0625,
+      "gapIn": 0.25,
+      "verified": false,
+      "prompt": "a double line border: a raised flat border band about 1/4 inch wide at the plaque edge plus a thin raised inner line about 1/4 inch inside it"
+    },
+    {
+      "id": "bevel-edge",
+      "label": "Bevel Edge Border",
+      "asset": "assets/borders/bevel-edge.png",
+      "aliases": ["bevel", "bevel edge", "beveled", "bevelled"],
+      "widthIn": 0.375,
+      "verified": false,
+      "prompt": "a bevel edge border: the plaque edge is a raised band about 3/8 inch wide that slopes down from the face toward the outer edge, catching light along the bevel"
+    }
+  ],
+  "fonts": [
+    {
+      "id": "times-new-roman",
+      "label": "Times New Roman",
+      "aliases": ["times", "times new roman", "times roman", "serif"],
+      "licensedFile": "brand-assets/fonts/TimesNewRoman.ttf",
+      "standIn": "tinos",
+      "prompt": "Times New Roman, a classic transitional serif"
+    },
+    {
+      "id": "garamond",
+      "label": "Garamond",
+      "aliases": ["garamond"],
+      "licensedFile": "brand-assets/fonts/Garamond.otf",
+      "standIn": "eb-garamond",
+      "prompt": "Garamond, an elegant old-style serif"
+    },
+    {
+      "id": "minion",
+      "label": "Minion",
+      "aliases": ["minion", "minion pro"],
+      "licensedFile": "brand-assets/fonts/MinionPro-Regular.otf",
+      "standIn": "crimson-pro",
+      "prompt": "Minion, a refined book serif"
+    },
+    {
+      "id": "franklin",
+      "label": "Franklin",
+      "aliases": ["franklin", "franklin gothic"],
+      "licensedFile": "brand-assets/fonts/FranklinGothic.otf",
+      "standIn": "libre-franklin",
+      "prompt": "Franklin Gothic, a sturdy grotesque sans-serif"
+    },
+    {
+      "id": "helvetica",
+      "label": "Helvetica",
+      "aliases": ["helvetica", "arial", "sans", "sans serif", "sans-serif"],
+      "licensedFile": "brand-assets/fonts/Helvetica.ttf",
+      "standIn": "arimo",
+      "prompt": "Helvetica, a neutral sans-serif"
+    },
+    {
+      "id": "myriad",
+      "label": "Myriad",
+      "aliases": ["myriad", "myriad pro"],
+      "licensedFile": "brand-assets/fonts/MyriadPro-Regular.otf",
+      "standIn": "source-sans-3",
+      "prompt": "Myriad, a humanist sans-serif"
+    }
+  ],
+  "imageOptions": [
+    {
+      "id": "photo-relief",
+      "label": "Photo Relief",
+      "asset": "assets/image-types/photo-relief.jpg",
+      "aliases": ["photo relief", "photo-relief", "relief image", "relief", "photo"],
+      "prompt": "PHOTO RELIEF: the supplied photo is reproduced as a shallow photographic relief cast into the metal. It reads as a monotone image in the plaque's metal color: highlights are bright raised metal, shadows are darker recessed metal. It keeps photographic detail and likeness but is clearly metal, not paper, with no color other than the metal and its darkened tones."
+    },
+    {
+      "id": "bas-relief",
+      "label": "Bas Relief",
+      "asset": "assets/image-types/bas-relief.jpg",
+      "aliases": ["bas relief", "bas-relief", "bass relief", "sculpted", "sculpture", "sculpted relief"],
+      "prompt": "BAS RELIEF: the subject is hand-sculpted and cast as a raised three-dimensional bas-relief in solid metal, like a sculpted medallion portrait. Real depth with soft modeled forms, cast shadows from the raised forms, no photographic tones, no printed image. Same metal and finish as the plaque."
+    },
+    {
+      "id": "etched-photo",
+      "label": "Etched Photo",
+      "asset": "assets/image-types/etched-photo.png",
+      "aliases": ["etched photo", "etched", "etch", "photo etch", "photo etched", "etched relief"],
+      "prompt": "ETCHED PHOTO: the photo is chemically etched into a flat panel set into the plaque. It appears as a flat, crisp dark-toned photographic image on the panel surface (no sculpted depth), like a fine halftone etched and darkened into metal."
+    },
+    {
+      "id": "full-color-uv",
+      "label": "Full Color UV Printed",
+      "asset": "assets/image-types/full-color-uv.jpg",
+      "aliases": ["full color", "full colour", "uv print", "uv printed", "color photo", "colour photo", "full color uv", "full color uv printed"],
+      "prompt": "FULL COLOR UV PRINT: the supplied photo is printed in full natural color directly on a flat panel set into the plaque, sharp and true to the original photo, with a slight satin clear-coat sheen. Flat, no relief."
+    },
+    {
+      "id": "none",
+      "label": "No Image",
+      "asset": "",
+      "aliases": ["text only", "text-only", "no image"],
+      "prompt": "no image: text only"
+    }
+  ],
+  "mountings": [
+    {
+      "id": "blind-studs",
+      "label": "Blind Mount",
+      "aliases": ["blind", "blind mounting", "blind stud", "blind studs", "blind stud mounting", "studs", "concealed"],
+      "prompt": "blind mounted with hidden studs on the back, so no fasteners are visible on the face"
+    },
+    {
+      "id": "screws-through-face",
+      "label": "Screws Through Face",
+      "aliases": ["screws through face", "face screws", "through face", "screw mount", "screws"],
+      "prompt": "mounted with screws through the face, small screw heads visible in each corner within the border"
+    },
+    {
+      "id": "rosettes",
+      "label": "Decorative Rosettes",
+      "aliases": ["rosette", "rosettes", "decorative rosettes"],
+      "prompt": "mounted with small decorative bronze rosette caps covering the screws in each corner within the border"
+    }
+  ],
+  "lettering": [
+    {
+      "id": "raised",
+      "label": "Raised",
+      "aliases": ["raised lettering", "raised letters", "raised"],
+      "prompt": "raised lettering cast in the same metal and finish as the plate, with crisp vertical sides"
+    }
+  ],
+  "coating": "Protective clear polyurethane coating for outdoor durability.",
+  "proof": {
+    "disclaimer": "Simulated appearance, actual product finish may vary. Effects for illustrative purposes only"
+  }
+}
