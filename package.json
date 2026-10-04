@@ -11,6 +11,7 @@
     "dev": "concurrently -k -n server,client \"tsx watch server/index.ts\" \"vite\"",
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
+    "demo": "npm run build && MOCK_AI=1 npm start",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "samples": "tsx scripts/make-samples.ts"
