@@ -83,13 +83,13 @@ export function Workspace({ projectId, me }: { projectId: string; me: Me }) {
         }
       />
       <div className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[380px_minmax(0,1fr)_340px]">
-        <aside className="order-2 border-r border-line bg-white lg:order-1 lg:min-h-0 lg:overflow-y-auto">
+        <aside className="order-2 min-w-0 border-r border-line bg-white lg:order-1 lg:min-h-0 lg:overflow-y-auto">
           <OrderPanel data={data} catalog={catalog} onChange={setData} />
         </aside>
-        <main className="stage order-1 lg:order-2 lg:min-h-0 lg:overflow-y-auto">
+        <main className="stage order-1 min-w-0 lg:order-2 lg:min-h-0 lg:overflow-y-auto">
           <ConceptStage data={data} catalog={catalog} onChange={setData} reload={reload} />
         </main>
-        <aside className="order-3 border-l border-line bg-white lg:min-h-0 lg:overflow-y-auto">
+        <aside className="order-3 min-w-0 border-l border-line bg-white lg:min-h-0 lg:overflow-y-auto">
           <OutputsPanel data={data} catalog={catalog} onChange={setData} />
         </aside>
       </div>

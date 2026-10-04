@@ -93,8 +93,8 @@ export function Jobs({ me }: { me: Me }) {
   return (
     <div className="min-h-full">
       <TopBar me={me} />
-      <main className="mx-auto grid max-w-6xl gap-8 px-4 py-8 md:grid-cols-[340px_1fr] md:px-6">
-        <div className="h-fit">
+      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-8 md:grid-cols-[340px_minmax(0,1fr)] md:px-6">
+        <div className="h-fit min-w-0">
         <form
           className="border border-line bg-white"
           onSubmit={async (e) => {
@@ -130,13 +130,13 @@ export function Jobs({ me }: { me: Me }) {
         <ExamplePicker />
         </div>
 
-        <section>
-          <div className="mb-3 flex items-end justify-between gap-4">
+        <section className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="font-display text-lg font-semibold uppercase tracking-[0.08em]">Jobs</h2>
               <p className="text-[14px] text-muted">Signed in as {me.user?.name}</p>
             </div>
-            <input className="h-9 w-56 rounded-[3px] border border-line bg-white px-3 text-[14px] outline-none focus:border-navy" placeholder="Search number or name" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search jobs" />
+            <input className="h-9 w-full rounded-[3px] border border-line bg-white px-3 text-[14px] outline-none focus:border-navy sm:w-56" placeholder="Search number or name" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search jobs" />
           </div>
           <div className="border border-line bg-white">
             {!jobs && (
