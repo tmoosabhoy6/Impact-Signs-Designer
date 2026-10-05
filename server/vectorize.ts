@@ -29,7 +29,6 @@ export const isVectorId = (id: string) => /^v_[a-f0-9]+$/.test(id);
 export function readVectorOptions(raw: Record<string, unknown> | undefined): VectorOptions {
   const o = { ...VECTOR_DEFAULTS };
   if (raw?.background === 'light' || raw?.background === 'dark' || raw?.background === 'auto') o.background = raw.background;
-  if (raw?.detail === 'fine' || raw?.detail === 'smooth' || raw?.detail === 'normal') o.detail = raw.detail;
   const w = Number(raw?.widthIn);
   if (Number.isFinite(w) && w > 0) o.widthIn = Math.min(VECTOR_WIDTH_LIMITS.maxIn, Math.max(VECTOR_WIDTH_LIMITS.minIn, +w.toFixed(3)));
   return o;
@@ -70,7 +69,8 @@ export async function vectorizeFile(file: { name: string; buffer: Buffer }, opti
   if (!src.width || !src.height) throw new Error(`${file.name} has no visible size.`);
   // The tracer works at a fixed size; vector sources are rendered large enough for crisp curves.
   const mask = await inkMask(png, { background: options.background, plate: true }, kind === 'image' ? TRACE_EDGE : Math.max(TRACE_EDGE, 2400));
-  const paths = traceMask(mask, options.detail);
+  // Always the finest trace: the outlines follow every edge the reader found.
+  const paths = traceMask(mask, 'fine');
   const shapes = paths.filter((p) => p.dark);
   if (!shapes.length) throw new Error('Nothing to trace was found: the picture reads as one flat tone. Try the other background setting.');
   const widthIn = options.widthIn;

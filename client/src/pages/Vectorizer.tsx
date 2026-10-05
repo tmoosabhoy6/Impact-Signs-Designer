@@ -4,7 +4,7 @@ import { api } from '../api';
 import type { Me } from '../App';
 import { TopBar } from '../components/TopBar';
 import { Button, Chip, Notice, Spinner } from '../components/ui';
-import { VECTOR_DEFAULTS, VECTOR_UPLOAD_MB, VECTOR_WIDTH_LIMITS, type VectorBackground, type VectorDetail, type VectorRecord } from '../../../shared/vectorize';
+import { VECTOR_DEFAULTS, VECTOR_UPLOAD_MB, VECTOR_WIDTH_LIMITS, type VectorBackground, type VectorRecord } from '../../../shared/vectorize';
 
 const fileUrl = (v: VectorRecord, file: 'result.pdf' | 'result.svg' | 'preview.png' | 'thumb.jpg' | 'source.png', download = false) =>
   `/api/vectors/${v.id}/${file}${download ? '?download=1' : ''}`;
@@ -15,11 +15,6 @@ const BACKGROUNDS: { id: VectorBackground; label: string; hint: string }[] = [
   { id: 'auto', label: 'Automatic', hint: 'Reads the page tone from the edge of the picture.' },
   { id: 'light', label: 'Light page', hint: 'Dark marks on a light page become the artwork.' },
   { id: 'dark', label: 'Dark page', hint: 'Light marks on a dark page become the artwork.' },
-];
-const DETAILS: { id: VectorDetail; label: string; hint: string }[] = [
-  { id: 'fine', label: 'Fine', hint: 'Follows every pixel edge; most points.' },
-  { id: 'normal', label: 'Normal', hint: 'Smooth curves that keep the small detail.' },
-  { id: 'smooth', label: 'Smooth', hint: 'Fewest points; rounds off fine detail.' },
 ];
 
 function ImageBox({ title, src, href, caption }: { title: string; src: string; href: string; caption: string }) {
@@ -40,7 +35,6 @@ export function Vectorizer({ me }: { me: Me }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [background, setBackground] = useState<VectorBackground>(VECTOR_DEFAULTS.background);
-  const [detail, setDetail] = useState<VectorDetail>(VECTOR_DEFAULTS.detail);
   const [widthIn, setWidthIn] = useState(String(VECTOR_DEFAULTS.widthIn));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -75,7 +69,7 @@ export function Vectorizer({ me }: { me: Me }) {
     setBusy(true);
     setError('');
     try {
-      const { vector } = await api.upload<{ vector: VectorRecord }>('/vectors', file, { background, detail, widthIn: String(width) });
+      const { vector } = await api.upload<{ vector: VectorRecord }>('/vectors', file, { background, widthIn: String(width) });
       setResult(vector);
       setRecent((cur) => [vector, ...(cur ?? [])]);
     } catch (e) {
@@ -161,7 +155,6 @@ export function Vectorizer({ me }: { me: Me }) {
             {file && preview && <div className="break-all text-[13px] text-muted">{file.name}</div>}
 
             {choice('Background', background, BACKGROUNDS, setBackground)}
-            {choice('Detail', detail, DETAILS, setDetail)}
 
             <label className="block">
               <span className="label">Width on the page</span>
