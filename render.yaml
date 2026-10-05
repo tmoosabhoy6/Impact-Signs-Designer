@@ -41,6 +41,8 @@ services:
         value: "0"
       - key: DATA_DIR
         value: /var/data
+      - key: MAX_PARALLEL_IMAGES
+        value: "2"
       - key: MAX_IMAGE_CALLS_PER_PROJECT
         value: "40"
       - key: DAILY_BUDGET_USD

@@ -241,6 +241,25 @@ function designerChange(rec: ConceptRecord): string | undefined {
   return rec.plan?.kind === 'edit' ? rec.plan.imageEdit?.trim() || undefined : undefined;
 }
 
+/**
+ * Everyone shares one server process. Each render holds the layout drawing, the reference
+ * pictures and the model's full-size result in memory at once, so unlimited parallel renders
+ * (three per order, from several designers) run a 512 MB host out of memory and restart it.
+ * Renders beyond the limit wait here, still marked "queued", and start as others finish.
+ */
+const renderWaiters: (() => void)[] = [];
+let rendersRunning = 0;
+async function acquireRenderSlot(): Promise<() => void> {
+  if (rendersRunning >= config.maxParallelImages) await new Promise<void>((resolve) => renderWaiters.push(resolve));
+  else rendersRunning++;
+  // A finishing render hands its slot straight to the next waiter (the count stays the same).
+  return () => {
+    const next = renderWaiters.shift();
+    if (next) next();
+    else rendersRunning--;
+  };
+}
+
 /** Runs one generation (new concept, regenerate, or fix of an existing image). */
 export async function runConcept(project: Project, rec: ConceptRecord, ev: ConceptEvents, opts: { quality?: string } = {}): Promise<ConceptRecord> {
   project = projectForConcept(project, rec);
@@ -250,8 +269,10 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     saveConcept(rec);
     ev.onUpdate({ ...rec });
   };
+  let release: (() => void) | undefined;
   try {
     checkLimits(project.id, rec.id);
+    release = await acquireRenderSlot();
     const layout = layoutFor(project, rec.preset);
     const quality = opts.quality || rec.quality || config.imageQuality;
     const { w, h, size } = canvasSize(project.spec!.widthIn, project.spec!.heightIn, imageLongEdgeForQuality(quality));
@@ -313,6 +334,8 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     update({ spellcheck, status: 'done', durationMs: Date.now() - started });
   } catch (e) {
     update({ status: 'error', error: friendlyError(e), durationMs: Date.now() - started });
+  } finally {
+    release?.();
   }
   return rec;
 }
