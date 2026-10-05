@@ -242,6 +242,10 @@ export interface OutputRecord {
   conceptId: string | null;
   /** The layout it was made from. Older records only name the concept. */
   preset?: LayoutPresetId;
+  /** A proof of several images: one page per image, in page order (conceptId is the first). */
+  conceptIds?: string[];
+  /** The layout of each page, in page order. */
+  presets?: LayoutPresetId[];
   fileName: string;
   preflight: PreflightItem[] | null;
   createdAt: string;
@@ -300,6 +304,8 @@ export interface Project {
   wording: Wording | null;
   uploads: Uploads;
   selectedConceptId: string | null;
+  /** The images going on the customer proof, one page each in this order (at most MAX_PROOF_PAGES). */
+  proofConceptIds: string[];
   logoSlot: 'auto' | 'top' | 'middle' | 'bottom';
   /** Designer-edited DESCRIPTION text for the proof (null = written from the spec). */
   proofDescription: string | null;

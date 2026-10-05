@@ -26,7 +26,8 @@ import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFiles, 
 import { applyPlan, changesOrder, planInstruction } from './ai/instruct.js';
 import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
 import { PROMPT_FILES, promptVersion, readPrompt } from './ai/prompts.js';
-import { buildProof } from './pdf/proofs/index.js';
+import { buildProof, mergeProofs } from './pdf/proofs/index.js';
+import { MAX_PROOF_PAGES } from '../shared/proof.js';
 import { autoDescription } from './pdf/proofs/description-text.js';
 import { buildProductionPdf, type ProductionLogo } from './pdf/production.js';
 import { preflight } from './pdf/preflight.js';
@@ -153,7 +154,7 @@ api.get('/projects', (req, res) => {
     projects: listProjects().filter((p) => owns(user, p.ownerId)).map((p) => ({
       id: p.id, jobNumber: p.jobNumber, name: p.name, updatedAt: p.updatedAt, createdBy: p.createdBy,
       size: p.spec ? `${p.spec.widthIn}" x ${p.spec.heightIn}"` : '',
-      thumb: p.selectedConceptId,
+      thumb: p.selectedConceptId ?? p.proofConceptIds[0] ?? null,
     })),
   });
 });
@@ -483,6 +484,41 @@ api.post('/projects/:id/select', express.json(), ah((req, res) => {
   if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) throw new Error('Wait for this job’s images to finish before selecting a version.');
   if (c.snapshot) Object.assign(p, structuredClone(c.snapshot));
   p.selectedConceptId = c.id;
+  p.proofConceptIds = [c.id];
+  saveProject(p);
+  res.json(projectPayload(p));
+}));
+
+/**
+ * Which images go on the customer proof. `{ conceptId, on }` adds or removes one image and
+ * `{ order }` puts the current ones in a new page order. Adding the first image brings the order
+ * to that image (like "Use this version"); adding more leaves the order alone.
+ */
+api.post('/projects/:id/proof-set', express.json(), ah((req, res) => {
+  const p = loadProject(req);
+  const ids = p.proofConceptIds.filter((id) => getConcept(id)?.projectId === p.id);
+  if (Array.isArray(req.body?.order)) {
+    const order = (req.body.order as unknown[]).map(String);
+    if (order.length !== ids.length || !ids.every((id) => order.includes(id))) throw new Error('That page order does not match the images on the proof.');
+    p.proofConceptIds = order;
+    saveProject(p);
+    return res.json(projectPayload(p));
+  }
+  const c = getConcept(String(req.body?.conceptId ?? ''));
+  if (!c || c.projectId !== p.id) throw new Error('That image is not in this job.');
+  if (req.body?.on === false) {
+    p.proofConceptIds = ids.filter((id) => id !== c.id);
+    if (p.selectedConceptId === c.id) p.selectedConceptId = p.proofConceptIds[0] ?? null;
+  } else if (!ids.includes(c.id)) {
+    if (!c.hasImage) throw new Error('Pick a finished image.');
+    if (ids.length >= MAX_PROOF_PAGES) throw new Error(`A proof holds up to ${MAX_PROOF_PAGES} pages. Take one off first.`);
+    if (!ids.length) {
+      if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) throw new Error('Wait for this job’s images to finish before selecting a version.');
+      if (c.snapshot) Object.assign(p, structuredClone(c.snapshot));
+      p.selectedConceptId = c.id;
+    }
+    p.proofConceptIds = [...ids, c.id];
+  }
   saveProject(p);
   res.json(projectPayload(p));
 }));
@@ -504,15 +540,22 @@ function outputPreset(o: OutputRecord): LayoutPresetId | null {
   return o.preset ?? (o.conceptId ? getConcept(o.conceptId)?.preset ?? null : null);
 }
 
+/** The layout of each page of a proof (one for a single-image file). */
+function outputPresets(o: OutputRecord): LayoutPresetId[] {
+  if (o.presets?.length) return o.presets;
+  const one = outputPreset(o);
+  return one ? [one] : [];
+}
+
 function outputFile(o: OutputRecord) {
   return path.join(projectDir(o.projectId, 'outputs'), `${o.id}.pdf`);
 }
 
-function pdfPreview(pdf: string, dpi: number): Buffer | null {
+function pdfPreview(pdf: string, dpi: number, page = 1): Buffer | null {
   if (!hasPoppler) return null;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pps-'));
   try {
-    execFileSync('pdftocairo', ['-png', '-singlefile', '-r', String(dpi), pdf, path.join(tmp, 'p')], { timeout: 60_000 });
+    execFileSync('pdftocairo', ['-png', '-singlefile', '-f', String(page), '-l', String(page), '-r', String(dpi), pdf, path.join(tmp, 'p')], { timeout: 60_000 });
     return fs.readFileSync(path.join(tmp, 'p.png'));
   } catch {
     return null;
@@ -522,34 +565,65 @@ function pdfPreview(pdf: string, dpi: number): Buffer | null {
 }
 
 api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
-  let p = loadProject(req);
-  const c = getConcept(String(req.body?.conceptId ?? p.selectedConceptId ?? ''));
-  if (!c || c.projectId !== p.id || !c.hasImage) throw new Error('Select one of the generated images first.');
-  // Built from the concept's own frozen content. Any of the three concepts can be proofed
-  // without selecting it, so the order and the selection are left as they are.
-  p = projectForConcept(p, c);
-  if ((!c.spellcheck?.ok || (!config.mockAI && !c.spellcheck.checked)) && req.body?.acknowledged !== true) {
-    return res.status(409).json({ error: c.spellcheck?.checked ? 'The spelling check found wording differences in this image.' : 'This image has not completed a spelling check. Proofread it before confirming.', differences: c.spellcheck?.differences ?? [] });
+  const base = loadProject(req);
+  // One page per image, in the order given: the request, else the images set for the proof.
+  const asked: unknown[] = Array.isArray(req.body?.conceptIds) ? req.body.conceptIds
+    : req.body?.conceptId ? [req.body.conceptId]
+    : base.proofConceptIds.length ? base.proofConceptIds : [base.selectedConceptId];
+  const ids = [...new Set(asked.map((id) => String(id ?? '')))];
+  if (!ids.length || ids.length > MAX_PROOF_PAGES) throw new Error(`A proof holds 1 to ${MAX_PROOF_PAGES} images.`);
+  const concepts = ids.map((id) => getConcept(id));
+  if (concepts.some((c) => !c || c.projectId !== base.id || !c.hasImage)) throw new Error('Select one of the generated images first.');
+  const pages = concepts as ConceptRecord[];
+
+  // Every image is checked before anything is made; the designer confirms them all at once.
+  const unchecked = pages.map((c, i) => ({ c, page: i + 1 })).filter(({ c }) => !c.spellcheck?.ok || (!config.mockAI && !c.spellcheck.checked));
+  if (unchecked.length && req.body?.acknowledged !== true) {
+    const many = pages.length > 1;
+    const where = (c: ConceptRecord, page: number) => (many ? `Page ${page} (${presetLabel(c.preset)}): ` : '');
+    return res.status(409).json({
+      error: unchecked.length > 1 ? `${unchecked.length} of the images have wording that was not confirmed by the spelling check.`
+        : unchecked[0]!.c.spellcheck?.checked ? `${many ? `Page ${unchecked[0]!.page} (${presetLabel(unchecked[0]!.c.preset)}): the` : 'The'} spelling check found wording differences in this image.`
+        : `${many ? `Page ${unchecked[0]!.page} (${presetLabel(unchecked[0]!.c.preset)}): this` : 'This'} image has not completed a spelling check. Proofread it before confirming.`,
+      differences: unchecked.flatMap(({ c, page }) => (c.spellcheck?.differences ?? []).map((d) => ({ ...d, where: many ? where(c, page).slice(0, -2) : undefined }))),
+    });
   }
-  const layout = layoutFor(p, c.preset);
-  // Versions count per layout: three proofs of three layouts are three options, not v1-v3.
-  const version = listOutputs(p.id).filter((x) => x.kind === 'proof' && outputPreset(x) === c.preset).length + 1;
-  const pdf = await buildProof('description', {
-    jobNumber: p.jobNumber || 'draft',
-    version,
-    spec: p.spec!,
-    wording: p.wording,
-    layout,
-    plaqueImage: fs.readFileSync(conceptFile(c, 'image.png')),
-    proofNote: p.proofNote,
-    description: p.proofDescription,
-    fontStated: !(p.parse?.assumed ?? []).includes('font'),
-  });
-  const fileName = `Proof - ${p.jobNumber || 'draft'} - ${presetLabel(c.preset)}${version > 1 ? ` v${version}` : ''}.pdf`;
-  const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'proof', conceptId: c.id, preset: c.preset, fileName, preflight: null, createdAt: now() };
+
+  // Each page is built from its own image's frozen content. The order and the selection are
+  // left as they are, so any image can be proofed without choosing it first.
+  const earlier = listOutputs(base.id).filter((x) => x.kind === 'proof');
+  const used = new Map<LayoutPresetId, number>();
+  const buffers: Buffer[] = [];
+  for (const c of pages) {
+    const p = projectForConcept(base, c);
+    const layout = layoutFor(p, c.preset);
+    // Versions count per layout: three proofs of three layouts are three options, not v1-v3.
+    const version = earlier.filter((x) => outputPresets(x).includes(c.preset)).length + (used.get(c.preset) ?? 0) + 1;
+    used.set(c.preset, (used.get(c.preset) ?? 0) + 1);
+    buffers.push(await buildProof('description', {
+      jobNumber: p.jobNumber || 'draft',
+      version,
+      spec: p.spec!,
+      wording: p.wording,
+      layout,
+      plaqueImage: fs.readFileSync(conceptFile(c, 'image.png')),
+      proofNote: p.proofNote,
+      description: p.proofDescription,
+      fontStated: !(p.parse?.assumed ?? []).includes('font'),
+    }));
+  }
+  const pdf = await mergeProofs(buffers);
+  const labels = pages.map((c) => presetLabel(c.preset));
+  const version = Math.max(...pages.map((c) => earlier.filter((x) => outputPresets(x).includes(c.preset)).length + 1));
+  const fileName = `Proof - ${base.jobNumber || 'draft'} - ${labels.join(' + ')}${version > 1 ? ` v${version}` : ''}.pdf`;
+  const o: OutputRecord = {
+    id: newId('o'), projectId: base.id, kind: 'proof', conceptId: pages[0]!.id, preset: pages[0]!.preset,
+    ...(pages.length > 1 ? { conceptIds: pages.map((c) => c.id), presets: pages.map((c) => c.preset) } : {}),
+    fileName, preflight: null, createdAt: now(),
+  };
   fs.writeFileSync(outputFile(o), pdf);
   saveOutput(o);
-  res.json({ output: o, ...projectPayload(p) });
+  res.json({ output: o, ...projectPayload(base) });
 }));
 
 api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
@@ -590,9 +664,12 @@ api.get('/outputs/:id/download', ah((req, res) => {
 api.get('/outputs/:id/preview.png', ah(async (req, res) => {
   const o = loadOutput(req);
   if (!o) return res.status(404).end();
-  const cache = outputFile(o).replace(/\.pdf$/, '.png');
+  // Page 1 keeps the old file name, so previews already made stay valid.
+  const pageCount = o.conceptIds?.length ?? 1;
+  const page = Math.min(pageCount, Math.max(1, Math.floor(Number(req.query.page)) || 1));
+  const cache = outputFile(o).replace(/\.pdf$/, page > 1 ? `-p${page}.png` : '.png');
   if (!fs.existsSync(cache)) {
-    const png = pdfPreview(outputFile(o), o.kind === 'proof' ? 110 : 40);
+    const png = pdfPreview(outputFile(o), o.kind === 'proof' ? 110 : 40, page);
     if (!png) return res.status(404).json({ error: 'Preview not available on this computer.' });
     fs.writeFileSync(cache, await sharp(png).png().toBuffer());
   }

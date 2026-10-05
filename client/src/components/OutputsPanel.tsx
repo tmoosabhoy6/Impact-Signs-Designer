@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Check, CheckCircle2, Download, ExternalLink, FileCheck2, FileCog, AlertTriangle, XCircle } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckCircle2, Download, ExternalLink, FileCheck2, FileCog, AlertTriangle, X, XCircle } from 'lucide-react';
 import { api, conceptUrl, type ProjectPayload } from '../api';
 import { assetUrl, type Catalog } from '../catalog';
 import { Button, Notice, Panel } from './ui';
 import { conceptTag, outputTag, useMakeOutput, WordingCheckWarning } from './outputs';
 import type { ConceptRecord, OutputRecord } from '../../../shared/types';
+import { MAX_PROOF_PAGES } from '../../../shared/proof';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void };
 
 export function OutputsPanel({ data, catalog, onChange }: Props) {
   const p = data.project;
-  const selected = data.concepts.find((c) => c.id === p.selectedConceptId) ?? null;
+  // The images on the proof, one page each, in page order.
+  const pages = p.proofConceptIds.map((id) => data.concepts.find((c) => c.id === id)).filter((c): c is ConceptRecord => !!c);
+  const selected = pages[0] ?? null;
   const proofs = data.outputs.filter((o) => o.kind === 'proof');
   const productions = data.outputs.filter((o) => o.kind === 'production');
-  const { busy, error, check, notes, makeProof, makeProduction } = useMakeOutput(p.id, selected?.id ?? null, onChange);
+  const { busy, error, check, notes, makeProof, makeProduction } = useMakeOutput(p.id, pages.map((c) => c.id), onChange);
 
   const finish = p.spec && catalog.catalog.finishes.find((f) => f.id === p.spec!.finish);
   const paint = p.spec && catalog.catalog.backgroundColors.find((f) => f.id === p.spec!.backgroundColor);
@@ -21,37 +24,14 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
   return (
     <div>
       <Panel step="05" title="Customer proof">
-        {selected ? (
-          <div className="fade-in flex gap-3" key={selected.id}>
-            <div className="relative shrink-0">
-              <img src={conceptUrl(selected, 'preview.jpg')} alt="Selected concept" className="h-28 w-auto max-w-[110px] bg-stage object-contain" />
-              <span className="absolute -top-1.5 -left-1.5 grid h-5 w-5 place-items-center rounded-full bg-ok text-white ring-2 ring-white" aria-hidden>
-                <Check className="h-3 w-3" strokeWidth={3} />
-              </span>
-            </div>
-            <div className="min-w-0 space-y-1.5 text-[13px]">
-              <div className="label">On the proof</div>
-              <div className="font-display text-[14px] font-semibold text-ink">{conceptTag(selected, data.concepts, catalog)}</div>
-              {finish && (
-                <div className="flex items-center gap-2">
-                  {finish.asset && <img src={assetUrl(finish.asset)} alt="" className="h-7 w-7 border border-line object-cover" />}
-                  <span>{finish.proofLabel ?? finish.label}</span>
-                </div>
-              )}
-              {paint && (
-                <div className="flex items-center gap-2">
-                  {paint.asset ? <img src={assetUrl(paint.asset)} alt="" className="h-7 w-7 border border-line object-cover" /> : <span className="h-7 w-7 border border-line" style={{ background: paint.hex }} />}
-                  <span>{paint.label} · Paint Fill</span>
-                </div>
-              )}
-            </div>
-          </div>
+        {pages.length ? (
+          <ProofPages pages={pages} data={data} catalog={catalog} onChange={onChange} finish={finish} paint={paint} />
         ) : (
-          <p className="text-[13px] text-muted">Press “Use this one” under a concept. Its image and the options below make the proof; press it under another concept to proof that one next.</p>
+          <p className="text-[13px] text-muted">Press “Use this one” under a concept, then “Add as page 2” (and 3) under others. Each image becomes its own page of one proof PDF, in the order you add them.</p>
         )}
         <ProofSettings data={data} catalog={catalog} onChange={onChange} />
         <Button className="mt-3 w-full" disabled={!selected} busy={busy === 'proof'} onClick={() => makeProof()}>
-          <FileCheck2 className="h-4 w-4" /> Create proof PDF
+          <FileCheck2 className="h-4 w-4" /> {pages.length > 1 ? `Create ${pages.length}-page proof PDF` : 'Create proof PDF'}
         </Button>
         {error?.kind === 'proof' && <div className="mt-3"><Notice tone="error">{error.message}</Notice></div>}
         {check && <div className="mt-3"><WordingCheckWarning check={check} onConfirm={() => makeProof(true)} /></div>}
@@ -60,7 +40,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
 
       <Panel step="06" title="Vector production PDF">
         <p className="text-[13px] text-muted">
-          One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of the concept on the proof{selected ? ` (${conceptTag(selected, data.concepts, catalog)})` : ''}.
+          One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of {pages.length > 1 ? 'page 1 of the proof' : 'the concept on the proof'}{selected ? ` (${conceptTag(selected, data.concepts, catalog)})` : ''}.
         </p>
         <Button className="mt-3 w-full" variant="secondary" disabled={!p.spec || !p.wording?.blocks.length} busy={busy === 'production'} onClick={makeProduction}>
           <FileCog className="h-4 w-4" /> Create vector PDF
@@ -77,6 +57,76 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
         <OutputList outputs={productions} concepts={data.concepts} catalog={catalog} />
         {error?.kind === 'production' && <div className="mt-3"><Notice tone="error">{error.message}</Notice></div>}
       </Panel>
+    </div>
+  );
+}
+
+/** The images going on the proof, as numbered pages: reorder them or take one off. */
+function ProofPages({ pages, data, catalog, onChange, finish, paint }: Props & {
+  pages: ConceptRecord[];
+  finish?: Catalog['catalog']['finishes'][number] | null | false;
+  paint?: Catalog['catalog']['backgroundColors'][number] | null | false;
+}) {
+  const p = data.project;
+  const [error, setError] = useState('');
+  const send = async (body: Record<string, unknown>) => {
+    setError('');
+    try {
+      onChange(await api.post<ProjectPayload>(`/projects/${p.id}/proof-set`, body));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  const move = (i: number, by: -1 | 1) => {
+    const ids = pages.map((c) => c.id);
+    [ids[i], ids[i + by]] = [ids[i + by]!, ids[i]!];
+    send({ order: ids });
+  };
+  const iconButton = 'grid h-7 w-7 place-items-center rounded-[3px] border border-line text-graphite hover:border-navy/50 hover:text-navy disabled:opacity-30 disabled:hover:border-line disabled:hover:text-graphite';
+  return (
+    <div>
+      <div className="label">{pages.length > 1 ? `On the proof · ${pages.length} pages` : 'On the proof'}</div>
+      <ol className="mt-1.5 space-y-2">
+        {pages.map((c, i) => (
+          <li key={c.id} className="fade-in flex items-center gap-2.5 border border-line p-2">
+            <div className="relative shrink-0">
+              <img src={conceptUrl(c, 'preview.jpg')} alt={`Page ${i + 1}`} className="h-16 w-auto max-w-[72px] bg-stage object-contain" />
+              <span className="absolute -top-1.5 -left-1.5 grid h-5 w-5 place-items-center rounded-full bg-navy font-mono text-[11px] font-semibold text-white ring-2 ring-white" aria-hidden>{i + 1}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-display text-[11px] font-semibold uppercase tracking-wider text-muted">Page {i + 1}</div>
+              <div className="truncate font-display text-[14px] font-semibold text-ink">{conceptTag(c, data.concepts, catalog)}</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {pages.length > 1 && (
+                <>
+                  <button className={iconButton} disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move page ${i + 1} up`} title="Move up"><ArrowUp className="h-3.5 w-3.5" /></button>
+                  <button className={iconButton} disabled={i === pages.length - 1} onClick={() => move(i, 1)} aria-label={`Move page ${i + 1} down`} title="Move down"><ArrowDown className="h-3.5 w-3.5" /></button>
+                </>
+              )}
+              <button className={iconButton} onClick={() => send({ conceptId: c.id, on: false })} aria-label={`Take page ${i + 1} off the proof`} title="Take off the proof"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {error && <div className="mt-2"><Notice tone="error">{error}</Notice></div>}
+      {(finish || paint) && (
+        <div className="mt-2.5 space-y-1.5 text-[13px]">
+          {finish && (
+            <div className="flex items-center gap-2">
+              {finish.asset && <img src={assetUrl(finish.asset)} alt="" className="h-7 w-7 border border-line object-cover" />}
+              <span>{finish.proofLabel ?? finish.label}</span>
+            </div>
+          )}
+          {paint && (
+            <div className="flex items-center gap-2">
+              {paint.asset ? <img src={assetUrl(paint.asset)} alt="" className="h-7 w-7 border border-line object-cover" /> : <span className="h-7 w-7 border border-line" style={{ background: paint.hex }} />}
+              <span>{paint.label} · Paint Fill</span>
+            </div>
+          )}
+        </div>
+      )}
+      {pages.length < MAX_PROOF_PAGES && <p className="mt-2 text-[12px] text-muted">Want more pages? Press “Add as page {pages.length + 1}” under another concept (up to {MAX_PROOF_PAGES}).</p>}
     </div>
   );
 }
@@ -138,7 +188,7 @@ function OutputList({ outputs, concepts, catalog }: { outputs: OutputRecord[]; c
   return (
     <ul className="mt-4 space-y-3">
       {outputs.map((o, i) => {
-        const layout = o.preset ?? concepts.find((c) => c.id === o.conceptId)?.preset ?? '';
+        const layout = o.presets?.join('+') ?? o.preset ?? concepts.find((c) => c.id === o.conceptId)?.preset ?? '';
         const latest = !seen.has(layout);
         seen.add(layout);
         return <OutputItem key={o.id} o={o} tag={outputTag(o, concepts, catalog)} latest={latest} open={i === 0} />;
@@ -150,12 +200,15 @@ function OutputList({ outputs, concepts, catalog }: { outputs: OutputRecord[]; c
 function OutputItem({ o, tag, latest, open: openFirst }: { o: OutputRecord; tag: string; latest: boolean; open: boolean }) {
   const [previewOk, setPreviewOk] = useState(true);
   const [open, setOpen] = useState(openFirst);
+  const pageCount = o.conceptIds?.length ?? 1;
+  const [page, setPage] = useState(1);
   return (
     <li className="border border-line">
       <button className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left" onClick={() => setOpen(!open)}>
         <span className="min-w-0">
           <span className="block truncate text-[13px] font-medium">{o.fileName}</span>
           <span className="font-mono text-[11px] text-muted">
+            {pageCount > 1 && <span className="mr-1.5 font-display font-semibold uppercase tracking-wider text-navy">{pageCount} pages</span>}
             {tag && <span className="mr-1.5 font-display font-semibold uppercase tracking-wider text-graphite">From {tag}</span>}
             {new Date(o.createdAt).toLocaleString()}
           </span>
@@ -166,8 +219,17 @@ function OutputItem({ o, tag, latest, open: openFirst }: { o: OutputRecord; tag:
         <div className="space-y-2 border-t border-line p-3">
           {previewOk && (
             <a href={`/api/outputs/${o.id}/download?inline=1`} target="_blank" rel="noreferrer" className="block bg-paper">
-              <img src={`/api/outputs/${o.id}/preview.png`} alt={`${o.fileName} preview`} className="mx-auto max-h-72 object-contain" onError={() => setPreviewOk(false)} />
+              <img key={page} src={`/api/outputs/${o.id}/preview.png${page > 1 ? `?page=${page}` : ''}`} alt={`${o.fileName} preview, page ${page}`} className="mx-auto max-h-72 object-contain" onError={() => setPreviewOk(false)} />
             </a>
+          )}
+          {previewOk && pageCount > 1 && (
+            <div className="flex gap-1.5" role="group" aria-label="Proof pages">
+              {Array.from({ length: pageCount }, (_, i) => (
+                <button key={i} onClick={() => setPage(i + 1)} aria-pressed={page === i + 1} className={`h-7 flex-1 rounded-[3px] border font-display text-[12px] font-semibold tracking-wide ${page === i + 1 ? 'border-navy bg-navy text-white' : 'border-line text-ink hover:border-navy/50'}`}>
+                  Page {i + 1}
+                </button>
+              ))}
+            </div>
           )}
           {o.preflight && (
             <ul className="space-y-1">

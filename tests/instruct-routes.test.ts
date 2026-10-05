@@ -11,6 +11,7 @@ import { getConcept, getProject, listConcepts, listOutputs, newId, saveConcept, 
 import { conceptFile, contentSnapshot, newConceptRecord } from '../server/ai/pipeline';
 import { imageAdapter } from '../server/ai/images';
 import { storeUpload } from '../server/uploads';
+import { PDFDocument } from 'pdf-lib';
 import type { ConceptRecord, LayoutPresetId, OutputRecord, Project } from '../shared/types';
 
 let server: Server;
@@ -252,5 +253,88 @@ describe('a proof and a vector file from each concept', () => {
       expect(await r.json()).toMatchObject({ error: 'That concept was not found in this job.' });
     }
     expect(listOutputs(p.id)).toEqual([]);
+  });
+
+  describe('one proof of several images', () => {
+    const pageCount = async (o: OutputRecord) => (await PDFDocument.load(fs.readFileSync(path.join(config.dataDir, 'projects', o.projectId, 'outputs', `${o.id}.pdf`)))).getPageCount();
+    const setOf = async (p: Project, conceptId: string, on = true) => post(`/projects/${p.id}/proof-set`, { conceptId, on });
+
+    it('collects up to three images, in the order they were added, and refuses a fourth', async () => {
+      const { p, concepts } = await threeConcepts();
+      const extra = newConceptRecord(p, { preset: 'classic', kind: 'concept', batchId: newId('b'), status: 'done', hasImage: true });
+      saveConcept(extra);
+      expect(getProject(p.id)?.proofConceptIds).toEqual([]);
+      for (const c of [concepts.statement, concepts.classic, concepts.portrait]) expect((await setOf(p, c.id)).status).toBe(200);
+      expect(getProject(p.id)?.proofConceptIds).toEqual([concepts.statement.id, concepts.classic.id, concepts.portrait.id]);
+      const full = await setOf(p, extra.id);
+      expect(full.status).toBe(400);
+      expect(await full.json()).toMatchObject({ error: expect.stringContaining('up to 3 pages') });
+      // Adding one that is already there changes nothing; taking one off frees a page.
+      await setOf(p, concepts.classic.id);
+      expect(getProject(p.id)?.proofConceptIds).toHaveLength(3);
+      await setOf(p, concepts.classic.id, false);
+      expect(getProject(p.id)?.proofConceptIds).toEqual([concepts.statement.id, concepts.portrait.id]);
+    });
+
+    it('reorders the pages, and only accepts the same images', async () => {
+      const { p, concepts } = await threeConcepts();
+      await setOf(p, concepts.classic.id);
+      await setOf(p, concepts.portrait.id);
+      const ok = await post(`/projects/${p.id}/proof-set`, { order: [concepts.portrait.id, concepts.classic.id] });
+      expect(ok.status).toBe(200);
+      expect(getProject(p.id)?.proofConceptIds).toEqual([concepts.portrait.id, concepts.classic.id]);
+      expect((await post(`/projects/${p.id}/proof-set`, { order: [concepts.portrait.id, concepts.statement.id] })).status).toBe(400);
+      expect(getProject(p.id)?.proofConceptIds).toEqual([concepts.portrait.id, concepts.classic.id]);
+    });
+
+    it('makes one PDF with a page per image, first image first', async () => {
+      const { p, concepts } = await threeConcepts();
+      const o = await made(await post(`/projects/${p.id}/proof`, { conceptIds: [concepts.portrait.id, concepts.classic.id, concepts.statement.id] }));
+      expect(o.conceptIds).toEqual([concepts.portrait.id, concepts.classic.id, concepts.statement.id]);
+      expect(o.presets).toEqual(['portrait', 'classic', 'statement']);
+      expect(o.fileName).toBe('Proof - 32241 - Feature Image + Classic + Statement.pdf');
+      expect(await pageCount(o)).toBe(3);
+      // Page previews render each page separately.
+      for (const page of [1, 2, 3]) {
+        const r = await fetch(`${base}/outputs/${o.id}/preview.png?page=${page}`, { headers: { Cookie: cookie } });
+        expect(r.status).toBe(200);
+        expect((await r.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+      }
+      expect(getProject(p.id)).toEqual(p);
+    });
+
+    it('uses the images set for the proof when none are named, and counts versions per layout', async () => {
+      const { p, concepts } = await threeConcepts();
+      await setOf(p, concepts.classic.id);
+      await setOf(p, concepts.statement.id);
+      const first = await made(await post(`/projects/${p.id}/proof`));
+      expect(first.presets).toEqual(['classic', 'statement']);
+      expect(await pageCount(first)).toBe(2);
+      // The same pair again is v2 of both layouts; a single image is a plain one-page file.
+      expect((await made(await post(`/projects/${p.id}/proof`))).fileName).toBe('Proof - 32241 - Classic + Statement v2.pdf');
+      const single = await made(await post(`/projects/${p.id}/proof`, { conceptId: concepts.portrait.id }));
+      expect(single.conceptIds).toBeUndefined();
+      expect(await pageCount(single)).toBe(1);
+    });
+
+    it('checks every image’s wording before making any page', async () => {
+      const { p, concepts } = await threeConcepts();
+      saveConcept({ ...concepts.statement, spellcheck: { ok: false, checked: true, differences: [{ expected: 'Heritage', seen: 'Heritege' }], message: 'Differences.' } });
+      const r = await post(`/projects/${p.id}/proof`, { conceptIds: [concepts.classic.id, concepts.statement.id] });
+      expect(r.status).toBe(409);
+      expect(await r.json()).toMatchObject({ error: expect.stringContaining('Page 2 (Statement)'), differences: [{ expected: 'Heritage', seen: 'Heritege', where: 'Page 2 (Statement)' }] });
+      expect(listOutputs(p.id)).toEqual([]);
+      const confirmed = await post(`/projects/${p.id}/proof`, { conceptIds: [concepts.classic.id, concepts.statement.id], acknowledged: true });
+      expect(confirmed.status).toBe(200);
+    });
+
+    it('refuses more than three pages, or an image from another job', async () => {
+      const { p, concepts } = await threeConcepts();
+      const other = await threeConcepts();
+      const four = [concepts.classic.id, concepts.portrait.id, concepts.statement.id, concepts.classic.id + 'x'];
+      expect((await post(`/projects/${p.id}/proof`, { conceptIds: four })).status).toBe(400);
+      expect((await post(`/projects/${p.id}/proof`, { conceptIds: [concepts.classic.id, other.concepts.classic.id] })).status).toBe(400);
+      expect(listOutputs(p.id)).toEqual([]);
+    });
   });
 });

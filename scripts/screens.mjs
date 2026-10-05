@@ -66,24 +66,22 @@ async function runExample(jobNumber, shot) {
   if (jobNumber === '32249') await perConceptFiles();
 }
 
-// Three proofs of one job: "Use this one" under each concept in turn moves the proof panel to it.
+// One proof of three images: "Add as page" under the other concepts, then one PDF with a page each.
 async function perConceptFiles() {
-  for (const name of ['Feature Image', 'Statement']) {
+  for (const [i, name] of ['Feature Image', 'Statement'].entries()) {
     const column = page.locator('article').filter({ has: page.locator('h3', { hasText: name }) });
-    await column.getByRole('button', { name: 'Use this one' }).click();
-    await column.getByRole('button', { name: 'On the proof' }).waitFor();
-    await page.locator('aside').last().getByText(`${name} v1`, { exact: true }).first().waitFor();
-    await page.click('button:has-text("Create proof PDF")');
-    await page.locator('aside').last().getByText(`Proof - 32249 - ${name}.pdf`).waitFor();
-    await page.click('button:has-text("Create vector PDF")');
-    await page.locator('aside').last().getByText(new RegExp(`_${name.replace(' ', '_')}_production\\.pdf$`)).waitFor();
+    await column.getByRole('button', { name: `Add as page ${i + 2}` }).click();
+    await column.getByRole('button', { name: 'On the proof · remove' }).waitFor();
   }
-  // Only one concept is on the proof at a time; every file is listed by the concept it came from.
-  await page.waitForFunction(() => document.querySelectorAll('article[aria-current="true"]').length === 1);
-  await page.getByText('From Statement v1').first().waitFor();
+  await page.waitForFunction(() => document.querySelectorAll('article[aria-current="true"]').length === 3);
+  await page.locator('aside').last().getByText('On the proof · 3 pages').waitFor();
+  await page.click('button:has-text("Create 3-page proof PDF")');
+  await page.locator('aside').last().getByText('Proof - 32249 - Classic + Feature Image + Statement v2.pdf').waitFor();
+  await page.locator('aside').last().getByRole('button', { name: 'Page 2', exact: true }).click();
+  await page.locator('aside').last().getByText('From Classic v1 + Feature Image v1 + Statement v1').first().waitFor();
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${out}/15-per-concept-files.png` });
-  await page.screenshot({ path: `${out}/16-per-concept-files-full.png`, fullPage: true });
+  await page.screenshot({ path: `${out}/15-three-page-proof.png` });
+  await page.screenshot({ path: `${out}/16-three-page-proof-full.png`, fullPage: true });
   // The full-size viewer: zoom in with the wheel and drag.
   await page.locator('article').filter({ has: page.locator('h3', { hasText: 'Classic' }) }).getByRole('button', { name: 'View full size' }).click();
   const viewer = page.getByRole('dialog');

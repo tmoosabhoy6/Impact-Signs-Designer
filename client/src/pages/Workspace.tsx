@@ -69,7 +69,7 @@ function useWorkspaceWidths(data: ProjectPayload) {
   const p = data.project;
   const orderDone = !!p.spec && !!p.wording?.blocks.length;
   const concepts = data.concepts.some((c) => c.hasImage);
-  const selected = !!p.selectedConceptId;
+  const selected = p.proofConceptIds.length > 0;
   // The flow: the order sheet has the room first, then the concepts, then the proof panel.
   const base: Widths = wide ? { left: 380, right: 340 } : { left: 340, right: 300 };
   const auto: Widths = !orderDone
