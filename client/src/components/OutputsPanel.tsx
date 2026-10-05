@@ -14,7 +14,8 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
   const proofs = data.outputs.filter((o) => o.kind === 'proof');
   const productions = data.outputs.filter((o) => o.kind === 'production');
   const [busy, setBusy] = useState<'proof' | 'production' | null>(null);
-  const [error, setError] = useState('');
+  // An error stays under the button that caused it.
+  const [error, setError] = useState<{ kind: 'proof' | 'production' | null; message: string }>({ kind: null, message: '' });
   const [diffs, setDiffs] = useState<{ expected: string; seen: string }[] | null>(null);
   const [proofWarning, setProofWarning] = useState('');
   const [notes, setNotes] = useState<string[]>([]);
@@ -25,7 +26,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
 
   const makeProof = async (acknowledged = false) => {
     setBusy('proof');
-    setError('');
+    setError({ kind: null, message: '' });
     try {
       const r = await api.post<ProjectPayload>(`/projects/${p.id}/proof`, { conceptId: selected?.id, acknowledged });
       setDiffs(null);
@@ -35,7 +36,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
         setDiffs((e.data.differences as { expected: string; seen: string }[]) ?? []);
         setProofWarning(e.message);
       }
-      else setError((e as Error).message);
+      else setError({ kind: 'proof', message: (e as Error).message });
     } finally {
       setBusy(null);
     }
@@ -43,13 +44,13 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
 
   const makeProduction = async () => {
     setBusy('production');
-    setError('');
+    setError({ kind: null, message: '' });
     try {
       const r = await api.post<ProjectPayload & { notes: string[] }>(`/projects/${p.id}/production`, { conceptId: selected?.id });
       setNotes(r.notes);
       onChange(r);
     } catch (e) {
-      setError((e as Error).message);
+      setError({ kind: 'production', message: (e as Error).message });
     } finally {
       setBusy(null);
     }
@@ -84,6 +85,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
         <Button className="mt-3 w-full" disabled={!selected} busy={busy === 'proof'} onClick={() => makeProof(false)}>
           <FileCheck2 className="h-4 w-4" /> Create proof PDF
         </Button>
+        {error.kind === 'proof' && <div className="mt-3"><Notice tone="error">{error.message}</Notice></div>}
         {diffs && (
           <div className="mt-3 space-y-2">
             <Notice tone="warn">
@@ -132,7 +134,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
             ))}
           </ul>
         )}
-        {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
+        {error.kind === 'production' && <div className="mt-3"><Notice tone="error">{error.message}</Notice></div>}
       </Panel>
     </div>
   );
@@ -188,6 +190,7 @@ function ProofSettings({ data, catalog, onChange }: Props) {
               <span className="text-graphite">{p.visualScale === 'site' ? 'Mounting height shown' : 'Plaque center height'}</span>
               <span className="flex items-center gap-1">
                 <input
+                  key={p.siteMountHeightIn ?? 'default'}
                   className="h-8 w-16 rounded-[3px] border border-line px-1.5 text-right font-mono outline-none focus:border-navy"
                   defaultValue={p.siteMountHeightIn ?? 60}
                   inputMode="decimal"

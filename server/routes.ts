@@ -29,10 +29,13 @@ import { autoDescription } from './pdf/proofs/description-text.js';
 import { buildProductionPdf } from './pdf/production.js';
 import { preflight } from './pdf/preflight.js';
 import { resolveFont } from './text/fonts.js';
-import type { ConceptRecord, InstructionPlan, LayoutPresetId, OutputRecord, Project } from '../shared/types.js';
+import type { ConceptRecord, InstructionPlan, LayoutPresetId, OutputRecord, Project, TextStyle, WordingBlock, WordingRole } from '../shared/types.js';
 
 export const api = express.Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
+const UPLOAD_LIMIT_MB = 60;
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: UPLOAD_LIMIT_MB * 1024 * 1024 } });
+const UPLOAD_KINDS: UploadKind[] = ['photo', 'logo', 'sketch', 'site', 'font'];
+const ROLES: WordingRole[] = ['headline', 'subhead', 'body', 'footer'];
 const genLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many generations in a minute. Please wait a moment.' } });
 
 const ah =
@@ -198,6 +201,31 @@ api.delete('/projects/:id', ah((req, res) => {
   res.json({ ok: true });
 }));
 
+/**
+ * Line edits from the wording panel: keep only the fields the layout understands, with the
+ * text exactly as sent. A line without text or with an unknown role is a bug, not an order.
+ */
+export function cleanBlocks(input: unknown): WordingBlock[] {
+  if (!Array.isArray(input) || !input.length) throw new Error('The wording needs at least one line.');
+  return input.map((raw, i) => {
+    const b = (raw ?? {}) as Partial<WordingBlock> & { style?: Partial<TextStyle> };
+    if (typeof b.text !== 'string' || !b.text.trim()) throw new Error(`Line ${i + 1} has no text. Delete it or type the customer's words.`);
+    if (!ROLES.includes(b.role as WordingRole)) throw new Error(`Line ${i + 1} needs a role (headline, subhead, body or footer).`);
+    const block: WordingBlock = { id: typeof b.id === 'string' && b.id ? b.id.slice(0, 40) : `w${i}`, role: b.role as WordingRole, text: b.text };
+    const st = b.style && typeof b.style === 'object' ? b.style : null;
+    if (st) {
+      const style: TextStyle = {};
+      for (const k of ['italic', 'bold', 'smallCaps', 'ruleBelow'] as const) if (st[k] === true) style[k] = true;
+      if (typeof st.font === 'string' && st.font && st.font !== 'custom') style.font = mustOption('fonts', st.font).id;
+      if (Number.isInteger(st.columns) && (st.columns as number) >= 2 && (st.columns as number) <= 4) style.columns = st.columns;
+      if (st.align === 'left' || st.align === 'center') style.align = st.align;
+      if (typeof st.size === 'number' && st.size >= 0.5 && st.size <= 2.5 && st.size !== 1) style.size = +st.size.toFixed(2);
+      if (Object.keys(style).length) block.style = style;
+    }
+    return block;
+  });
+}
+
 api.patch('/projects/:id', express.json(), ah((req, res) => {
   const p = loadProject(req);
   const b = req.body ?? {};
@@ -223,7 +251,7 @@ api.patch('/projects/:id', express.json(), ah((req, res) => {
     if (p.parse) p.parse.assumed = p.parse.assumed.filter((f) => !(f in b.spec));
     p.spec = s;
   }
-  if (b.wording?.blocks) p.wording = { blocks: b.wording.blocks, notes: p.wording?.notes ?? [] };
+  if (b.wording?.blocks) p.wording = { blocks: cleanBlocks(b.wording.blocks), notes: p.wording?.notes ?? [] };
   if (['auto', 'top', 'middle', 'bottom'].includes(b.logoSlot)) p.logoSlot = b.logoSlot;
   if (['standard', 'description', 'etched'].includes(b.proofStyle)) p.proofStyle = b.proofStyle;
   if (['person', 'site', 'none'].includes(b.visualScale)) p.visualScale = b.visualScale;
@@ -261,7 +289,7 @@ api.post('/projects/:id/wording', upload.single('file'), ah(async (req, res) => 
 api.post('/projects/:id/upload/:kind', upload.single('file'), ah(async (req, res) => {
   let p = loadProject(req);
   const kind = String(req.params.kind) as UploadKind;
-  if (!['photo', 'logo', 'sketch', 'site', 'font'].includes(kind)) throw new Error('Unknown upload type.');
+  if (!UPLOAD_KINDS.includes(kind)) throw new Error('Unknown upload type.');
   if (!req.file) throw new Error('No file received.');
   if (/\.(pdf|ai|eps)$/i.test(req.file.originalname) && !hasPoppler) throw new Error('PDF/.ai files cannot be read on this computer. Upload a PNG, JPG or SVG.');
   p = await storeUpload(p, kind, req.file.originalname, req.file.buffer);
@@ -277,7 +305,9 @@ api.post('/projects/:id/upload/:kind', upload.single('file'), ah(async (req, res
 
 api.delete('/projects/:id/upload/:kind', ah((req, res) => {
   const p = loadProject(req);
-  delete p.uploads[String(req.params.kind) as UploadKind];
+  const kind = String(req.params.kind) as UploadKind;
+  if (!UPLOAD_KINDS.includes(kind)) throw new Error('Unknown upload type.');
+  delete p.uploads[kind];
   saveProject(p);
   res.json(projectPayload(p));
 }));
@@ -520,3 +550,16 @@ api.get('/outputs/:id/preview.png', ah(async (req, res) => {
   }
   res.sendFile(cache);
 }));
+
+// ---------- Errors from middleware (file uploads, JSON bodies) ----------
+// Multer and express.json() reject before a handler runs; without this the browser would get
+// Express's HTML error page and the app would only say "Request failed".
+api.use((err: Error & { code?: string; type?: string; status?: number }, _req: Request, res: Response, next: express.NextFunction) => {
+  if (res.headersSent) return next(err);
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: `That file is larger than ${UPLOAD_LIMIT_MB} MB. Export a smaller copy and try again.` });
+  if (err instanceof multer.MulterError) return res.status(400).json({ error: 'The upload did not arrive. Try again.' });
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'The request was not valid JSON.' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'That request is too large.' });
+  console.error(err);
+  res.status(err.status && err.status >= 400 && err.status < 600 ? err.status : 500).json({ error: 'Something went wrong on the server. Try again, and tell the developer if it keeps happening.' });
+});

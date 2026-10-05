@@ -342,9 +342,12 @@ function WordingSection({ data, catalog, onChange }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => setBlocks(data.project.wording?.blocks ?? []), [data.project.wording]);
+  // Every save from any panel returns a fresh project object. Only a real change to the saved
+  // lines resets the editor, so edits in progress survive e.g. uploading a photo.
+  const savedBlocks = JSON.stringify(p.wording?.blocks ?? []);
+  useEffect(() => setBlocks(JSON.parse(savedBlocks)), [savedBlocks]);
   useEffect(() => setText(data.project.wordingText), [data.project.wordingText]);
-  const dirty = JSON.stringify(blocks) !== JSON.stringify(p.wording?.blocks ?? []);
+  const dirty = JSON.stringify(blocks) !== savedBlocks;
 
   const run = async (fn: () => Promise<ProjectPayload>) => {
     setBusy(true);

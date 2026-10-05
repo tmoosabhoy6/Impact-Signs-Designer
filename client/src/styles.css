@@ -31,6 +31,9 @@
   --font-sans: 'Barlow', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Barlow Semi Condensed', 'Barlow', ui-sans-serif, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Desktop monitors (1400 px): the workspace side panels take their full width from here up.
+     In rem like the built-in breakpoints, so Tailwind orders it after lg and xl. */
+  --breakpoint-wide: 87.5rem;
 }
 
 html,
