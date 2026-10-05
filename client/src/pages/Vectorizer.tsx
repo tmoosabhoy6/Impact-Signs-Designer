@@ -4,18 +4,12 @@ import { api } from '../api';
 import type { Me } from '../App';
 import { TopBar } from '../components/TopBar';
 import { Button, Chip, Notice, Spinner } from '../components/ui';
-import { VECTOR_DEFAULTS, VECTOR_UPLOAD_MB, VECTOR_WIDTH_LIMITS, type VectorDetail, type VectorRecord } from '../../../shared/vectorize';
+import { VECTOR_DEFAULTS, VECTOR_UPLOAD_MB, VECTOR_WIDTH_LIMITS, type VectorRecord } from '../../../shared/vectorize';
 
 const fileUrl = (v: VectorRecord, file: 'result.pdf' | 'result.svg' | 'preview.png' | 'thumb.jpg' | 'source.png', download = false) =>
   `/api/vectors/${v.id}/${file}${download ? '?download=1' : ''}`;
 const inches = (v: number) => `${+v.toFixed(2)}″`;
 const LINK_BUTTON = 'inline-flex h-10 items-center justify-center gap-2 rounded-[3px] px-4 font-display text-[15px] font-semibold tracking-wide transition-[background-color,border-color,color,transform] duration-150 ease-out active:scale-[0.985]';
-
-const DETAILS: { id: VectorDetail; label: string; hint: string }[] = [
-  { id: 'fine', label: 'Fine', hint: 'Follows every pixel edge; most points.' },
-  { id: 'normal', label: 'Normal', hint: 'Smooth curves that keep the small detail.' },
-  { id: 'smooth', label: 'Smooth', hint: 'Fewest points; rounds off fine detail.' },
-];
 
 function ImageBox({ title, src, href, caption }: { title: string; src: string; href: string; caption: string }) {
   return (
@@ -34,7 +28,6 @@ function ImageBox({ title, src, href, caption }: { title: string; src: string; h
 export function Vectorizer({ me }: { me: Me }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [detail, setDetail] = useState<VectorDetail>(VECTOR_DEFAULTS.detail);
   const [widthIn, setWidthIn] = useState(String(VECTOR_DEFAULTS.widthIn));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -69,7 +62,7 @@ export function Vectorizer({ me }: { me: Me }) {
     setBusy(true);
     setError('');
     try {
-      const { vector } = await api.upload<{ vector: VectorRecord }>('/vectors', file, { detail, widthIn: String(width) });
+      const { vector } = await api.upload<{ vector: VectorRecord }>('/vectors', file, { widthIn: String(width) });
       setResult(vector);
       setRecent((cur) => [vector, ...(cur ?? [])]);
     } catch (e) {
@@ -92,21 +85,6 @@ export function Vectorizer({ me }: { me: Me }) {
       setDeleting(null);
     }
   }
-
-  const choice = (name: string, value: string, items: { id: string; label: string; hint: string }[], set: (id: never) => void) => (
-    <fieldset>
-      <legend className="label">{name}</legend>
-      <div className="mt-1 grid grid-cols-3 gap-2">
-        {items.map((it) => (
-          <label key={it.id} title={it.hint} className={`flex h-10 cursor-pointer items-center justify-center rounded-[3px] border font-display text-[14px] font-semibold transition-colors duration-150 ${value === it.id ? 'border-navy bg-navy-50 text-navy' : 'border-line text-graphite hover:border-navy/50'}`}>
-            <input type="radio" name={name} value={it.id} checked={value === it.id} onChange={() => set(it.id as never)} className="sr-only" />
-            {it.label}
-          </label>
-        ))}
-      </div>
-      <p className="mt-1 text-[12px] text-muted">{items.find((it) => it.id === value)?.hint}</p>
-    </fieldset>
-  );
 
   return (
     <div className="min-h-full">
@@ -154,7 +132,6 @@ export function Vectorizer({ me }: { me: Me }) {
             </label>
             {file && preview && <div className="break-all text-[13px] text-muted">{file.name}</div>}
 
-            {choice('Detail', detail, DETAILS, setDetail)}
 
             <label className="block">
               <span className="label">Width on the page</span>

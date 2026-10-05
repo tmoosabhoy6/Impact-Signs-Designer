@@ -97,8 +97,8 @@ describe('vectorizeFile', () => {
 
   it('checks options and keeps the width within limits', () => {
     expect(readVectorOptions(undefined)).toEqual(VECTOR_DEFAULTS);
-    expect(readVectorOptions({ detail: 'fine', widthIn: '500' })).toEqual({ detail: 'fine', widthIn: 96 });
-    expect(readVectorOptions({ background: 'dark', detail: 'x', widthIn: 'abc' })).toEqual(VECTOR_DEFAULTS);
+    expect(readVectorOptions({ widthIn: '500' })).toEqual({ widthIn: 96 });
+    expect(readVectorOptions({ background: 'dark', detail: 'fine', widthIn: 'abc' })).toEqual(VECTOR_DEFAULTS);
   });
 });
 
