@@ -65,7 +65,7 @@
 ## Open items / unverified
 
 - **Live OpenAI testing is now completed:** see the October verification below and `output/live/README.md`. This supersedes the earlier offline-only development note. Production hosting is not yet verified.
-- **impactsigns.com styling:** the site was blocked from this workspace too. The app's look is built from the brand's own material: the navy logo (#2E3092), the proof's red (#ED1C24) and ink (#231F20), and a DIN-style condensed typeface matching the logo lettering.
+- **impactsigns.com styling:** verified October 5, 2026 against the public GeneratePress palette and child-theme CSS: navy `#1F2640`, link blue `#1C7293`, body text `#2B2B2B`, muted text `#686868`, gold `#B09E6E`, borders `#E1E1E1`, neutral `#ECEBE7`, page `#F7F8F9`, white panels. Shared UI tokens use these values; the supplied app wordmark is rendered as a navy silhouette. Fonts remain Barlow, and semantic warning/error/success colors remain distinct. Proof templates, catalog swatches and production ink are unchanged.
 - **Bevel border geometry** is still unmeasured; preflight marks it "unverified". The double-line border is now measured.
 - **Screw-hole size and position** for face-screw mounts are estimated (marked in the production file and flagged).
 - **Inline logos and ornaments in text** (Kane County sponsor logos, Raccoon River paw prints) are not drawn by the layout. Do not promise them through Fix: they would not appear in vector production art. They need a future shared-layout feature.
@@ -96,3 +96,8 @@
 - **Only the logo is public.** `/library/brand` serves `logo.png` / `logo.svg` and nothing else, so licensed font files dropped into `brand-assets/fonts/` are never downloadable without sign-in. The app is built by `server/app.ts` (`createApp`), which the tests mount directly.
 - **Startup warnings follow the real sign-in mode** (Supabase, shared password, open, unconfigured) and production warns when `SESSION_SECRET` is the built-in default.
 - **Lightbox:** Esc closes the full-size view, which now names the layout.
+
+## October 5, 2026: automatic commits
+
+- The owner requested automatic commits of all work as it progresses. Commit completed changes without asking each time; secrets and ignored files remain excluded.
+- Existing interface palette changes and screenshots were committed as a checkpoint. `git diff --check` passed. Tests, typecheck and build could not run in this shell because `npm` was not on PATH; this checkpoint does not establish runtime or visual verification.

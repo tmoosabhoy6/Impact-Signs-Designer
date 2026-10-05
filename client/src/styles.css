@@ -8,22 +8,26 @@
 @import '@fontsource/ibm-plex-mono/400.css';
 @import '@fontsource/ibm-plex-mono/500.css';
 
-/* Impact Signs brand: navy from the logo, red and ink from the customer proof sheet. */
+/* Website palette measured from impactsigns.com on 2026-10-05.
+   UI tokens are separate from the locked proof and production inks. */
 @theme {
-  --color-navy: #2e3092;
-  --color-navy-700: #252774;
-  --color-navy-50: #eef0fa;
+  --color-navy: #1f2640;
+  --color-navy-700: #1f2640;
+  --color-navy-50: #ecebe7;
+  --color-accent: #1c7293;
+  --color-gold: #b09e6e;
   --color-signal: #ed1c24;
   --color-dim: #ec2128;
-  --color-ink: #231f20;
-  --color-graphite: #3b3b40;
-  --color-muted: #6b6b73;
-  --color-line: #dcdde3;
-  --color-paper: #f5f6f8;
+  --color-ink: #2b2b2b;
+  --color-graphite: #1f2640;
+  --color-muted: #686868;
+  --color-line: #e1e1e1;
+  --color-paper: #f7f8f9;
   --color-panel: #ffffff;
-  --color-stage: #1d1e22;
-  --color-stage-2: #26272c;
-  --color-bronze: #c49a6c;
+  --color-stage: #1f2640;
+  --color-stage-2: #2b2b2b;
+  /* Legacy UI class name; actual plaque finishes still come from the catalog. */
+  --color-bronze: #b09e6e;
   --color-amber: #b26a00;
   --color-amber-50: #fff4e0;
   --color-ok: #1f7a4d;
@@ -72,7 +76,13 @@ body {
 
 .stage {
   background-color: var(--color-stage);
-  background-image: radial-gradient(ellipse 70% 55% at 50% 35%, #2c2d33 0%, var(--color-stage) 70%);
+}
+
+/* Reuse the supplied wordmark silhouette without altering the proof artwork. */
+.brand-logo {
+  display: inline-block;
+  background-color: var(--color-navy);
+  mask: url('/library/brand/logo.png') center / contain no-repeat;
 }
 
 .plaque-shadow {

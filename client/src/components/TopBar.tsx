@@ -3,7 +3,7 @@ import { navigate, type Me } from '../App';
 import { api } from '../api';
 
 export function Logo({ className = 'h-6' }: { className?: string }) {
-  return <img src="/library/brand/logo.png" alt="Impact Signs" className={className} />;
+  return <span role="img" aria-label="Impact Signs" className={`brand-logo aspect-[1210/260] shrink-0 ${className}`} />;
 }
 
 export function TopBar({ me, center, right }: { me: Me; center?: ReactNode; right?: ReactNode }) {
@@ -31,7 +31,7 @@ export function TopBar({ me, center, right }: { me: Me; center?: ReactNode; righ
           }}
           aria-current={onUpscaler ? 'page' : undefined}
           className={`${center ? 'hidden sm:flex' : 'flex'} h-14 shrink-0 items-center border-b-[3px] px-1 font-display text-[13px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[14px] ${
-            onUpscaler ? 'border-signal text-navy' : 'border-transparent text-graphite hover:text-navy'
+            onUpscaler ? 'border-gold text-navy' : 'border-transparent text-graphite hover:text-accent'
           }`}
         >
           AI Upscaler
@@ -50,13 +50,13 @@ export function TopBar({ me, center, right }: { me: Me; center?: ReactNode; righ
               e.preventDefault();
               navigate('/admin');
             }}
-            className="text-graphite hover:text-navy"
+            className="text-graphite hover:text-accent"
           >
             Admin
           </a>
           {me.passwordRequired && (
             <button
-              className="text-graphite hover:text-navy"
+              className="text-graphite hover:text-accent"
               onClick={async () => {
                 await api.post('/logout');
                 window.location.href = '/';
