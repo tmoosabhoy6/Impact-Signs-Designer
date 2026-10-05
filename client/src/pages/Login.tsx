@@ -5,48 +5,6 @@ import type { Me } from '../App';
 import { Button, FIELD, Notice } from '../components/ui';
 import { Logo } from '../components/TopBar';
 
-/** Finished concept plaques (public/login/), laid out as the sign-in page's montage. */
-const MONTAGE_COLUMNS: number[][] = [
-  [1, 6, 4, 3],
-  [3, 7, 2, 9],
-  [5, 1, 8, 6],
-  [9, 4, 3, 2],
-  [2, 8, 7, 5],
-  [6, 3, 1, 4],
-  [4, 9, 5, 7],
-];
-// Small fixed tilts and offsets so the wall reads as pinned-up proofs, not a rigid grid.
-const TILTS = [-1.6, 1.2, -0.8, 1.8, -1.2, 0.9, -1.9, 1.4, -0.6];
-
-/** A wall of real concept plaques behind the sign-in card. Decorative only. */
-function PlaqueMontage() {
-  return (
-    <div className="absolute inset-0 overflow-hidden bg-[#141a2e]" aria-hidden>
-      <div className="absolute -inset-x-10 -inset-y-16 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-7">
-        {MONTAGE_COLUMNS.map((col, c) => (
-          <div key={c} className={`flex flex-col gap-4 ${c % 2 ? 'mt-12' : 'mt-0'} ${c >= 4 ? 'hidden lg:flex' : c === 3 ? 'hidden sm:flex' : ''}`}>
-            {col.map((n, r) => (
-              // The tilt sits on a wrapper because the entrance animation ends with `transform: none`.
-              <div key={r} style={{ transform: `rotate(${TILTS[(c * 4 + r) % TILTS.length]}deg)` }}>
-                <img
-                  src={`/login/plaque-${n}.jpg`}
-                  alt=""
-                  loading="lazy"
-                  draggable={false}
-                  className="plaque-shadow rise w-full rounded-[3px] object-cover"
-                  style={{ animationDelay: `${(c * 4 + r) * 50}ms` }}
-                />
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-      {/* A dark wash keeps the card readable while the plaques stay visible. */}
-      <div className="absolute inset-0 bg-[#141a2e]/60" />
-    </div>
-  );
-}
-
 export function Login({ mode, onDone }: { mode: Me['authMode']; onDone: () => void }) {
   // Accounts sign in with a username; the older shared-password setup asks for a name.
   const accounts = mode === 'supabase';
@@ -55,9 +13,8 @@ export function Login({ mode, onDone }: { mode: Me['authMode']; onDone: () => vo
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return (
-    <div className="relative grid min-h-full place-items-center px-4 py-10">
-      <PlaqueMontage />
-      <div className="relative z-10 w-full max-w-sm">
+    <div className="grid min-h-full place-items-center bg-[#2E3092] px-4 py-10">
+      <div className="w-full max-w-sm">
         <form
           className="card card-rule rise w-full shadow-[0_30px_70px_-20px_rgba(0,0,0,0.7)]"
           onSubmit={async (e) => {
