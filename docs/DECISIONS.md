@@ -237,3 +237,10 @@
 - Empty areas explain what will appear there (`EmptyState`): the proof panel before a concept is chosen, the tool pages before a file is chosen, and the jobs list, which also shows the four-step "How a job runs" strip while there are fewer than four jobs. The jobs page lists the two tools under the new-job form.
 - Readability: body copy in panels moved from 12–13 px to 13.5–14 px, labels to 0.74 rem, placeholders lighter than text, and fields show a soft navy ring when active (white on the stage).
 - Verification: typecheck and build pass; every page was driven in demo mode in Chromium and inspected (sign-in, jobs empty and with jobs, order, generating, concepts, proof and vector outputs, Vectorizer, Upscaler, Admin, phone width). `scripts/screens.mjs` was rerun to refresh `docs/screens/`. No server, layout, proof or production code changed.
+
+## Sign-in page: plaque montage
+
+- The sign-in page no longer has the dark left panel or the CSS bronze plaque. A wall of finished concept plaques (`client/public/login/plaque-1..9.jpg`, downscaled from the repo's `output/live/` concept renders) fills the whole page behind a dim navy wash, and the sign-in card sits centered on top (also on phones, where fewer columns show). The images are decorative only (`aria-hidden`, empty alt text).
+- The four-step "Order / Concepts / Proof / Vector PDF" strip was removed with the left panel; the jobs page still shows "How a job runs".
+- Unverified: the request said "the rest of the images I have provided", but only the plaque picture came through, so the montage uses the repo's own concept renders. Swap the files in `client/public/login/` to change the montage.
+- Verification: typecheck and build pass; sign-in inspected in Chromium at desktop and phone width.

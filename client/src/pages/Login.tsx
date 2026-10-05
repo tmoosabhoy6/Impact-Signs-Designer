@@ -1,27 +1,48 @@
 import { useState } from 'react';
-import { ArrowRight, FileCheck2, FileCog, Images, ListOrdered } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { api } from '../api';
 import type { Me } from '../App';
 import { Button, FIELD, Notice } from '../components/ui';
 import { Logo } from '../components/TopBar';
 
-const STEPS = [
-  { icon: ListOrdered, label: 'Order', text: 'Paste the specification and the customer wording.' },
-  { icon: Images, label: 'Concepts', text: 'Three production-realistic layouts in about a minute.' },
-  { icon: FileCheck2, label: 'Proof', text: 'The customer proof sheet, measured from the real ones.' },
-  { icon: FileCog, label: 'Vector PDF', text: 'The one-ink production file, text outlined.' },
+/** Finished concept plaques (public/login/), laid out as the sign-in page's montage. */
+const MONTAGE_COLUMNS: number[][] = [
+  [1, 6, 4, 3],
+  [3, 7, 2, 9],
+  [5, 1, 8, 6],
+  [9, 4, 3, 2],
+  [2, 8, 7, 5],
+  [6, 3, 1, 4],
+  [4, 9, 5, 7],
 ];
+// Small fixed tilts and offsets so the wall reads as pinned-up proofs, not a rigid grid.
+const TILTS = [-1.6, 1.2, -0.8, 1.8, -1.2, 0.9, -1.9, 1.4, -0.6];
 
-/** A cast bronze plaque drawn by CSS from the catalog's own finish and texture images. */
-function PlaqueIllustration() {
+/** A wall of real concept plaques behind the sign-in card. Decorative only. */
+function PlaqueMontage() {
   return (
-    <div className="plaque rise mx-auto w-full max-w-[420px]" aria-hidden style={{ animationDelay: '120ms' }}>
-      <div className="plaque-field px-[9%]! text-center">
-        <div className="plaque-text text-[clamp(20px,2.5vw,27px)] font-bold uppercase leading-tight tracking-[0.03em]">Plaque Proof Studio</div>
-        <div className="plaque-text mt-3 text-[clamp(14px,1.7vw,18px)] leading-snug">Impact Signs</div>
-        <div className="plaque-text mt-6 text-[clamp(11px,1.3vw,14px)] uppercase tracking-[0.18em]">Concepts · Proofs · Production</div>
-        <div className="plaque-text mt-6 text-[clamp(10px,1.1vw,12px)] uppercase tracking-[0.12em]">Cast Bronze · Cast Aluminum</div>
+    <div className="absolute inset-0 overflow-hidden bg-[#141a2e]" aria-hidden>
+      <div className="absolute -inset-x-10 -inset-y-16 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-7">
+        {MONTAGE_COLUMNS.map((col, c) => (
+          <div key={c} className={`flex flex-col gap-4 ${c % 2 ? 'mt-12' : 'mt-0'} ${c >= 4 ? 'hidden lg:flex' : c === 3 ? 'hidden sm:flex' : ''}`}>
+            {col.map((n, r) => (
+              // The tilt sits on a wrapper because the entrance animation ends with `transform: none`.
+              <div key={r} style={{ transform: `rotate(${TILTS[(c * 4 + r) % TILTS.length]}deg)` }}>
+                <img
+                  src={`/login/plaque-${n}.jpg`}
+                  alt=""
+                  loading="lazy"
+                  draggable={false}
+                  className="plaque-shadow rise w-full rounded-[3px] object-cover"
+                  style={{ animationDelay: `${(c * 4 + r) * 50}ms` }}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
+      {/* A dark wash keeps the card readable while the plaques stay visible. */}
+      <div className="absolute inset-0 bg-[#141a2e]/60" />
     </div>
   );
 }
@@ -34,37 +55,11 @@ export function Login({ mode, onDone }: { mode: Me['authMode']; onDone: () => vo
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return (
-    <div className="grid min-h-full lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-      {/* The studio side: dark stage, the plaque, and the four steps the app walks through. */}
-      <aside className="stage relative hidden flex-col justify-between overflow-hidden px-12 py-10 text-white lg:flex" aria-label="About Plaque Proof Studio">
-        <div className="rise flex items-center gap-3">
-          <Logo className="h-6" light />
-          <span className="h-5 w-px bg-white/20" />
-          <span className="font-display text-[14px] font-semibold uppercase tracking-[0.1em] text-white/80">Plaque Proof Studio</span>
-        </div>
-        <div className="my-10">
-          <PlaqueIllustration />
-        </div>
-        <div>
-          <div className="mb-5 h-[3px] w-16 bg-gold" aria-hidden />
-          <ol className="stagger grid grid-cols-2 gap-x-8 gap-y-5 xl:grid-cols-4 xl:gap-x-6">
-          {STEPS.map((s, i) => (
-            <li key={s.label} className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[12px] text-bronze">{String(i + 1).padStart(2, '0')}</span>
-                <s.icon className="h-4 w-4 text-white/70" aria-hidden />
-                <span className="font-display text-[14px] font-semibold uppercase tracking-[0.08em]">{s.label}</span>
-              </div>
-              <p className="mt-1 text-[13px] leading-snug text-white/55">{s.text}</p>
-            </li>
-          ))}
-          </ol>
-        </div>
-      </aside>
-
-      <div className="blueprint grid place-items-center px-4 py-10">
+    <div className="relative grid min-h-full place-items-center px-4 py-10">
+      <PlaqueMontage />
+      <div className="relative z-10 w-full max-w-sm">
         <form
-          className="card card-rule rise w-full max-w-sm"
+          className="card card-rule rise w-full shadow-[0_30px_70px_-20px_rgba(0,0,0,0.7)]"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
