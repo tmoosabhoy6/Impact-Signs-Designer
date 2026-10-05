@@ -133,6 +133,7 @@ Accounts (username + password) live in a Supabase project, in the `app_users` ta
 | `IMAGE_QUALITY` | `high` | Default quality (`low`, `medium`, `high`, `xhigh`, `max`). Designers can pick Draft (~720p, 1280 px longest edge), High (~1080p, 1920 px), Extra high (2K/QHD, 2560 px), or Max per run. Sizes follow the plaque’s proportions and API limits; narrow Draft plaques increase slightly to meet the minimum pixel count. Max is sent as Max at up to 4K: up to 3840 px per edge and 8,294,400 pixels total, sized for the plaque’s proportions. If OpenAI rejects the quality or size, the app reports the problem instead of reducing it. |
 | `IMAGE_LONG_EDGE` | `1536` | Fallback longest side for automatic quality. The four designer settings use their own resolution tiers. |
 | `MOCK_AI` | `0` | `1` = demo mode: simulated images, no OpenAI calls, no cost. |
+| `MAX_PARALLEL_IMAGES` | `2` | Images rendered at once across all users; the rest wait in line. Keep low on a 512 MB server (more users at once means a longer wait, not a crash). |
 | `MAX_IMAGE_CALLS_PER_PROJECT` | `40` | Safety cap on images per job. |
 | `DAILY_BUDGET_USD` | `40` | Generation stops for the day once estimated spend reaches this. |
 | `PRICE_TEXT_IN` / `PRICE_IMAGE_IN` / `PRICE_IMAGE_OUT` | `5` / `8` / `30` | USD per million tokens, used for the cost estimates and the budget. |

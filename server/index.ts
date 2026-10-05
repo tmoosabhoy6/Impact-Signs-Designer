@@ -1,7 +1,13 @@
+import sharp from 'sharp';
 import { config } from './config.js';
 import { authMode } from './auth.js';
 import { createApp } from './app.js';
 import { failAbandonedConcepts } from './db.js';
+
+// sharp keeps decoded pictures and spawns a worker per CPU by default; on a small host that is
+// what pushes memory past the limit while several renders run.
+sharp.cache(false);
+sharp.concurrency(1);
 
 const abandoned = failAbandonedConcepts();
 if (abandoned) console.warn(`${abandoned} image(s) were still rendering when the server last stopped; they are marked as failed.`);

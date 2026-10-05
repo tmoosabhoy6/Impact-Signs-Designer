@@ -24,6 +24,8 @@ export const config = {
   sessionSecret: process.env.SESSION_SECRET || 'change-me',
   dataDir: path.resolve(ROOT, process.env.DATA_DIR || './data-store'),
   mockAI: process.env.MOCK_AI === '1',
+  /** Image renders running at once across ALL users. Each one holds several large pictures in memory, so a small server needs a low number. */
+  maxParallelImages: Math.max(1, Math.floor(num(process.env.MAX_PARALLEL_IMAGES, 2))),
   maxImageCallsPerProject: num(process.env.MAX_IMAGE_CALLS_PER_PROJECT, 40),
   dailyBudgetUsd: num(process.env.DAILY_BUDGET_USD, 40),
   prices: {
