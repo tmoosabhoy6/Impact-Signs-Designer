@@ -8,7 +8,7 @@ import { fromRoot } from '../config.js';
 import { fontLabel, mustOption, paintLabel } from '../catalog.js';
 import type { PlaqueLayout, PlaqueSpec } from '../../shared/types.js';
 
-export const PROMPT_FILES = ['house_rules.md', 'concept.md', 'fix.md', 'spellcheck.md'] as const;
+export const PROMPT_FILES = ['house_rules.md', 'concept.md', 'fix.md', 'relayout.md', 'spellcheck.md'] as const;
 export type PromptFile = (typeof PROMPT_FILES)[number];
 
 export function readPrompt(name: PromptFile): string {
@@ -44,7 +44,7 @@ export function layoutText(layout: PlaqueLayout): string {
 
 const fmtIn = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0+$/, ''));
 
-export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs: RefImage[], opts: { hasLogo: boolean }): string {
+export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs: RefImage[], opts: { hasLogo: boolean; direction?: string }): string {
   const material = mustOption('materials', spec.material);
   const finish = mustOption('finishes', spec.finish);
   const paint = mustOption('backgroundColors', spec.backgroundColor);
@@ -84,14 +84,28 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
     text: layoutText(layout) || '(no text)',
     references: refs.map((r, i) => `Reference ${i + 1}: ${r.role}`).join('\n'),
   });
-  return `${readPrompt('house_rules.md')}\n\n${body}`;
+  // A designer's requested change (from Fix) rides on top of the layout; wording stays exact.
+  const direction = opts.direction
+    ? `\n\nDESIGNER CHANGE (apply it fully and visibly; Reference 1 still decides the wording and the positions it shows):\n${opts.direction.trim().replace(/\.?$/, '.')}`
+    : '';
+  return `${readPrompt('house_rules.md')}\n\n${body}${direction}`;
 }
 
 export function buildFixPrompt(instruction: string, layout: PlaqueLayout | null, hasLayoutRef: boolean): string {
   const body = fill(readPrompt('fix.md'), {
     instruction: instruction.trim().replace(/\.?$/, '.'),
-    layoutNote: hasLayoutRef ? 'Image 2 is the exact flat layout drawing; the text and positions must match it.' : '',
+    layoutNote: hasLayoutRef ? 'Image 2 shows the planned layout: copy the exact wording and letterforms from it, and keep its positions except where the change moves or resizes something.' : '',
     text: layout ? layoutText(layout) : '(unchanged)',
+  });
+  return `${readPrompt('house_rules.md')}\n\n${body}`;
+}
+
+/** Edit of the current image to follow an updated layout drawing (layout or wording change). */
+export function buildRelayoutPrompt(change: string, imageEdit: string | undefined, layout: PlaqueLayout): string {
+  const body = fill(readPrompt('relayout.md'), {
+    change: change.trim().replace(/\.?$/, '.'),
+    extra: imageEdit ? `Also make this change to the image: ${imageEdit.trim().replace(/\.?$/, '.')}` : '',
+    text: layoutText(layout) || '(no text)',
   });
   return `${readPrompt('house_rules.md')}\n\n${body}`;
 }

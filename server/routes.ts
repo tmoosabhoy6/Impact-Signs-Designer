@@ -21,7 +21,7 @@ import { PRESETS } from './layout/engine.js';
 import { createExampleJob, listExamples } from './examples.js';
 import { upscaleRouter } from './upscale-routes.js';
 import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFor, matchesSnapshot, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
-import { applyWordingEdits, planInstruction } from './ai/instruct.js';
+import { applyPlan, changesOrder, planInstruction } from './ai/instruct.js';
 import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
 import { PROMPT_FILES, promptVersion, readPrompt } from './ai/prompts.js';
 import { buildProof } from './pdf/proofs/index.js';
@@ -328,7 +328,7 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   if (!c) throw new Error('Concept not found.');
   const instruction = String(req.body?.instruction ?? '').trim();
   if (instruction.length < 3) throw new Error('Describe the change, for example "make the border thinner".');
-  if (instruction.length > 500) throw new Error('Keep the change to 500 characters or fewer.');
+  if (instruction.length > 1000) throw new Error('Keep the change to 1000 characters or fewer.');
   const p = getProject(c.projectId)!;
   const plan = await planInstruction(p, c, instruction);
   if (plan.kind === 'refuse') return res.status(422).json({ error: plan.reason, nearestOptions: plan.nearestOptions });
@@ -337,40 +337,29 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) return res.status(409).json({ error: 'Wait for this job’s images to finish before editing it.' });
   if (!c.hasImage) throw new Error('Wait for a finished image before editing it.');
   checkLimits(p.id);
-  const previous = plan.kind === 'visual' ? undefined : contentSnapshot(p);
-  if (plan.kind === 'visual' && c.snapshot && !matchesSnapshot(p, c.snapshot)) {
+  // Order changes (catalog, wording, layout) go through the layout so the proof and vector
+  // file follow. Catalog changes regenerate with the new swatches; wording and layout changes
+  // edit the current picture to the new layout drawing; image-only changes edit it in place.
+  const structural = changesOrder(plan);
+  const previous = structural ? contentSnapshot(p) : undefined;
+  if (!structural && c.snapshot && !matchesSnapshot(p, c.snapshot)) {
     return res.status(409).json({ error: 'Use this version first to restore its options, wording and files, then apply the visual edit.' });
   }
-  if (plan.kind === 'spec') {
-    if (!p.spec) throw new Error('Confirm the plaque specification first.');
-    p.spec = { ...p.spec, ...plan.specPatch };
-    if (p.parse) {
-      p.parse.spec = { ...p.spec };
-      p.parse.assumed = p.parse.assumed.filter((f) => !(f in plan.specPatch));
-      p.parse.notes = p.parse.notes.filter((n) => n.kind !== 'assumed' || !(n.field in plan.specPatch));
-    }
-  } else if (plan.kind === 'wording') {
-    const imageAnchor = p.imageAfterBlock == null ? null : p.wording?.blocks[p.imageAfterBlock]?.id;
-    p.wording = applyWordingEdits(p.wording, plan.wordingEdits);
-    p.wordingText = p.wording.blocks.map((b) => b.text).join('\n');
-    if (imageAnchor) {
-      const index = p.wording.blocks.findIndex((b) => b.id === imageAnchor);
-      p.imageAfterBlock = index >= 0 ? index : null;
-    }
-  }
+  applyPlan(p, plan, c.preset);
   if (!p.wording?.blocks.length) throw new Error('Add the customer wording first.');
   if (p.spec?.imageOption !== 'none' && !p.uploads.photo) throw new Error('Upload the photo before requesting this image treatment.');
   // Validate the changed layout before saving any order change.
   layoutFor(p, c.preset);
   if (previous) p.selectedConceptId = null;
-  const rec = newConceptRecord(p, { preset: c.preset, kind: plan.kind === 'visual' ? 'fix' : 'regenerate', batchId: c.batchId, parentId: c.id, note: plan.restated, plan, previous });
+  const regenerate = plan.kind === 'spec' || (plan.kind === 'edit' && !!plan.specPatch);
+  const rec = newConceptRecord(p, { preset: c.preset, kind: regenerate ? 'regenerate' : 'fix', batchId: c.batchId, parentId: c.id, note: plan.restated, plan, previous });
   db.transaction(() => { if (previous) saveProject(p); saveConcept(rec); })();
   await runStreamed(res, p, [rec], pickQuality(req.body?.quality) ?? 'high', plan);
 }));
 
 api.post('/concepts/:id/undo', express.json(), ah((req, res) => {
   const c = getConcept(String(req.params.id));
-  if (!c?.previous || (c.plan?.kind !== 'spec' && c.plan?.kind !== 'wording')) return res.status(422).json({ error: 'This version has no order change to undo.' });
+  if (!c?.previous || !c.plan || !changesOrder(c.plan)) return res.status(422).json({ error: 'This version has no order change to undo.' });
   const p = getProject(c.projectId)!;
   if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) return res.status(409).json({ error: 'Wait for this job’s images to finish before undoing.' });
   if (c.snapshot && !matchesSnapshot(p, c.snapshot)) {

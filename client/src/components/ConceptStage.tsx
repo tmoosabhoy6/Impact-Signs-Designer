@@ -161,7 +161,7 @@ function PresetColumn({
   const shownPlan = plan ?? current?.plan;
   const planNote = shownPlan?.kind === 'refuse' ? shownPlan.reason
     : shownPlan?.kind === 'visual' ? 'Visual edit to this image'
-    : shownPlan ? `Interpreted as: ${shownPlan.restated} (updates the proof and vector file)` : '';
+    : shownPlan ? `Interpreted as: ${shownPlan.restated} ${planScope(shownPlan)}` : '';
 
   return (
     <article className={`flex flex-col rounded-[4px] border bg-stage-2/70 p-3 ${selected ? 'border-bronze ring-1 ring-bronze' : 'border-white/10'}`}>
@@ -213,13 +213,13 @@ function PresetColumn({
                 aria-pressed={c.id === current.id}
                 title={c.kind === 'fix' ? `Fix: ${c.note}` : c.kind === 'regenerate' ? 'Regenerated' : 'Original'}
               >
-                v{i + 1} · {c.plan?.kind === 'spec' ? 'spec' : c.plan?.kind === 'wording' ? 'wording' : c.kind === 'fix' ? 'edit' : c.kind === 'regenerate' ? 'new' : 'original'}
+                v{i + 1} · {c.plan?.kind === 'spec' ? 'spec' : c.plan?.kind === 'wording' ? 'wording' : c.plan?.kind === 'edit' || c.kind === 'fix' ? 'edit' : c.kind === 'regenerate' ? 'new' : 'original'}
               </button>
             ))}
             <span className="ml-auto font-mono text-[11px] text-white/40">{fmtUsd(current.costUsd)}</span>
           </div>
-          {current.kind === 'fix' && <p className="text-[12px] text-white/50">Fix: “{current.note}”</p>}
-          {current.previous && (current.plan?.kind === 'spec' || current.plan?.kind === 'wording') && (
+          {(current.kind === 'fix' || current.plan?.kind === 'edit') && <p className="text-[12px] text-white/50">Fix: “{current.note}”</p>}
+          {current.previous && current.plan && changesOrder(current.plan) && (
             <Button size="sm" variant="stage" disabled={running} onClick={() => onUndo(current)}>Undo order change</Button>
           )}
           {current.status === 'error' && <Notice tone="error">{current.error}</Notice>}
@@ -247,24 +247,32 @@ function PresetColumn({
                 </Button>
               </div>
               <form
-                className="flex gap-2"
+                className="flex items-start gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (fix.trim()) {
+                  if (fix.trim() && !running) {
                     setIndex(null);
                     onFix(current, fix.trim());
                     setFix('');
                   }
                 }}
               >
-                <input
+                <textarea
                   value={fix}
                   onChange={(e) => setFix(e.target.value)}
-                  placeholder='Fix: e.g. "correct the spelling of Feulner"'
-                  className="h-8 min-w-0 flex-1 rounded-[3px] border border-white/15 bg-white/5 px-2 text-[12.5px] text-white placeholder:text-white/35 outline-none focus:border-white/40"
+                  onKeyDown={(e) => {
+                    // Enter applies; Shift+Enter adds a line.
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      e.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                  rows={2}
+                  placeholder='Change anything, e.g. "move the text up"'
+                  className="min-h-[52px] min-w-0 flex-1 resize-y rounded-[3px] border border-white/15 bg-white/5 px-2 py-1.5 text-[12.5px] leading-snug text-white placeholder:text-white/35 outline-none focus:border-white/40"
                   aria-label="Describe a fix for this image"
                   aria-describedby={planNote ? `plan-${preset.id}` : undefined}
-                  maxLength={500}
+                  maxLength={1000}
                 />
                 <Button size="sm" variant="stage" type="submit" disabled={running || !fix.trim()}>
                   Apply
@@ -284,4 +292,18 @@ function PresetColumn({
       )}
     </article>
   );
+}
+
+/** Order changes (catalog, wording, layout) also reach the proof and vector file; image edits do not. */
+function changesOrder(plan: InstructionPlan): boolean {
+  if (plan.kind === 'spec' || plan.kind === 'wording') return true;
+  return plan.kind === 'edit' && !!(plan.specPatch || plan.wordingEdits || plan.layoutPatch || plan.placement);
+}
+
+function planScope(plan: InstructionPlan): string {
+  const order = changesOrder(plan);
+  const image = plan.kind === 'visual' || (plan.kind === 'edit' && !!plan.imageEdit);
+  if (order && image) return '(layout and wording changes update the proof and vector file; the rest changes the image only)';
+  if (order) return '(updates the proof and vector file)';
+  return '(changes the image only; the vector file keeps the current layout)';
 }

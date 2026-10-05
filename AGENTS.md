@@ -50,6 +50,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Order parsing | `server/parse/spec.ts`, `server/parse/wording.ts` |
 | Layout + fonts | `server/layout/engine.ts`, `server/text/fonts.ts` (glyphs placed manually, no OpenType shaping) |
 | Image model | `server/ai/images.ts` (OpenAI adapter + mock), `server/ai/pipeline.ts` (`runConcept`, `buildReferences`, `layoutFor`), `server/ai/prompts.ts`, prompt text in `server/prompts/*.md` |
+| Fix instructions | `server/ai/instruct.ts`: the planner model (`OPENAI_PLANNER_MODEL`) returns one checked plan (catalog `specPatch`, literal `wordingEdits`, per-column `layoutPatch`, `placement`, image-only `imageEdit`); offline reader `fallbackInstruction` splits multi-part requests. Layout adjustments live in `Project.layoutAdjust[preset]` and go through `computeLayout` (`adjust`), so proof and vector agree. Prompts: `fix.md` (image-only), `relayout.md` (new layout drawing). |
 | Spell check | `server/ai/spellcheck.ts` (vision model reads the text back; word diff) |
 | Proofs | `server/pdf/proofs/index.ts` → `standard.ts`, `description.ts`, `etched.ts`, shared `common.ts`, header text `description-text.ts` |
 | Production PDF | `server/pdf/production.ts`, `server/pdf/trace.ts` (logo → vector), `server/pdf/preflight.ts` |

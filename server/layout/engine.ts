@@ -9,7 +9,7 @@
 //    band / gap / inner line, growing with the plaque's shorter side.
 import { getCatalog, mustOption, type BorderOption } from '../catalog.js';
 import { loadFontFile, measure, missingGlyphs, resolveFont, SMALL_CAPS_SCALE, wrapText, type OTFont } from '../text/fonts.js';
-import type { LayoutPresetId, PlaqueLayout, PlaqueSpec, Rect, TextLine, TextStyle, Wording, WordingRole } from '../../shared/types.js';
+import type { LayoutAdjust, LayoutPresetId, PlaqueLayout, PlaqueSpec, Rect, TextLine, TextStyle, Wording, WordingRole } from '../../shared/types.js';
 
 export interface LayoutInput {
   spec: PlaqueSpec;
@@ -23,6 +23,26 @@ export interface LayoutInput {
   imageAfterBlock?: number | null;
   /** The job's own font file (custom font). */
   customFontFile?: string | null;
+  /** Designer adjustments for this layout column (from Fix instructions). */
+  adjust?: LayoutAdjust | null;
+}
+
+export const ADJUST_LIMITS = {
+  textScale: [0.6, 1.6],
+  spacing: [0.5, 2.5],
+  imageScale: [0.5, 1.6],
+  logoScale: [0.5, 2],
+  verticalOffset: [-1, 1],
+} as const satisfies Record<keyof LayoutAdjust, readonly [number, number]>;
+
+/** Adjustments clamped to their limits; missing values mean unchanged. */
+export function normalizeAdjust(a?: LayoutAdjust | null): Required<LayoutAdjust> {
+  const v = (k: keyof LayoutAdjust, d: number) => {
+    const n = a?.[k];
+    const [lo, hi] = ADJUST_LIMITS[k];
+    return typeof n === 'number' && Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d;
+  };
+  return { textScale: v('textScale', 1), spacing: v('spacing', 1), imageScale: v('imageScale', 1), logoScale: v('logoScale', 1), verticalOffset: v('verticalOffset', 0) };
 }
 
 interface PresetDef {
@@ -135,7 +155,7 @@ export function capHeightRatio(font: OTFont): number {
 }
 
 /** Stacks items vertically; returns positions relative to the stack's top (y = 0). */
-function stack(items: Item[], B: number, gapMul: number): Placed {
+function stack(items: Item[], B: number, gapMul: number, spacing = 1): Placed {
   const out: Placed = { lines: [], rules: [], height: 0, maxLineWidth: 0 };
   let cursor = 0; // bottom of the previous box, or the previous baseline (+ rule)
   let prev: Item | null = null;
@@ -163,7 +183,7 @@ function stack(items: Item[], B: number, gapMul: number): Placed {
           : item.role === 'footer' && prev.role === 'body' ? GAP.toFooter
           : prev.role === item.role ? (item.role === 'headline' || item.role === 'subhead' ? 1.25 * (item.size / B) : GAP.paragraph)
           : GAP.headlineToSubhead;
-        first = cursor + g * B * (prev.role === item.role ? 1 : gapMul);
+        first = cursor + g * B * (prev.role === item.role ? spacing : gapMul);
       }
       const rows = new Map<number, number>(); // row index -> baseline (columns share rows)
       item.lines.forEach((l, i) => {
@@ -190,8 +210,10 @@ function roleMul(role: WordingRole, p: PresetDef) {
   return role === 'headline' ? p.headline : role === 'subhead' ? p.subhead : role === 'footer' ? 0.85 : p.body;
 }
 
-function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number): Item[] {
+function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number, spacing = 1): Item[] {
   const items: Item[] = [];
+  // Wider spacing opens the line leading a little too.
+  const lead = 1 + (spacing - 1) * 0.4;
   const blocks = (input.wording?.blocks ?? []).filter((b) => b.text.trim());
   for (const b of blocks) {
     const style = b.style ?? {};
@@ -212,7 +234,7 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
         const colLeft = -maxWidth / 2 + c * colW;
         return style.align === 'left' ? { text, dx: 0, left: colLeft + colW * 0.03, row } : { text, dx: colLeft + colW / 2, row };
       });
-      items.push({ kind: 'text', role: b.role, lines, size, leading: 1.25 * size, style, face, faceFile: rf.file, width: maxWidth });
+      items.push({ kind: 'text', role: b.role, lines, size, leading: 1.25 * size * lead, style, face, faceFile: rf.file, width: maxWidth });
       continue;
     }
     // Name and organization lines should stay on one line: shrink them (up to 25%) before wrapping.
@@ -220,7 +242,7 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
       const natural = measure(face, b.text, size, style.smallCaps);
       if (natural > maxWidth) size = Math.max(size * 0.75, (size * maxWidth) / natural);
     }
-    const leading = b.role === 'body' || b.role === 'footer' ? GAP.bodyLeading * size : 1.15 * size;
+    const leading = (b.role === 'body' || b.role === 'footer' ? GAP.bodyLeading * size : 1.15 * size) * lead;
     const wrapped = wrapText(face, b.text, size, maxWidth, style.smallCaps);
     const width = Math.max(0, ...wrapped.map((t) => measure(face, t, size, style.smallCaps)));
     const lines: StyledText[] = wrapped.map((text) => (style.align === 'left' ? { text, dx: 0, left: -maxWidth / 2 } : { text, dx: 0 }));
@@ -242,6 +264,8 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   const innerOffset = geo.gap + geo.inner;
   const content: Rect = { x: field.x + innerOffset, y: field.y + innerOffset, w: field.w - 2 * innerOffset, h: field.h - 2 * innerOffset };
   const warnings: string[] = [];
+  const adj = normalizeAdjust(input.adjust);
+  const gapMul = preset.gaps * adj.spacing;
 
   const main = resolveFont(spec.font, {}, input.customFontFile);
   if (spec.font === 'custom' && !input.customFontFile) {
@@ -281,6 +305,9 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   let slot = input.logoSlot ?? 'auto';
   if (slot === 'auto') slot = hasImage && !imageLeft && imageAfter == null ? 'bottom' : 'top';
 
+  // A resized logo never grows wider than its column.
+  const logoHeight = (h: number, maxW: number) => (adj.logoScale === 1 ? h : Math.min(h * adj.logoScale, (0.9 * maxW) / logoAspect));
+
   let best: Placed | null = null;
   let colX = content.x;
   let colW = content.w;
@@ -289,13 +316,15 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   const textOnly = !hasImage;
   // Text-only plaques set their type large (Kathleen Awe, Sax-Zim Bog, Hadar Family Hall).
   const dense = (input.wording?.blocks.length ?? 0) >= 6;
-  const fillLimit = textOnly ? (dense ? 0.92 : 0.82) : 1;
+  // Text-only type is sized to fill the field, so "larger text" fills more of it.
+  const fillLimit = textOnly ? Math.min(0.97, (dense ? 0.92 : 0.82) * adj.textScale) : 1;
+  const textMul = textOnly ? 1 : adj.textScale;
   for (scale = textOnly ? 3.2 : 1; scale >= 0.25; scale -= 0.02) {
-    const B = B0 * scale;
+    const B = B0 * scale * textMul;
     if (imageLeft) {
       const contentW = content.w - 2 * pad;
       const contentH = content.h - 2 * pad;
-      let fw = contentW * preset.sideImageFrac * Math.min(1, scale + 0.15);
+      let fw = Math.min(contentW * 0.65, contentW * preset.sideImageFrac * adj.imageScale * Math.min(1, scale + 0.15));
       let fh = fw / photoAspect;
       if (fh > contentH) {
         fh = contentH;
@@ -305,28 +334,28 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
       colX = content.x + pad + fw + gutter;
       colW = contentW - fw - gutter;
       frameRect = { x: content.x + pad, y: content.y + (content.h - fh) / 2, w: fw, h: fh };
-      const items = textItems(input, B, preset, colW);
+      const items = textItems(input, B, preset, colW, adj.spacing);
       if (hasLogo) {
-        const lh = Math.min(0.16 * contentH, (0.5 * colW) / logoAspect) * scale;
+        const lh = logoHeight(Math.min(0.16 * contentH, (0.5 * colW) / logoAspect) * scale, colW);
         const logo: Item = { kind: 'logo', w: lh * logoAspect, h: lh };
         if (slot === 'bottom') items.push(logo);
         else if (slot === 'middle') items.splice(Math.min(items.length, 2), 0, logo);
         else items.unshift(logo);
       }
-      const placed = stack(items, B, preset.gaps);
+      const placed = stack(items, B, gapMul, adj.spacing);
       best = placed;
       if (placed.height <= contentH * fillLimit && placed.maxLineWidth <= colW + 1e-6) break;
     } else {
       colX = content.x;
       colW = content.w;
       const maxText = Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
-      const texts = textItems(input, B, preset, maxText);
+      const texts = textItems(input, B, preset, maxText, adj.spacing);
       const items: Item[] = [];
       let frame: Item | null = null;
       if (hasImage) {
-        let fw = W * preset.topImageFrac * (imageAfter == null ? 1 : 1.15) * Math.min(1, scale + 0.1);
+        let fw = Math.min(content.w * 0.92, W * preset.topImageFrac * (imageAfter == null ? 1 : 1.15) * adj.imageScale * Math.min(1, scale + 0.1));
         let fh = fw / photoAspect;
-        const maxFh = content.h * (imageAfter == null ? 0.55 : 0.5);
+        const maxFh = content.h * Math.min(0.8, (imageAfter == null ? 0.55 : 0.5) * Math.max(1, adj.imageScale));
         if (fh > maxFh) {
           fh = maxFh;
           fw = fh * photoAspect;
@@ -340,7 +369,7 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
         if (frame && i === after) items.push(frame);
       });
       if (hasLogo) {
-        const lh = Math.min(0.12 * H, (0.4 * W) / logoAspect) * scale;
+        const lh = logoHeight(Math.min(0.12 * H, (0.4 * W) / logoAspect) * scale, content.w);
         const logo: Item = { kind: 'logo', w: lh * logoAspect, h: lh };
         if (slot === 'bottom') items.push(logo);
         else if (slot === 'middle') {
@@ -348,7 +377,7 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
           items.splice(firstBody >= 0 ? firstBody : items.length, 0, logo);
         } else items.splice(frame && after < 0 ? 1 : 0, 0, logo);
       }
-      const placed = stack(items, B, preset.gaps);
+      const placed = stack(items, B, gapMul, adj.spacing);
       best = placed;
       const avail = content.h - 2 * Math.max(0.3, 0.05 * content.h, screwD ? screwInset * 0.6 : 0);
       if (placed.height <= avail * fillLimit && placed.maxLineWidth <= maxText + 1e-6) break;
@@ -357,10 +386,14 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   if (!best) throw new Error('Layout failed');
   if (scale < 0.25) warnings.push('The wording does not fit comfortably at a readable size. Consider a larger plaque or less text.');
 
-  // Center the stack vertically in its area.
+  // Center the stack vertically in its area (or move it up/down within the free space).
   const areaTop = imageLeft ? content.y + pad : content.y;
   const areaH = imageLeft ? content.h - 2 * pad : content.h;
-  const dy = areaTop + (areaH - best.height) / 2;
+  const slack = areaH - best.height;
+  const margin = imageLeft ? 0 : Math.max(0.3, 0.05 * content.h, screwD ? screwInset * 0.6 : 0);
+  const dy = adj.verticalOffset && slack > 2 * margin
+    ? areaTop + margin + ((slack - 2 * margin) * (1 + adj.verticalOffset)) / 2
+    : areaTop + slack / 2;
   const cx = colX + colW / 2;
   const textWidth = imageLeft ? colW : Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
 

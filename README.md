@@ -30,7 +30,11 @@ Impact Signs' internal tool for cast bronze plaques. It takes an order and produ
 6. **04 Concepts:** click **Generate 3 concepts**. Images stream in as they render (about a minute). Under each image you can:
    - **Use this one** to pick it for the proof.
    - **Regenerate** (↻) the same layout for a fresh take.
-   - **Fix** with a short instruction (e.g. *"correct the spelling of Feulner"*, *"make the border thinner"*). Only that change is made, and the result is saved as a new version (v2, v3…).
+   - **Fix** with an instruction, small or large, and several changes at once if you like (e.g. *"move the text up, make the photo bigger and spread the lines out"*, *"make the name larger and the etching deeper"*, *"use verde patina and change Founder to Chairman"*). Enter applies; Shift+Enter adds a line. The app shows how it read the request, and the result is saved as a new version (v2, v3…).
+     - **Layout** changes (text size, spacing, photo or logo size, moving the content up or down, photo above or below the text, logo position) change that column's layout drawing, so the proof and the vector production file follow them. Each column keeps its own adjustments.
+     - **Catalog** options and **exact wording** changes update the order, as before.
+     - **Anything else** about how the image looks (etching depth, photo detail, finish appearance, moving one element in a way the layout can't) is made by the image model on the current picture. These change the image only; the vector file keeps the layout drawing.
+     - Only requests that need something outside the catalog (e.g. *"purple anodized"*) or aren't about the plaque are refused. **Undo order change** reverses any layout, catalog or wording change.
 
    Every image is automatically **spell-checked**: the app reads the text back and compares it with the customer's wording.
 7. **05 Customer proof:** pick the **Proof style**. For Description sheets, choose the scale panel (person, site photo or none) and adjust the auto-written DESCRIPTION header if needed. Optionally add a red note under the plaque. Then click **Create proof PDF**. If the spell check found a difference, the app stops and shows it: fix the image first, or confirm you've checked it. Each new proof is a new version (v2, v3…).
@@ -84,6 +88,7 @@ The Starter plan plus the 5 GB disk costs about $7–9/month. Jobs, images and P
 | `SESSION_SECRET` | generated | Signs login cookies. Render generates it. |
 | `OPENAI_IMAGE_MODEL` | `gpt-image-2.5-sunburst-2026-09-08` | Image model. |
 | `OPENAI_VISION_MODEL` | `gpt-5.4-mini` | Model that reads the text back for the spell check. |
+| `OPENAI_PLANNER_MODEL` | `gpt-5.4` | Model that reads designer Fix instructions into a checked plan. Falls back to `OPENAI_VISION_MODEL`, then to the built-in reader. |
 | `IMAGE_QUALITY` | `high` | Default quality (`low`, `medium`, `high`, `xhigh`, `max`). Designers can also pick Draft / High / Extra high per run. |
 | `IMAGE_LONG_EDGE` | `1536` | Longest side of generated images, in pixels. |
 | `MOCK_AI` | `0` | `1` = demo mode: simulated images, no OpenAI calls, no cost. |

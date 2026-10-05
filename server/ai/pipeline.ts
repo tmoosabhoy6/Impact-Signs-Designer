@@ -10,7 +10,8 @@ import { computeLayout } from '../layout/engine.js';
 import { preparePhoto, renderFlatPng } from '../render/flat.js';
 import { getConcept, newId, now, projectDir, saveConcept, addSpend, spentToday, listConcepts } from '../db.js';
 import { uploadPath } from '../uploads.js';
-import { buildConceptPrompt, buildFixPrompt, promptVersion, type RefImage } from './prompts.js';
+import { buildConceptPrompt, buildFixPrompt, buildRelayoutPrompt, promptVersion, type RefImage } from './prompts.js';
+import { changesOrder } from './instruct.js';
 import { canvasSize, costUsd, friendlyError, imageAdapter } from './images.js';
 import { fitToPlaque, smallPreview } from './postprocess.js';
 import { spellcheckImage } from './spellcheck.js';
@@ -34,6 +35,7 @@ export function layoutFor(project: Project, preset: LayoutPresetId): PlaqueLayou
       logoSlot: project.logoSlot,
       imageAfterBlock: project.imageAfterBlock,
       customFontFile: uploadPath(project, 'font'),
+      adjust: project.layoutAdjust?.[preset] ?? null,
     },
     preset,
   );
@@ -110,13 +112,15 @@ export function checkLimits(projectId: string, excludeId?: string) {
 }
 
 export function contentSnapshot(project: Project): ContentSnapshot {
-  return structuredClone({ spec: project.spec, wording: project.wording, wordingText: project.wordingText, parse: project.parse, logoSlot: project.logoSlot, imageAfterBlock: project.imageAfterBlock, uploads: project.uploads });
+  return structuredClone({ spec: project.spec, wording: project.wording, wordingText: project.wordingText, parse: project.parse, logoSlot: project.logoSlot, imageAfterBlock: project.imageAfterBlock, uploads: project.uploads, layoutAdjust: project.layoutAdjust ?? {} });
 }
 
 /** Old records lack newer snapshot fields; only compare the fields they stored. */
 export function matchesSnapshot(project: Project, snapshot: ContentSnapshot): boolean {
-  return (['spec', 'wording', 'logoSlot', 'imageAfterBlock', 'uploads'] as const)
-    .every((key) => !(key in snapshot) || JSON.stringify(project[key]) === JSON.stringify(snapshot[key]));
+  // "No layout adjustments" may be stored as {} (JSON drops undefined).
+  const value = (o: Project | ContentSnapshot, key: keyof ContentSnapshot) => (key === 'layoutAdjust' ? o.layoutAdjust ?? {} : o[key]);
+  return (['spec', 'wording', 'logoSlot', 'imageAfterBlock', 'uploads', 'layoutAdjust'] as const)
+    .every((key) => !(key in snapshot) || JSON.stringify(value(project, key)) === JSON.stringify(value(snapshot, key)));
 }
 
 export function projectForConcept(project: Project, concept: ConceptRecord): Project {
@@ -144,6 +148,11 @@ export function newConceptRecord(project: Project, init: Partial<ConceptRecord> 
     snapshot: contentSnapshot(project),
     ...init,
   };
+}
+
+/** The free-form part of a designer's Fix instruction, for the image model. */
+function designerChange(rec: ConceptRecord): string | undefined {
+  return rec.plan?.kind === 'edit' ? rec.plan.imageEdit?.trim() || undefined : undefined;
 }
 
 /** Runs one generation (new concept, regenerate, or fix of an existing image). */
@@ -174,10 +183,12 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
         { role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' },
         { role: 'layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' },
       ];
-      prompt = buildFixPrompt(rec.note, layout, true);
+      prompt = rec.plan && changesOrder(rec.plan)
+        ? buildRelayoutPrompt(rec.note, designerChange(rec), layout)
+        : buildFixPrompt(designerChange(rec) ?? rec.note, layout, true);
     } else {
       images = await buildReferences(project, layout, layoutPng);
-      prompt = buildConceptPrompt(project.spec!, layout, images, { hasLogo: !!(layout.logo && project.uploads.logo) });
+      prompt = buildConceptPrompt(project.spec!, layout, images, { hasLogo: !!(layout.logo && project.uploads.logo), direction: designerChange(rec) });
     }
     update({ prompt });
 

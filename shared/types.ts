@@ -79,8 +79,41 @@ export type WordingEdit =
   | { op: 'set_role'; blockId: string; role: WordingRole }
   | { op: 'set_style'; blockId: string; style: TextStyle };
 
+/** Designer adjustments to one layout column, applied by the layout engine (1 = unchanged). */
+export interface LayoutAdjust {
+  /** All text larger or smaller. */
+  textScale?: number;
+  /** Space between lines and groups. */
+  spacing?: number;
+  /** Image (photo) frame size. */
+  imageScale?: number;
+  /** Logo size. */
+  logoScale?: number;
+  /** Where the content sits in the free space: -1 top, 0 centered, 1 bottom. */
+  verticalOffset?: number;
+}
+
+/** Order-level layout moves (they apply to every layout column). */
+export interface PlacementPatch {
+  /** Put the image after this wording block (index); null = image first. */
+  imageAfterBlock?: number | null;
+  logoSlot?: 'auto' | 'top' | 'middle' | 'bottom';
+}
+
 export type InstructionPlan =
   | { kind: 'visual'; restated: string }
+  /** Several changes at once; each part goes through its own checked path. */
+  | {
+      kind: 'edit';
+      restated: string;
+      specPatch?: Partial<PlaqueSpec>;
+      wordingEdits?: WordingEdit[];
+      /** Relative multipliers/offsets on the column's current adjustments. */
+      layoutPatch?: LayoutAdjust;
+      placement?: PlacementPatch;
+      /** Change made by the image model on top of the layout (image only). */
+      imageEdit?: string;
+    }
   | { kind: 'spec'; restated: string; specPatch: Partial<PlaqueSpec> }
   | { kind: 'wording'; restated: string; wordingEdits: WordingEdit[] }
   | { kind: 'refuse'; reason: string; nearestOptions: string[] };
@@ -93,6 +126,7 @@ export interface ContentSnapshot {
   logoSlot?: Project['logoSlot'];
   imageAfterBlock?: Project['imageAfterBlock'];
   uploads?: Project['uploads'];
+  layoutAdjust?: Project['layoutAdjust'];
 }
 
 export type LayoutPresetId = 'classic' | 'portrait' | 'statement';
@@ -223,6 +257,8 @@ export interface Project {
   proofDescription: string | null;
   /** Put the image after this wording block (index); null = image at the top / left. */
   imageAfterBlock: number | null;
+  /** Designer layout adjustments per layout column (from Fix instructions). */
+  layoutAdjust?: Partial<Record<LayoutPresetId, LayoutAdjust>>;
   /** Description sheet: person figure, photo of the site, or no scale panel. */
   visualScale: 'person' | 'site' | 'none';
   /** Height of the plaque's center above the floor/ground on the site photo, in inches. */

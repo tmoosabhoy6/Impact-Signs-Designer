@@ -11,6 +11,8 @@ export const config = {
   openaiKey: process.env.OPENAI_API_KEY ?? '',
   imageModel: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.5-sunburst-2026-09-08',
   visionModel: process.env.OPENAI_VISION_MODEL || 'gpt-5.4-mini',
+  /** Reads designer Fix instructions into a checked plan (falls back to the vision model). */
+  plannerModel: process.env.OPENAI_PLANNER_MODEL || 'gpt-5.4',
   imageQuality: (process.env.IMAGE_QUALITY || 'high') as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
   imageLongEdge: num(process.env.IMAGE_LONG_EDGE, 1536),
   appPassword: process.env.APP_PASSWORD ?? '',

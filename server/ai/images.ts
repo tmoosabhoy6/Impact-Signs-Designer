@@ -176,7 +176,8 @@ const realAdapter: ImageAdapter = {
 const mockAdapter: ImageAdapter = {
   name: 'mock',
   async run(req) {
-    const layout = req.images[0].file;
+    // A new-layout edit shows the updated drawing (Image 2) so the change is visible in demo mode.
+    const layout = (/NEW LAYOUT/.test(req.prompt) && req.images[1] ? req.images[1] : req.images[0]).file;
     const [w, h] = req.size.split('x').map(Number);
     const base = await sharp(layout).resize(w, h, { fit: 'fill' }).removeAlpha().png().toBuffer();
     // Emboss: light from upper-left, blended over the flat drawing.
