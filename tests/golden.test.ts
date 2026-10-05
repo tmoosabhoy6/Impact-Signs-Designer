@@ -8,6 +8,7 @@ import { parseSpec, parseSize } from '../server/parse/spec';
 import { docxToText, parseWording } from '../server/parse/wording';
 import { computeLayout } from '../server/layout/engine';
 import { buildProof } from '../server/pdf/proofs/index';
+import { descriptionPlaqueRect } from '../server/pdf/proofs/description';
 import { standardPlaqueRect } from '../server/pdf/proofs/standard';
 import { etchedPlaqueRect } from '../server/pdf/proofs/etched';
 import { dimLabel } from '../server/pdf/proofs/common';
@@ -209,6 +210,16 @@ describe('proof styles', () => {
       expect(doc.getTitle()).toMatch(/12345/);
     });
   }
+
+  it('description sheet keeps the width arrows and label below the header rule, for any plaque size', () => {
+    // Header rule is at 72-73.2 pt; the width line sits 14 pt above the plaque and its 22 pt label (centered on the line) rises ~8.5 pt above it.
+    for (const [w, h] of [[12, 16], [18, 24], [6, 4], [2, 8], [40, 10], [3, 40], [42, 36]]) {
+      const r = descriptionPlaqueRect(w, h);
+      expect(r.y - 14 - 8.5, `${w}x${h} label top`).toBeGreaterThan(77);
+      expect(r.y + r.h, `${w}x${h} bottom`).toBeLessThan(560);
+      expect(r.x - 17.5 - 9, `${w}x${h} left label`).toBeGreaterThan(4);
+    }
+  });
 
   it('still builds when an icon is missing from the asset library', async () => {
     const { spec: s, layout, wording } = await heritage();
