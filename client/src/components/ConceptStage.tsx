@@ -9,20 +9,12 @@ import { MAX_PROOF_PAGES } from '../../../shared/proof';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void; reload: () => void };
 
-const QUALITY = [
-  { id: 'medium', label: 'Draft · ~720p' },
-  { id: 'high', label: 'High · ~1080p' },
-  { id: 'xhigh', label: 'Extra high · 2K' },
-  { id: 'max', label: 'Max · up to 4K' },
-];
-
 export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   const p = data.project;
   const [live, setLive] = useState<Record<string, ConceptRecord>>({});
   const [partials, setPartials] = useState<Record<string, string>>({});
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
-  const [quality, setQuality] = useState('high');
   const [lightbox, setLightbox] = useState<ConceptRecord | null>(null);
   const [plans, setPlans] = useState<Record<string, InstructionPlan>>({});
 
@@ -75,21 +67,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
           <p className="mt-1 text-[13.5px] leading-snug text-white/60">Three production-realistic layouts. Add up to {MAX_PROOF_PAGES} to the proof: each one becomes its own page of one PDF, in the order you add them.</p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 font-display text-[12px] font-semibold uppercase tracking-wider text-white/60">
-            Quality
-            <select
-              value={quality}
-              onChange={(e) => setQuality(e.target.value)}
-              className="h-9 rounded-[3px] border border-white/15 bg-white/10 px-2 font-sans text-[13px] font-medium normal-case tracking-normal text-white outline-none hover:border-white/30 focus:border-white/40"
-            >
-              {QUALITY.map((q) => (
-                <option key={q.id} value={q.id} className="text-ink">
-                  {q.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button disabled={blockers.length > 0} busy={running} onClick={() => runStream(`/projects/${p.id}/generate`, { quality })}>
+          <Button disabled={blockers.length > 0} busy={running} onClick={() => runStream(`/projects/${p.id}/generate`, {})}>
             <Wand2 className="h-4 w-4" />
             {concepts.length ? 'Generate 3 new concepts' : 'Generate 3 concepts'}
           </Button>
@@ -126,7 +104,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
               try { onChange(await api.post<ProjectPayload>(`/projects/${p.id}/proof-set`, { conceptId: c.id, on })); }
               catch (e) { setError((e as Error).message); }
             }}
-            onRegenerate={(c) => runStream(`/concepts/${c.id}/regenerate`, { quality })}
+            onRegenerate={(c) => runStream(`/concepts/${c.id}/regenerate`, {})}
             onFix={(c, instruction) => runStream(`/concepts/${c.id}/fix`, { instruction }, c.preset)}
             onUndo={async (c) => {
               setRunning(true);
@@ -331,7 +309,7 @@ function PresetColumn({
                   Apply
                 </Button>
               </form>
-              <p className="text-[12px] text-white/50">Edits use this image’s original model and {current.quality === 'xhigh' ? 'Extra high' : current.quality === 'medium' ? 'Draft' : current.quality} quality.</p>
+              <p className="text-[12px] text-white/50">Edits use this image’s original model at Max quality and 2K resolution.</p>
               {planNote && <p id={`plan-${preset.id}`} role="status" className={`text-[12px] ${shownPlan?.kind === 'refuse' ? 'text-[#ffb3a6]' : 'text-white/65'}`}>{planNote}</p>}
               {shownPlan?.kind === 'refuse' && shownPlan.nearestOptions.length > 0 && (
                 <div className="flex flex-wrap gap-1.5" aria-label="Available alternatives">

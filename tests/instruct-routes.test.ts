@@ -49,6 +49,50 @@ function streamEvents(text: string) {
 }
 
 describe('instruction routes in demo mode', () => {
+  it('runs fixed Max 2K end to end through generation, edit, proof and vector PDF', async () => {
+    const { p } = await fixture();
+    const run = vi.spyOn(imageAdapter(), 'run');
+    try {
+      const response = await post(`/projects/${p.id}/generate`, { quality: 'medium', size: '3840x2160' });
+      expect(response.status).toBe(200);
+      await response.text();
+      const generated = listConcepts(p.id).filter((c) => c.kind === 'concept' && c.size);
+      expect(generated).toHaveLength(3);
+      for (const c of generated) {
+        expect(c).toMatchObject({ status: 'done', quality: 'max', size: '1712x2560' });
+        expect(await sharp(conceptFile(c, 'image.png')).metadata()).toMatchObject({ height: 2560, width: 1707 });
+      }
+      const source = generated.find((c) => c.preset === 'statement')!;
+      // Even an older lower-quality image edits at the new fixed settings.
+      source.quality = 'medium';
+      saveConcept(source);
+      await (await post(`/concepts/${source.id}/fix`, { instruction: 'make the metal slightly darker', quality: 'low' })).text();
+      const edited = listConcepts(p.id).at(-1)!;
+      expect(edited).toMatchObject({ status: 'done', quality: 'max', size: '1712x2560', parentId: source.id });
+      await (await post(`/concepts/${edited.id}/regenerate`, { quality: 'high' })).text();
+      expect(listConcepts(p.id).at(-1)).toMatchObject({ status: 'done', quality: 'max', size: '1712x2560' });
+      expect(run).toHaveBeenCalledTimes(5);
+      for (const [request] of run.mock.calls) expect(request).toMatchObject({ quality: 'max', size: '1712x2560', preserveSize: true, preserveQuality: true });
+      const proofResponse = await post(`/projects/${p.id}/proof`, { conceptIds: generated.map((c) => c.preset === 'statement' ? edited.id : c.id), acknowledged: true });
+      expect(proofResponse.status).toBe(200);
+      const proof = (await proofResponse.json()).output as OutputRecord;
+      const vectorResponse = await post(`/projects/${p.id}/production`, { conceptId: edited.id });
+      expect(vectorResponse.status).toBe(200);
+      const vector = (await vectorResponse.json()).output as OutputRecord;
+      expect(vector.conceptId).toBe(edited.id);
+      expect(vector.preflight?.filter((item) => !item.warnOnly).every((item) => item.ok)).toBe(true);
+      for (const [output, pages] of [[proof, 3], [vector, 1]] as const) {
+        const download = await fetch(`${base}/outputs/${output.id}/download`, { headers: { Cookie: cookie } });
+        expect(download.status).toBe(200);
+        const pdf = Buffer.from(await download.arrayBuffer());
+        expect((await PDFDocument.load(pdf)).getPageCount()).toBe(pages);
+        fs.writeFileSync(`/tmp/fixed-2k-${output.kind}.pdf`, pdf);
+      }
+      const preview = await fetch(`${base}/outputs/${proof.id}/preview.png?page=3`, { headers: { Cookie: cookie } });
+      expect(preview.status).toBe(200);
+      fs.writeFileSync('/tmp/fixed-2k-proof.png', Buffer.from(await preview.arrayBuffer()));
+    } finally { run.mockRestore(); }
+  });
   it.each(['generate', 'regenerate', 'fix'])('routes Max quality through %s to the image adapter and saved version', async (action) => {
     const { p, c } = await fixture();
     if (action === 'fix') { c.quality = 'max'; saveConcept(c); }
@@ -59,24 +103,24 @@ describe('instruction routes in demo mode', () => {
       expect(response.status).toBe(200);
       await response.text();
       expect(run).toHaveBeenCalledTimes(action === 'generate' ? 3 : 1);
-      run.mock.calls.forEach(([request]) => expect(request).toMatchObject({ quality: 'max', size: '2352x3520', preserveSize: true }));
+      run.mock.calls.forEach(([request]) => expect(request).toMatchObject({ quality: 'max', size: '1712x2560', preserveSize: true }));
       const versions = listConcepts(p.id).filter((version) => version.id !== c.id);
       expect(versions).toHaveLength(action === 'generate' ? 3 : 1);
       for (const version of versions) {
-        expect(version).toMatchObject({ status: 'done', quality: 'max', size: '2352x3520' });
+        expect(version).toMatchObject({ status: 'done', quality: 'max', size: '1712x2560' });
         const metadata = await sharp(conceptFile(version, 'image.png')).metadata();
-        expect(metadata.height).toBe(3520);
+        expect(metadata.height).toBe(2560);
       }
     } finally { run.mockRestore(); }
   });
-  it.each([['medium', '848x1280', 1280], ['high', '1280x1920', 1920], ['xhigh', '1712x2560', 2560]])('routes %s resolution tiers into the request and downloaded PNG', async (quality, size, edge) => {
+  it.each([['medium', '1712x2560', 2560], ['high', '1712x2560', 2560], ['xhigh', '1712x2560', 2560]])('ignores legacy %s quality and keeps Max at 2K in the request and downloaded PNG', async (quality, size, edge) => {
     const { p, c } = await fixture();
     const run = vi.spyOn(imageAdapter(), 'run');
     try {
       await (await post(`/concepts/${c.id}/regenerate`, { quality })).text();
-      expect(run.mock.calls[0][0]).toMatchObject({ quality, size });
+      expect(run.mock.calls[0][0]).toMatchObject({ quality: 'max', size });
       const version = listConcepts(p.id).at(-1)!;
-      expect(version).toMatchObject({ status: 'done', quality, size });
+      expect(version).toMatchObject({ status: 'done', quality: 'max', size });
       const metadata = await sharp(conceptFile(version, 'image.png')).metadata();
       expect(metadata.height).toBe(edge);
     } finally { run.mockRestore(); }
@@ -97,7 +141,7 @@ describe('instruction routes in demo mode', () => {
       expect(getConcept(c.id)).toMatchObject({ model: c.model, quality: 'max' });
     } finally { run.mockRestore(); }
   });
-  it('does not mark a smaller Max image as a completed 4K result', async () => {
+  it('does not mark a smaller Max image as a completed 2K result', async () => {
     const { p, c } = await fixture();
     c.quality = 'max';
     saveConcept(c);
@@ -206,7 +250,7 @@ describe('instruction routes in demo mode', () => {
     expect(events[1].type).toBe('start');
     expect(events.at(-1).type).toBe('end');
     const version = listConcepts(p.id).at(-1)!;
-    expect(version).toMatchObject({ kind: 'fix', status: 'done', parentId: c.id, quality: 'high', previous: { spec: { border: 'single-line' } }, snapshot: { spec: { border: 'double-line' } } });
+    expect(version).toMatchObject({ kind: 'fix', status: 'done', parentId: c.id, quality: 'max', previous: { spec: { border: 'single-line' } }, snapshot: { spec: { border: 'double-line' } } });
     expect(version.prompt).toContain('make the border double line');
     expect(version.spellcheck).not.toBeNull();
     expect(getProject(p.id)?.spec?.border).toBe('double-line');

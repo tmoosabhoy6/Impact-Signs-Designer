@@ -386,17 +386,14 @@ function events(send: (o: unknown) => void): ConceptEvents {
   };
 }
 
-async function runStreamed(res: Response, project: Project, records: ConceptRecord[], quality?: string, plan?: InstructionPlan) {
+async function runStreamed(res: Response, project: Project, records: ConceptRecord[], plan?: InstructionPlan) {
   const s = sse(res);
   if (plan) s.send({ type: 'plan', plan });
   s.send({ type: 'start', concepts: records });
-  await Promise.all(records.map((r) => runConcept(project, r, events(s.send), { quality })));
+  await Promise.all(records.map((r) => runConcept(project, r, events(s.send))));
   s.send({ type: 'end' });
   s.end();
 }
-
-const QUALITIES = ['low', 'medium', 'high', 'xhigh', 'max'];
-const pickQuality = (q: unknown) => (typeof q === 'string' && QUALITIES.includes(q) ? q : undefined);
 
 api.post('/projects/:id/generate', genLimiter, express.json(), ah(async (req, res) => {
   const p = loadProject(req);
@@ -406,7 +403,7 @@ api.post('/projects/:id/generate', genLimiter, express.json(), ah(async (req, re
   const batchId = newId('b');
   const presets: LayoutPresetId[] = Array.isArray(req.body?.presets) && req.body.presets.length ? req.body.presets : PRESETS.map((x) => x.id);
   const records = presets.map((preset) => newConceptRecord(p, { preset, kind: 'concept', batchId }));
-  await runStreamed(res, p, records, pickQuality(req.body?.quality));
+  await runStreamed(res, p, records);
 }));
 
 api.post('/concepts/:id/regenerate', genLimiter, express.json(), ah(async (req, res) => {
@@ -414,7 +411,7 @@ api.post('/concepts/:id/regenerate', genLimiter, express.json(), ah(async (req, 
   if (!found) throw new Error('Concept not found.');
   const { c, p } = found;
   const rec = newConceptRecord(p, { preset: c.preset, kind: 'regenerate', batchId: c.batchId, parentId: c.id });
-  await runStreamed(res, p, [rec], pickQuality(req.body?.quality));
+  await runStreamed(res, p, [rec]);
 }));
 
 api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) => {
@@ -448,9 +445,9 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   if (previous) base.selectedConceptId = null;
   // Every Fix edits the selected photograph, including catalog changes. New concepts
   // alone use the current model/defaults; edits inherit the source version's settings.
-  const rec = newConceptRecord(base, { preset: c.preset, kind: 'fix', batchId: c.batchId, parentId: c.id, note: plan.restated, instruction, model: c.model === 'mock' ? (config.mockAI ? 'mock' : config.imageModel) : c.model || config.imageModel, quality: c.quality || config.imageQuality, plan, previous });
+  const rec = newConceptRecord(base, { preset: c.preset, kind: 'fix', batchId: c.batchId, parentId: c.id, note: plan.restated, instruction, model: c.model === 'mock' ? (config.mockAI ? 'mock' : config.imageModel) : c.model || config.imageModel, quality: 'max', plan, previous });
   db.transaction(() => { if (previous) saveProject(base); saveConcept(rec); })();
-  await runStreamed(res, base, [rec], rec.quality, plan);
+  await runStreamed(res, base, [rec], plan);
 }));
 
 api.post('/concepts/:id/undo', express.json(), ah((req, res) => {

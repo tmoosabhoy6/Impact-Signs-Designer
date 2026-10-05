@@ -13,8 +13,8 @@ export const config = {
   visionModel: process.env.OPENAI_VISION_MODEL || 'gpt-5.4-mini',
   /** Reads designer Fix instructions into a checked plan (falls back to the vision model). */
   plannerModel: process.env.OPENAI_PLANNER_MODEL || 'gpt-5.4',
-  imageQuality: (process.env.IMAGE_QUALITY || 'high') as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
-  imageLongEdge: num(process.env.IMAGE_LONG_EDGE, 1536),
+  imageQuality: 'max' as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
+  imageLongEdge: 2560,
   appPassword: process.env.APP_PASSWORD ?? '',
   /** Supabase project holding the sign-in accounts (username + password). */
   supabaseUrl: (process.env.SUPABASE_URL ?? '').replace(/\/+$/, ''),

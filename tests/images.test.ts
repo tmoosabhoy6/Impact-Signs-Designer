@@ -58,9 +58,9 @@ describe('real Images API routing, with the SDK request stubbed offline', () => 
     const edit = vi.spyOn(openai().images, 'edit').mockImplementation(() => Promise.resolve({ data: [{ b64_json: png.toString('base64') }] }) as never);
     try {
       const model = 'gpt-image-2.5-sunburst-2026-09-08';
-      await imageAdapter().run({ model, quality: 'max', preserveQuality: true, size: '3840x2160', preserveSize: true, prompt: 'restore the white logo detail', images: [{ file: png, name: 'current.png', mime: 'image/png', role: 'current photograph' }] });
+      await imageAdapter().run({ model, quality: 'max', preserveQuality: true, size: '2560x1440', preserveSize: true, prompt: 'restore the white logo detail', images: [{ file: png, name: 'current.png', mime: 'image/png', role: 'current photograph' }] });
       expect(edit).toHaveBeenCalledTimes(1);
-      expect(edit.mock.calls[0][0]).toMatchObject({ model, quality: 'max', size: '3840x2160', prompt: 'restore the white logo detail' });
+      expect(edit.mock.calls[0][0]).toMatchObject({ model, quality: 'max', size: '2560x1440', prompt: 'restore the white logo detail' });
     } finally { edit.mockRestore(); Object.assign(config, old); }
   });
   it('does not downgrade an inherited Extra high setting', async () => {
@@ -71,10 +71,10 @@ describe('real Images API routing, with the SDK request stubbed offline', () => 
 });
 
 
-describe('supported 4K canvases', () => {
+describe('fixed 2K canvases', () => {
   it.each([
-    [16, 9, 3840, 2160], [9, 16, 2160, 3840], [1, 1, 2880, 2880],
-    [18, 12, 3520, 2352], [12, 18, 2352, 3520], [3, 1, 3840, 1280],
+    [16, 9, 2560, 1440], [9, 16, 1440, 2560], [1, 1, 2560, 2560],
+    [18, 12, 2560, 1712], [12, 18, 1712, 2560], [3, 1, 2560, 864],
   ])('sizes %s x %s to %s x %s within every API limit', (w, h, ew, eh) => {
     const size = canvasSize(w, h, MAX_IMAGE_EDGE);
     expect(size).toMatchObject({ w: ew, h: eh });
@@ -83,21 +83,21 @@ describe('supported 4K canvases', () => {
     expect(size.h % 16).toBe(0);
     expect(Math.max(size.w, size.h)).toBeLessThanOrEqual(MAX_IMAGE_EDGE);
   });
-  it('never silently downgrades a rejected 4K size', async () => {
+  it('never silently downgrades a rejected 2K size', async () => {
     const send = vi.fn().mockRejectedValue({ status: 400, param: 'size', message: 'Unsupported size' });
-    await expect(withImageCompatibility({ ...params, quality: 'max', size: '3840x2160' }, send, { preserveSize: true })).rejects.toThrow('not reduced to a smaller size');
+    await expect(withImageCompatibility({ ...params, quality: 'max', size: '2560x1440' }, send, { preserveSize: true })).rejects.toThrow('not reduced to a smaller size');
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
 
 
-describe('quality resolution tiers', () => {
-  it.each([['medium', 1280, 720], ['high', 1920, 1088], ['xhigh', 2560, 1440], ['max', 3840, 2160]])('requests %s at its resolution for either orientation', (quality, w, h) => {
+describe('fixed resolution regardless of legacy quality', () => {
+  it.each([['medium', 2560, 1440], ['high', 2560, 1440], ['xhigh', 2560, 1440], ['max', 2560, 1440]])('requests %s at its resolution for either orientation', (quality, w, h) => {
     const edge = imageLongEdgeForQuality(quality as string);
     expect(canvasSize(16, 9, edge)).toMatchObject({ w, h });
     expect(canvasSize(9, 16, edge)).toMatchObject({ w: h, h: w });
   });
-  it.each([1/3, 1/2, 1, 2, 3])('keeps Draft at ratio %s within supported pixel limits', (ratio) => {
+  it.each([1/3, 1/2, 1, 2, 3])('keeps the fixed canvas at ratio %s within supported pixel limits', (ratio) => {
     const { w, h } = canvasSize(ratio, 1, imageLongEdgeForQuality('medium'));
     expect(w * h).toBeGreaterThanOrEqual(655360);
     expect(w * h).toBeLessThanOrEqual(MAX_IMAGE_PIXELS);

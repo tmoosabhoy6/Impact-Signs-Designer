@@ -261,7 +261,7 @@ async function acquireRenderSlot(): Promise<() => void> {
 }
 
 /** Runs one generation (new concept, regenerate, or fix of an existing image). */
-export async function runConcept(project: Project, rec: ConceptRecord, ev: ConceptEvents, opts: { quality?: string } = {}): Promise<ConceptRecord> {
+export async function runConcept(project: Project, rec: ConceptRecord, ev: ConceptEvents): Promise<ConceptRecord> {
   project = projectForConcept(project, rec);
   const started = Date.now();
   const update = (patch: Partial<ConceptRecord>) => {
@@ -274,7 +274,8 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     checkLimits(project.id, rec.id);
     release = await acquireRenderSlot();
     const layout = layoutFor(project, rec.preset);
-    const quality = opts.quality || rec.quality || config.imageQuality;
+    // Fixed for every new render; legacy records and request overrides cannot reduce it.
+    const quality = 'max';
     const { w, h, size } = canvasSize(project.spec!.widthIn, project.spec!.heightIn, imageLongEdgeForQuality(quality));
     update({ status: 'running', size, quality });
     const layoutPng = await layoutDrawing(project, layout, w, h);
@@ -307,7 +308,7 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
 
     const result = await imageAdapter().run({
       model: rec.model,
-      preserveQuality: rec.kind === 'fix',
+      preserveQuality: true,
       preserveSize: true,
       prompt,
       images,
@@ -317,12 +318,13 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
         smallPreview(png).then((jpg) => ev.onPartial(rec.id, jpg)).catch(() => {});
       },
     });
+    if (result.quality && result.quality !== 'max') throw new Error('OpenAI returned a different quality than Max. Generate again; this result was not marked complete.');
     fs.writeFileSync(conceptFile(rec, 'raw.png'), result.png);
     if (quality === 'max') {
       const actual = await sharp(result.png).metadata();
-      if (actual.width !== w || actual.height !== h) throw new Error('OpenAI returned a different image size than the requested 4K size. Generate again; this result was not marked complete.');
+      if (actual.width !== w || actual.height !== h) throw new Error('OpenAI returned a different image size than the requested 2K size. Generate again; this result was not marked complete.');
     }
-    // Keep Max's full resolution through cropping; the old default reduced it to 2048 px.
+    // Keep the 2K resolution through cropping and into the proof image.
     const fitted = await fitToPlaque(result.png, project.spec!.widthIn, project.spec!.heightIn, Math.max(w, h));
     fs.writeFileSync(conceptFile(rec, 'image.png'), fitted.png);
     fs.writeFileSync(conceptFile(rec, 'preview.jpg'), await smallPreview(fitted.png, 720));

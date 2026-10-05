@@ -77,8 +77,8 @@ export async function withImageCompatibility<T>(params: ImageParams, send: (para
     if (param === 'quality' && (params.quality === 'max' || opts.preserveQuality)) {
       const label = params.quality === 'max' ? 'Max' : String(params.quality);
       const next = opts.preserveQuality
-        ? 'This edit keeps the original image’s quality. Check the model settings, or generate a new image at a supported quality.'
-        : 'Choose another quality or check your image model settings.';
+        ? 'Check the image model settings; this edit requires Max quality.'
+        : 'Check the image model settings; concept images require Max quality.';
       throw new Error(`OpenAI could not use ${label} quality for this request. ${next}`);
     }
     if (param === 'size' && opts.preserveSize) {
@@ -219,13 +219,13 @@ export function imageAdapter(): ImageAdapter {
   return config.mockAI ? mockAdapter : realAdapter;
 }
 
-export const MAX_IMAGE_EDGE = 3840;
+export const MAX_IMAGE_EDGE = 2560;
 export const MAX_IMAGE_PIXELS = 8_294_400;
 const MIN_IMAGE_PIXELS = 655_360;
 
-/** Resolution and rendering quality travel together for each designer setting. */
-export function imageLongEdgeForQuality(quality: string): number {
-  return ({ low: 1280, medium: 1280, high: 1920, xhigh: 2560, max: MAX_IMAGE_EDGE } as Record<string, number>)[quality] ?? config.imageLongEdge;
+/** Every concept uses the same 2K/QHD canvas, including edits of older versions. */
+export function imageLongEdgeForQuality(_quality: string): number {
+  return MAX_IMAGE_EDGE;
 }
 
 /** Match plaque proportions within OpenAI's edge, pixel-area and multiple-of-16 limits. */
@@ -235,6 +235,9 @@ export function canvasSize(widthIn: number, heightIn: number, longEdge = config.
   const r16 = (v: number) => Math.max(256, Math.round(v / 16) * 16);
   let w = ratio >= 1 ? r16(longEdge) : r16(longEdge * ratio);
   let h = ratio >= 1 ? r16(longEdge / ratio) : r16(longEdge);
+  // Rounding must not push a 3:1 canvas beyond the API's aspect-ratio limit.
+  if (w > h * 3) h = Math.ceil(w / 3 / 16) * 16;
+  if (h > w * 3) w = Math.ceil(h / 3 / 16) * 16;
   if (w * h < MIN_IMAGE_PIXELS) {
     // Very narrow Draft canvases need a small increase to meet the API minimum.
     const fit = Math.sqrt(MIN_IMAGE_PIXELS / (w * h));
