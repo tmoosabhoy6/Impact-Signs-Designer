@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Check, CheckCircle2, Maximize2, RefreshCw, Wand2 } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Maximize2, Plus, RefreshCw, Wand2 } from 'lucide-react';
 import { api, ApiError, conceptUrl, stream, type ProjectPayload } from '../api';
 import type { Catalog } from '../catalog';
 import { Button, Notice, Spinner, fmtUsd } from './ui';
 import { Lightbox } from './Lightbox';
 import type { ConceptRecord, InstructionPlan } from '../../../shared/types';
+import { MAX_PROOF_PAGES } from '../../../shared/proof';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void; reload: () => void };
 
@@ -65,7 +66,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
           <h2 className="font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-white">
             <span className="mr-2 font-mono text-[12px] text-bronze">04</span>Concepts
           </h2>
-          <p className="text-[13px] text-white/55">Three production-realistic layouts. “Use this one” sends a concept to the proof panel; do that for each one you want to proof.</p>
+          <p className="text-[13px] text-white/55">Three production-realistic layouts. Add up to {MAX_PROOF_PAGES} to the proof: each one becomes its own page of one PDF, in the order you add them.</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-[12px] text-white/60">
@@ -104,9 +105,10 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
             plan={plans[preset.id]}
             wide={wide}
             onOpen={setLightbox}
-            onSelect={async (c) => {
+            proofIds={p.proofConceptIds}
+            onToggle={async (c, on) => {
               setError('');
-              try { onChange(await api.post<ProjectPayload>(`/projects/${p.id}/select`, { conceptId: c.id })); }
+              try { onChange(await api.post<ProjectPayload>(`/projects/${p.id}/proof-set`, { conceptId: c.id, on })); }
               catch (e) { setError((e as Error).message); }
             }}
             onRegenerate={(c) => runStream(`/concepts/${c.id}/regenerate`, { quality })}
@@ -136,7 +138,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
 }
 
 function PresetColumn({
-  preset, concepts, data, partials, ratio, running, plan, wide, onOpen, onSelect, onRegenerate, onFix, onUndo,
+  preset, concepts, data, partials, ratio, running, plan, wide, proofIds, onOpen, onToggle, onRegenerate, onFix, onUndo,
 }: {
   preset: { id: string; label: string; description: string };
   wide: boolean;
@@ -147,7 +149,8 @@ function PresetColumn({
   running: boolean;
   plan?: InstructionPlan;
   onOpen: (c: ConceptRecord) => void;
-  onSelect: (c: ConceptRecord) => void;
+  proofIds: string[];
+  onToggle: (c: ConceptRecord, on: boolean) => void;
   onRegenerate: (c: ConceptRecord) => void;
   onFix: (c: ConceptRecord, instruction: string) => void;
   onUndo: (c: ConceptRecord) => void;
@@ -156,7 +159,10 @@ function PresetColumn({
   const [fix, setFix] = useState('');
   const p = data.project;
   const current = concepts[index ?? concepts.length - 1] ?? null;
-  const selected = current && p.selectedConceptId === current.id;
+  // The page this version has on the proof (1-based), or 0 when it is not on it.
+  const page = current ? proofIds.indexOf(current.id) + 1 : 0;
+  const selected = page > 0;
+  const full = proofIds.length >= MAX_PROOF_PAGES;
   const layout = data.layouts?.find((l) => l.preset === preset.id);
   const busy = current && (current.status === 'running' || current.status === 'queued');
   const partial = current ? partials[current.id] : undefined;
@@ -175,7 +181,7 @@ function PresetColumn({
           <h3 className="font-display text-[15px] font-semibold uppercase tracking-[0.06em] text-white">{preset.label}</h3>
           {selected && (
             <span className="flex shrink-0 items-center gap-1 rounded-[3px] bg-ok px-1.5 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-white">
-              <Check className="h-3 w-3" /> On the proof
+              <Check className="h-3 w-3" /> {proofIds.length > 1 ? `Proof page ${page}` : 'On the proof'}
             </span>
           )}
         </div>
@@ -202,8 +208,8 @@ function PresetColumn({
             <div className="absolute inset-0 grid place-items-center border border-dashed border-white/15 text-[12px] text-white/40">Layout appears once the order is read</div>
           )}
           {selected && (
-            <span className="selected-check absolute top-2 left-2 z-10 grid h-8 w-8 place-items-center rounded-full bg-ok text-white shadow-lg ring-2 ring-white/80" title="This concept goes on the proof" aria-hidden>
-              <Check className="h-5 w-5" strokeWidth={3} />
+            <span className="selected-check absolute top-2 left-2 z-10 grid h-8 w-8 place-items-center rounded-full bg-ok text-white shadow-lg ring-2 ring-white/80" title={`This concept is page ${page} of the proof`} aria-hidden>
+              {proofIds.length > 1 ? <span className="font-display text-[15px] font-bold">{page}</span> : <Check className="h-5 w-5" strokeWidth={3} />}
             </span>
           )}
           {busy && (
@@ -251,8 +257,18 @@ function PresetColumn({
           {current.hasImage && (
             <>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant={selected ? 'stage' : 'primary'} className="flex-1 whitespace-nowrap" disabled={!!selected || running} onClick={() => onSelect(current)} title={selected ? 'This concept is on the proof panel' : 'Send this concept to the proof panel'}>
-                  {selected ? <><Check className="h-3.5 w-3.5" /> On the proof</> : 'Use this one'}
+                <Button
+                  size="sm"
+                  variant={selected || full ? 'stage' : 'primary'}
+                  className="flex-1 whitespace-nowrap"
+                  disabled={running || (!selected && full)}
+                  onClick={() => onToggle(current, !selected)}
+                  title={selected ? 'Take this image off the proof' : full ? `The proof is full (${MAX_PROOF_PAGES} pages). Take one off first.` : 'Make this image a page of the proof'}
+                >
+                  {selected ? <><Check className="h-3.5 w-3.5" /> On the proof · remove</>
+                    : full ? `Proof is full (${MAX_PROOF_PAGES})`
+                    : proofIds.length ? <><Plus className="h-3.5 w-3.5" /> Add as page {proofIds.length + 1}</>
+                    : 'Use this one'}
                 </Button>
                 <Button size="sm" variant="stage" className="shrink-0" disabled={running} onClick={() => { setIndex(null); onRegenerate(current); }} title="Generate this layout again">
                   <RefreshCw className="h-3.5 w-3.5" />

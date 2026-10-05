@@ -61,6 +61,8 @@ export function upgrade(p: Project): Project {
   p.proofDescription ??= null;
   p.imageAfterBlock ??= null;
   p.proofNote ??= null;
+  // Jobs from before several images could be proofed had at most one image on the proof.
+  p.proofConceptIds ??= p.selectedConceptId ? [p.selectedConceptId] : [];
   p.logoSlot ??= 'auto';
   // One photo / logo / sketch per job became lists; old jobs read as one-item lists.
   p.uploads = normalizeUploads(p.uploads);
@@ -87,6 +89,7 @@ export function blankProject(fields: Pick<Project, 'jobNumber' | 'name' | 'creat
     wording: null,
     uploads: normalizeUploads(null),
     selectedConceptId: null,
+    proofConceptIds: [] as string[],
     createdAt: t,
     updatedAt: t,
     ...fields,
