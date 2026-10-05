@@ -29,7 +29,7 @@ const HEADER_PITCH = 21.3;
 
 /** The plaque box of the real proofs with a right-hand panel: true size when it fits, centered at (254.6, 318). */
 export function descriptionPlaqueRect(widthIn: number, heightIn: number) {
-  const box = { cx: 254.6, cy: 318, maxW: 444, maxH: 456 };
+  const box = { cx: 254.6, cy: 329, maxW: 444, maxH: 456 };
   const s = Math.min(72, box.maxW / widthIn, box.maxH / heightIn);
   const w = widthIn * s;
   const h = heightIn * s;
@@ -107,31 +107,42 @@ export async function buildDescriptionProof(input: ProofInput): Promise<Buffer> 
   const r = descriptionPlaqueRect(spec.widthIn, spec.heightIn);
   const plaque = await plaqueJpg(doc, input.plaqueImage, r.w, r.h);
   page.drawImage(plaque, { x: r.x, y: Y(r.y + r.h), width: r.w, height: r.h });
-  const dimSize = 22;
+  // The width line sits well below the header rule (grey, 72-73.2) so its label never touches the header text.
+  // A label too long for a short span is stepped down until it fits between the arrows.
+  const DIM_SIZE = 22;
+  const DIM_GAP = 5; // line to label
+  const DIM_ARROW = 6;
+  const fitDim = (label: string, span: number) => {
+    let size = DIM_SIZE;
+    while (size > 9 && fonts.helv.widthOfTextAtSize(label, size) + 2 * (DIM_GAP + DIM_ARROW + 1) > span) size -= 0.5;
+    return size;
+  };
   // Top
-  const ty = r.y - 17.5;
+  const ty = r.y - 14;
   const wl = decimalLabel(spec.widthIn);
-  const wlw = fonts.helv.widthOfTextAtSize(wl, dimSize);
+  const wSize = fitDim(wl, r.w);
+  const wlw = fonts.helv.widthOfTextAtSize(wl, wSize);
   const midX = r.x + r.w / 2;
-  line(page, r.x, ty, midX - wlw / 2 - 5, ty, 0.5, COLORS.blue);
-  line(page, midX + wlw / 2 + 5, ty, r.x + r.w, ty, 0.5, COLORS.blue);
+  line(page, r.x, ty, midX - wlw / 2 - DIM_GAP, ty, 0.5, COLORS.blue);
+  line(page, midX + wlw / 2 + DIM_GAP, ty, r.x + r.w, ty, 0.5, COLORS.blue);
   line(page, r.x, ty - 6, r.x, ty + 6, 0.5, COLORS.blue);
   line(page, r.x + r.w, ty - 6, r.x + r.w, ty + 6, 0.5, COLORS.blue);
-  arrowhead(page, r.x, ty, -1, 0, 6, COLORS.blue);
-  arrowhead(page, r.x + r.w, ty, 1, 0, 6, COLORS.blue);
-  text(page, fonts.helv, wl, midX, ty + 7.6, dimSize, COLORS.blue, 'center');
+  arrowhead(page, r.x, ty, -1, 0, DIM_ARROW, COLORS.blue);
+  arrowhead(page, r.x + r.w, ty, 1, 0, DIM_ARROW, COLORS.blue);
+  text(page, fonts.helv, wl, midX, ty + wSize * 0.345, wSize, COLORS.blue, 'center');
   // Left (label reads bottom to top)
   const lx = r.x - 17.5;
   const hl = decimalLabel(spec.heightIn);
-  const hlw = fonts.helv.widthOfTextAtSize(hl, dimSize);
+  const hSize = fitDim(hl, r.h);
+  const hlw = fonts.helv.widthOfTextAtSize(hl, hSize);
   const midY = r.y + r.h / 2;
-  line(page, lx, r.y, lx, midY - hlw / 2 - 5, 0.5, COLORS.blue);
-  line(page, lx, midY + hlw / 2 + 5, lx, r.y + r.h, 0.5, COLORS.blue);
+  line(page, lx, r.y, lx, midY - hlw / 2 - DIM_GAP, 0.5, COLORS.blue);
+  line(page, lx, midY + hlw / 2 + DIM_GAP, lx, r.y + r.h, 0.5, COLORS.blue);
   line(page, lx - 6, r.y, lx + 6, r.y, 0.5, COLORS.blue);
   line(page, lx - 6, r.y + r.h, lx + 6, r.y + r.h, 0.5, COLORS.blue);
-  arrowhead(page, lx, r.y, 0, -1, 6, COLORS.blue);
-  arrowhead(page, lx, r.y + r.h, 0, 1, 6, COLORS.blue);
-  page.drawText(hl, { x: lx + dimSize * 0.36, y: Y(midY + hlw / 2), size: dimSize, font: fonts.helv, color: COLORS.blue, rotate: degrees(90) });
+  arrowhead(page, lx, r.y, 0, -1, DIM_ARROW, COLORS.blue);
+  arrowhead(page, lx, r.y + r.h, 0, 1, DIM_ARROW, COLORS.blue);
+  page.drawText(hl, { x: lx + hSize * 0.36, y: Y(midY + hlw / 2), size: hSize, font: fonts.helv, color: COLORS.blue, rotate: degrees(90) });
 
   // Minimum-letter-height callout (Raccoon River).
   const smallest = input.layout?.lines.reduce((a, b) => (b.size < a.size ? b : a), input.layout.lines[0]);
@@ -193,7 +204,8 @@ export async function buildDescriptionProof(input: ProofInput): Promise<Buffer> 
   };
 
   // Awe: two columns with "Font: …" underneath; Raccoon River: three columns.
-  const x0 = Math.max(r.x + r.w + 24, 425);
+  // The red callout (when there is one) keeps its own room beside the plaque, so no tile covers it.
+  const x0 = Math.max(r.x + r.w + 24, 425, callout ? r.x + r.w + 84 : 0);
   const cols = tiles.length >= 5 ? 3 : 2;
   const cw = (781 - x0) / cols;
   for (let i = 0; i < tiles.length; i++) {
