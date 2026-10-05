@@ -4,7 +4,7 @@ import { api } from '../api';
 import type { Me } from '../App';
 import { TopBar } from '../components/TopBar';
 import { Button, Chip, Notice, Spinner } from '../components/ui';
-import { VECTOR_DEFAULTS, VECTOR_UPLOAD_MB, VECTOR_WIDTH_LIMITS, type VectorRecord } from '../../../shared/vectorize';
+import { VECTOR_UPLOAD_MB, type VectorRecord } from '../../../shared/vectorize';
 
 const fileUrl = (v: VectorRecord, file: 'result.pdf' | 'result.svg' | 'preview.png' | 'thumb.jpg' | 'source.png', download = false) =>
   `/api/vectors/${v.id}/${file}${download ? '?download=1' : ''}`;
@@ -28,7 +28,6 @@ function ImageBox({ title, src, href, caption }: { title: string; src: string; h
 export function Vectorizer({ me }: { me: Me }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [widthIn, setWidthIn] = useState(String(VECTOR_DEFAULTS.widthIn));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<VectorRecord | null>(null);
@@ -54,15 +53,12 @@ export function Vectorizer({ me }: { me: Me }) {
     setPreview(/^image\/(png|jpeg|webp|gif|avif|svg\+xml)$/.test(f.type) ? URL.createObjectURL(f) : null);
   }
 
-  const width = Number(widthIn);
-  const widthOk = Number.isFinite(width) && width >= VECTOR_WIDTH_LIMITS.minIn && width <= VECTOR_WIDTH_LIMITS.maxIn;
-
   async function run() {
-    if (!file || !widthOk) return;
+    if (!file) return;
     setBusy(true);
     setError('');
     try {
-      const { vector } = await api.upload<{ vector: VectorRecord }>('/vectors', file, { widthIn: String(width) });
+      const { vector } = await api.upload<{ vector: VectorRecord }>('/vectors', file);
       setResult(vector);
       setRecent((cur) => [vector, ...(cur ?? [])]);
     } catch (e) {
@@ -133,23 +129,8 @@ export function Vectorizer({ me }: { me: Me }) {
             {file && preview && <div className="break-all text-[13px] text-muted">{file.name}</div>}
 
 
-            <label className="block">
-              <span className="label">Width on the page</span>
-              <span className="mt-1 flex items-center gap-2">
-                <input
-                  className={`h-10 w-28 rounded-[3px] border px-2 text-right font-mono text-[14px] outline-none transition-colors focus:border-navy ${widthOk ? 'border-line' : 'border-signal/60'}`}
-                  value={widthIn}
-                  inputMode="decimal"
-                  onChange={(e) => setWidthIn(e.target.value)}
-                  aria-label="Width in inches"
-                />
-                <span className="text-[13px] text-muted">inches (the height follows the picture)</span>
-              </span>
-              {!widthOk && <span className="text-[12px] text-signal">Enter a width between {VECTOR_WIDTH_LIMITS.minIn} and {VECTOR_WIDTH_LIMITS.maxIn} inches.</span>}
-            </label>
-
             {error && <Notice tone="error">{error}</Notice>}
-            <Button className="w-full" onClick={run} busy={busy} disabled={!file || !widthOk}>
+            <Button className="w-full" onClick={run} busy={busy} disabled={!file}>
               Make vector PDF
             </Button>
             {busy && <p className="text-[12px] text-muted">Tracing. This takes a few seconds.</p>}
