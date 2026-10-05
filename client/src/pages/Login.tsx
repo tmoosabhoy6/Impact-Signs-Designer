@@ -13,10 +13,11 @@ export function Login({ mode, onDone }: { mode: Me['authMode']; onDone: () => vo
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return (
-    <div className="grid min-h-full place-items-center bg-[#2E3092] px-4 py-10">
-      <div className="w-full max-w-sm">
+    <div className="signin-bg grid min-h-full place-items-center px-4 py-10">
+      {/* The lift sits on this wrapper: the card's entrance animation ends with `transform: none` and would override a hover on the card itself. */}
+      <div className="signin-lift w-full max-w-sm">
         <form
-          className="card card-rule rise w-full shadow-[0_30px_70px_-20px_rgba(0,0,0,0.7)]"
+          className="card card-rule rise w-full"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
