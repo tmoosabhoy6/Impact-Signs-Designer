@@ -84,6 +84,11 @@ export function helveticaFile(bold = false): string {
 /** Small caps are drawn as capitals at this size for lowercase letters. */
 export const SMALL_CAPS_SCALE = 0.78;
 
+export function capHeightRatio(font: OTFont): number {
+  const os2 = (font.tables as { os2?: { sCapHeight?: number } }).os2;
+  return os2?.sCapHeight ? os2.sCapHeight / font.unitsPerEm : 0.66;
+}
+
 interface Segment {
   text: string;
   scale: number;

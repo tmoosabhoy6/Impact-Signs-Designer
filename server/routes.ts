@@ -641,7 +641,7 @@ api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
     jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout, logos,
     customFontFile: uploadPath(p, 'font'),
   });
-  const checks = await preflight(result.pdf, layout, { logosTraced: logos.filter((l) => l.png).length, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed, logoTreatment: p.spec!.logoTreatment });
+  const checks = await preflight(result.pdf, layout, { logosTraced: logos.filter((l) => l.png).length, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed, logoTreatment: p.spec!.logoTreatment, fontId: p.spec!.font });
   // The layout name keeps the vector files of the three concepts apart once downloaded.
   const fileName = result.fileName.replace(/_production\.pdf$/, `_${presetLabel(preset).replace(/\s+/g, '_')}_production.pdf`);
   const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'production', conceptId: c?.id ?? null, preset, fileName, preflight: checks, createdAt: now() };
