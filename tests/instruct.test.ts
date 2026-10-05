@@ -25,8 +25,11 @@ describe('image-only edit prompt', () => {
     expect(p).toContain('make the logo a UV print on a raised plate.');
     expect(p).toContain('IMPACT SIGNS PLAQUE RENDERER');
     expect(p).toContain('ZERO TOLERANCE');
-    expect(p).toContain('overrides any conflicting preservation rule');
+    expect(p).toContain('overrides any conflicting default rule');
     expect(p).toContain('Unmentioned details stay protected');
+    expect(p.indexOf('make the logo')).toBeLessThan(p.indexOf('DEFAULT PLAQUE RULES'));
+    expect(p).toContain('IMAGE 2 IS THE BLUEPRINT');
+    expect(p).not.toContain('REFERENCE 1 IS THE BLUEPRINT');
   });
 });
 

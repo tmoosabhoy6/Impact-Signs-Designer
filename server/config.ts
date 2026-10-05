@@ -9,7 +9,7 @@ export const config = {
   port: num(process.env.PORT, 8080),
   isProd: process.env.NODE_ENV === 'production',
   openaiKey: process.env.OPENAI_API_KEY ?? '',
-  imageModel: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.5-sunburst-2026-09-08',
+  imageModel: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.5-sunburst',
   visionModel: process.env.OPENAI_VISION_MODEL || 'gpt-5.4-mini',
   /** Reads designer Fix instructions into a checked plan (falls back to the vision model). */
   plannerModel: process.env.OPENAI_PLANNER_MODEL || 'gpt-5.4',

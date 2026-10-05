@@ -13,6 +13,7 @@ const QUALITY = [
   { id: 'medium', label: 'Draft' },
   { id: 'high', label: 'High' },
   { id: 'xhigh', label: 'Extra high' },
+  { id: 'max', label: 'Max' },
 ];
 
 export function ConceptStage({ data, catalog, onChange, reload }: Props) {
@@ -112,7 +113,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
               catch (e) { setError((e as Error).message); }
             }}
             onRegenerate={(c) => runStream(`/concepts/${c.id}/regenerate`, { quality })}
-            onFix={(c, instruction) => runStream(`/concepts/${c.id}/fix`, { instruction, quality }, c.preset)}
+            onFix={(c, instruction) => runStream(`/concepts/${c.id}/fix`, { instruction }, c.preset)}
             onUndo={async (c) => {
               setRunning(true);
               setError('');
@@ -306,6 +307,7 @@ function PresetColumn({
                   Apply
                 </Button>
               </form>
+              <p className="text-[12px] text-white/55">Edits use this image’s original model and {current.quality === 'xhigh' ? 'Extra high' : current.quality === 'medium' ? 'Draft' : current.quality} quality.</p>
               {planNote && <p id={`plan-${preset.id}`} role="status" className={`text-[12px] ${shownPlan?.kind === 'refuse' ? 'text-[#ffb3a6]' : 'text-white/65'}`}>{planNote}</p>}
               {shownPlan?.kind === 'refuse' && shownPlan.nearestOptions.length > 0 && (
                 <div className="flex flex-wrap gap-1.5" aria-label="Available alternatives">

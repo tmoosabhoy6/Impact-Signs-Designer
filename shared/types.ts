@@ -203,6 +203,8 @@ export interface ConceptRecord {
   status: 'queued' | 'running' | 'done' | 'error';
   kind: 'concept' | 'fix' | 'regenerate';
   note: string;
+  /** Original designer request, preserved independently of the planner summary. */
+  instruction?: string;
   prompt: string;
   promptVersion: string;
   model: string;

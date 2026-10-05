@@ -49,6 +49,38 @@ function streamEvents(text: string) {
 }
 
 describe('instruction routes in demo mode', () => {
+  it.each(['generate', 'regenerate', 'fix'])('routes Max quality through %s to the image adapter and saved version', async (action) => {
+    const { p, c } = await fixture();
+    if (action === 'fix') { c.quality = 'max'; saveConcept(c); }
+    const run = vi.spyOn(imageAdapter(), 'run');
+    try {
+      const url = action === 'generate' ? `/projects/${p.id}/generate` : `/concepts/${c.id}/${action}`;
+      const response = await post(url, { quality: 'max', instruction: 'make the metal look warmer' });
+      expect(response.status).toBe(200);
+      await response.text();
+      expect(run).toHaveBeenCalledTimes(action === 'generate' ? 3 : 1);
+      run.mock.calls.forEach(([request]) => expect(request.quality).toBe('max'));
+      const versions = listConcepts(p.id).filter((version) => version.id !== c.id);
+      expect(versions).toHaveLength(action === 'generate' ? 3 : 1);
+      versions.forEach((version) => expect(version).toMatchObject({ status: 'done', quality: 'max' }));
+    } finally { run.mockRestore(); }
+  });
+  it.each(['make the etching deeper', 'make the border double line'])('inherits the source model and Max quality for %s, ignoring dropdown and server changes', async (instruction) => {
+    const { p, c } = await fixture();
+    c.model = 'gpt-image-2.5-sunburst-2026-09-08';
+    c.quality = 'max';
+    saveConcept(c);
+    const run = vi.spyOn(imageAdapter(), 'run');
+    try {
+      await (await post(`/concepts/${c.id}/fix`, { instruction, quality: 'medium' })).text();
+      const request = run.mock.calls[0][0];
+      expect(request).toMatchObject({ model: c.model, quality: 'max', preserveQuality: true });
+      expect(request.images[0].name).toBe('current.png');
+      expect(request.prompt).toContain(instruction);
+      expect(listConcepts(p.id).at(-1)).toMatchObject({ kind: 'fix', model: c.model, quality: 'max', instruction, parentId: c.id });
+      expect(getConcept(c.id)).toMatchObject({ model: c.model, quality: 'max' });
+    } finally { run.mockRestore(); }
+  });
   it('makes any request an image edit instead of refusing, without changing the order', async () => {
     const { p, c } = await fixture();
     const response = await post(`/concepts/${c.id}/fix`, { instruction: 'use a purple anodized finish' });
@@ -71,7 +103,7 @@ describe('instruction routes in demo mode', () => {
       expect(request.images.map((i) => i.name)).toEqual(['current.png', 'layout.png']);
       expect(request.prompt).toContain(words);
       expect(request.prompt).toContain('ZERO TOLERANCE');
-      expect(request.prompt).toContain('overrides any conflicting preservation rule');
+      expect(request.prompt).toContain('overrides any conflicting default rule');
       expect(request.prompt).toContain('Image 2 shows the planned layout');
       expect(getProject(p.id)).toEqual(p);
     } finally { run.mockRestore(); }
@@ -122,7 +154,21 @@ describe('instruction routes in demo mode', () => {
     expect(version).toMatchObject({ kind: 'fix', status: 'done', parentId: c.id, snapshot: { spec: { border: 'single-line' } } });
     expect(getProject(p.id)?.spec?.border).toBe('double-line');
   });
-  it('streams the plan first, regenerates from changed spec, and undoes without removing versions', async () => {
+  it('a structural edit of an older image keeps its wording and can undo to the newer order', async () => {
+    const { p, c } = await fixture();
+    const original = c.snapshot!.wording!.blocks[0].text;
+    p.wording!.blocks[0].text = 'A different newer heading';
+    saveProject(p);
+    const response = await post(`/concepts/${c.id}/fix`, { instruction: 'make the border double line' });
+    await response.text();
+    const version = listConcepts(p.id).at(-1)!;
+    expect(version.status).toBe('done');
+    expect(version.snapshot!.wording!.blocks[0].text).toBe(original);
+    expect(getProject(p.id)!.wording!.blocks[0].text).toBe(original);
+    expect((await post(`/concepts/${version.id}/undo`)).status).toBe(200);
+    expect(getProject(p.id)!.wording!.blocks[0].text).toBe('A different newer heading');
+  });
+  it('streams the plan first, edits the current image for changed spec, and undoes without removing versions', async () => {
     const { p, c } = await fixture();
     const response = await post(`/concepts/${c.id}/fix`, { instruction: 'make the border double line' });
     expect(response.status).toBe(200);
@@ -131,8 +177,8 @@ describe('instruction routes in demo mode', () => {
     expect(events[1].type).toBe('start');
     expect(events.at(-1).type).toBe('end');
     const version = listConcepts(p.id).at(-1)!;
-    expect(version).toMatchObject({ kind: 'regenerate', status: 'done', parentId: c.id, quality: 'high', previous: { spec: { border: 'single-line' } }, snapshot: { spec: { border: 'double-line' } } });
-    expect(version.prompt).toContain('double line border');
+    expect(version).toMatchObject({ kind: 'fix', status: 'done', parentId: c.id, quality: 'high', previous: { spec: { border: 'single-line' } }, snapshot: { spec: { border: 'double-line' } } });
+    expect(version.prompt).toContain('make the border double line');
     expect(version.spellcheck).not.toBeNull();
     expect(getProject(p.id)?.spec?.border).toBe('double-line');
     expect((await post(`/concepts/${version.id}/undo`)).status).toBe(200);
@@ -166,6 +212,9 @@ describe('instruction routes in demo mode', () => {
     const { p, c } = await fixture();
     p.imageAfterBlock = 0;
     saveProject(p);
+    // The source image carries this anchor, rather than editing a newer order's anchor.
+    c.snapshot = contentSnapshot(p);
+    saveConcept(c);
     await (await post(`/concepts/${c.id}/fix`, { instruction: 'add a line "Recognition" at the top' })).text();
     expect(getProject(p.id)?.imageAfterBlock).toBe(1);
     const version = listConcepts(p.id).at(-1)!;

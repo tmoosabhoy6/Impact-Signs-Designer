@@ -14,6 +14,8 @@ export interface ImageUsage {
 }
 
 export interface ImageRequest {
+  model: string;
+  preserveQuality?: boolean;
   prompt: string;
   images: RefImage[];
   size: string;
@@ -61,7 +63,7 @@ const COMPATIBLE_PARAMS = ['partial_images', 'stream', 'background', 'quality', 
 type ImageParams = ImageEditParamsBase | ImageGenerateParamsBase;
 
 /** Only a rejected optional parameter gets one retry; no retries after paid output. */
-export async function withImageCompatibility<T>(params: ImageParams, send: (params: ImageParams) => Promise<T>): Promise<T> {
+export async function withImageCompatibility<T>(params: ImageParams, send: (params: ImageParams) => Promise<T>, opts: { preserveQuality?: boolean } = {}): Promise<T> {
   try {
     return await send(params);
   } catch (e) {
@@ -70,12 +72,20 @@ export async function withImageCompatibility<T>(params: ImageParams, send: (para
     const param = COMPATIBLE_PARAMS.find((p) => err.param === p)
       ?? COMPATIBLE_PARAMS.find((p) => new RegExp(`\\b${p}\\b`).test(err.message));
     if (!param || params[param] === undefined) throw e;
+    // Max is an explicit quality choice: never silently substitute a cheaper level.
+    if (param === 'quality' && (params.quality === 'max' || opts.preserveQuality)) {
+      const label = params.quality === 'max' ? 'Max' : String(params.quality);
+      const next = opts.preserveQuality
+        ? 'This edit keeps the original image’s quality. Check the model settings, or generate a new image at a supported quality.'
+        : 'Choose another quality or check your image model settings.';
+      throw new Error(`OpenAI could not use ${label} quality for this request. ${next}`);
+    }
     const retry = { ...params };
     if (param === 'size') {
       const [w, h] = String(params.size).split('x').map(Number);
       retry.size = w > h ? '1536x1024' : h > w ? '1024x1536' : '1024x1024';
       if (retry.size === params.size) delete retry.size;
-    } else if (param === 'quality' && (params.quality === 'xhigh' || params.quality === 'max')) retry.quality = 'high';
+    } else if (param === 'quality' && params.quality === 'xhigh') retry.quality = 'high';
     else delete retry[param];
     if (param === 'stream') delete retry.partial_images;
     console.info(`OpenAI image compatibility: ${param} ${retry[param] === undefined ? 'dropped' : `changed to ${retry[param]}`}. Retrying once.`);
@@ -135,11 +145,11 @@ const realAdapter: ImageAdapter = {
     const files = await Promise.all(req.images.map((r) => toFile(r.file, r.name, { type: r.mime })));
     let delivered = false;
     return withImageCompatibility({
-      model: config.imageModel,
+      model: req.model,
       image: files,
       prompt: req.prompt,
       size: req.size,
-      quality: req.quality as 'high',
+      quality: req.quality as ImageEditParamsBase['quality'],
       output_format: 'png',
       background: 'opaque',
       n: 1,
@@ -168,7 +178,7 @@ const realAdapter: ImageAdapter = {
         if (delivered) throw new Error(friendlyError(e));
         throw e;
       }
-    });
+    }, { preserveQuality: req.preserveQuality });
   },
 };
 

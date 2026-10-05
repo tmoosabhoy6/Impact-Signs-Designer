@@ -121,7 +121,7 @@ describe('layout with several photos and logos', () => {
   const portrait = (id: string) => ({ id, aspect: 0.8 });
   const wide = (id: string) => ({ id, aspect: 2 });
 
-  it('gives each photo its own frame, in order, side by side, above the text', async () => {
+  it('gives each photo its own frame, in order, with body below and Statement headings beside it', async () => {
     const p = await heritage();
     for (const n of [2, 3, 4]) {
       const photos = Array.from({ length: n }, (_, i) => portrait(`p${i}`));
@@ -135,9 +135,10 @@ describe('layout with several photos and logos', () => {
           expect(f.outer.w / f.outer.h).toBeCloseTo(0.8, 6);
           expect(f.inner.w).toBeLessThan(f.outer.w);
         }
-        // Text starts below the photos (the image is first by default).
+        // Statement reserves the top-right for opening text; the other presets stack everything.
         const bottom = Math.max(...l.imageFrames.map((f) => f.outer.y + f.outer.h));
-        expect(Math.min(...l.lines.map((x) => x.baseline))).toBeGreaterThan(bottom);
+        const below = preset === 'statement' ? l.lines.slice(3) : l.lines;
+        expect(Math.min(...below.map((x) => x.baseline))).toBeGreaterThan(bottom);
       }
     }
   });

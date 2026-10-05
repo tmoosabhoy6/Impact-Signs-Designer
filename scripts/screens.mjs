@@ -36,12 +36,20 @@ async function runExample(jobNumber, shot) {
   await page.waitForSelector('text=Generate 3 concepts');
   await page.waitForTimeout(1200);
   await page.screenshot({ path: `${out}/${shot}-a-order.png` });
+  // Verify the highest quality is selectable and reaches the server unchanged.
+  await page.locator('select').filter({ has: page.locator('option[value="max"]') }).selectOption('max');
+  const generation = page.waitForRequest((r) => r.url().endsWith(`/projects/${project.id}/generate`) && r.method() === 'POST');
   await page.click('button:has-text("Generate 3 concepts")');
+  if ((await generation).postDataJSON().quality !== 'max') throw new Error('Max quality was not sent to the server.');
   await page.waitForFunction(() => document.querySelectorAll('button').length && [...document.querySelectorAll('button')].filter((b) => b.textContent?.includes('Use this one')).length >= 3);
   if (jobNumber === '32885') {
+    // Changing the new-generation dropdown must not lower a Max source image's edits.
+    await page.locator('select').filter({ has: page.locator('option[value="max"]') }).selectOption('medium');
     const column = page.locator('article').filter({ has: page.locator('h3', { hasText: 'Classic' }) });
     await column.getByLabel('Describe a change for this image').fill('make the border double line');
+    const editing = page.waitForRequest((r) => r.url().endsWith('/fix') && r.method() === 'POST');
     await column.getByRole('button', { name: 'Apply', exact: true }).click();
+    if ('quality' in (await editing).postDataJSON()) throw new Error('Fix must inherit the source quality instead of the dropdown.');
     await column.getByRole('status').filter({ hasText: 'Interpreted as:' }).waitFor();
     await page.waitForFunction(() => !document.querySelector('article button[title="Generate this layout again"]')?.disabled);
     await column.screenshot({ path: `${out}/09-fix-plan.png` });
@@ -161,7 +169,11 @@ async function runMultiFiles() {
   }
   await page.waitForTimeout(800);
   await page.locator('section', { hasText: 'Customer files' }).screenshot({ path: `${out}/12-multi-files.png` });
+  // Verify the highest quality is selectable and reaches the server unchanged.
+  await page.locator('select').filter({ has: page.locator('option[value="max"]') }).selectOption('max');
+  const generation = page.waitForRequest((r) => r.url().endsWith(`/projects/${project.id}/generate`) && r.method() === 'POST');
   await page.click('button:has-text("Generate 3 concepts")');
+  if ((await generation).postDataJSON().quality !== 'max') throw new Error('Max quality was not sent to the server.');
   await page.waitForFunction(() => [...document.querySelectorAll('button')].filter((b) => b.textContent?.includes('Use this one')).length >= 3);
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${out}/13-multi-concepts.png` });

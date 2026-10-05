@@ -93,7 +93,7 @@ export const PRESETS: PresetDef[] = [
   {
     id: 'statement',
     label: 'Statement',
-    description: 'Headline-led: a larger name line with more breathing room and a more compact image.',
+    description: 'Balanced equal columns: photo centered at the top left, two or three opening text lines centered at the top right and vertically aligned with the photo, remaining wording centered across the bottom.',
     topImageFrac: 0.45,
     sideImageFrac: 0.34,
     headline: 1.5,
@@ -241,7 +241,7 @@ interface Placed {
   /** The whole logo row and each logo in it (relative to the row). */
   logo?: Rect & { cells: Rect[] };
   lines: (StyledText & { role: WordingRole; baseline: number; size: number; style: TextStyle; faceFile: string })[];
-  rules: { y: number; w: number; t: number }[];
+  rules: { x?: number; y: number; w: number; t: number }[];
   height: number;
   maxLineWidth: number;
 }
@@ -414,8 +414,9 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
     : [];
   const photoAspects = photos.map((p) => p.aspect);
   const imageAfter = input.imageAfterBlock ?? null;
-  // Landscape photos on a landscape plaque sit at the left (one, or two stacked); more go in a group above the text.
-  const imageLeft = hasImage && W >= H && imageAfter == null && photos.length <= 2 && photos.every((p) => orientationOf(p.aspect) === 'landscape');
+  // Landscape plaques reserve the left for photos; Statement splits the top in either orientation.
+  const splitTop = hasImage && presetId === 'statement';
+  const imageLeft = hasImage && !splitTop && W >= H;
   const logos: LayoutPicture[] = (input.logos ?? []).map((l) => ({ id: l.id, aspect: Math.min(6, Math.max(0.3, l.aspect || 1)) }));
   const logoAspects = logos.map((l) => l.aspect);
   const hasLogo = logos.length > 0;
@@ -469,12 +470,70 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
   const textMul = textOnly ? 1 : adj.textScale;
   for (scale = textOnly ? 3.2 : 1; scale >= 0.25; scale -= 0.02) {
     const B = B0 * scale * textMul;
-    if (imageLeft) {
+    if (splitTop) {
+      const maxW = content.w - 2 * pad;
+      const maxH = content.h - 2 * pad;
+      const gutter = 0.06 * maxW;
+      // Equal columns keep their centers mirrored even when a tall photo must shrink.
+      const headW = (maxW - gutter) / 2;
+      const photoW = Math.min(headW, headW * adj.imageScale * Math.min(1, scale + 0.15));
+      const group = groupCells(photoAspects, arrangePictures(photoAspects, photoW, maxH * 0.46, photoGap, { maxRows: 2 }), photoGap);
+      const blocks = (input.wording?.blocks ?? []).filter((b) => b.text.trim());
+      const opening: Item[] = [];
+      const remaining: typeof blocks = [];
+      let count = 0;
+      let openingRaised = 0;
+      let openingDone = false;
+      // Split only for display; the stored customer's wording is never edited.
+      for (const block of blocks) {
+        if (openingDone || count >= 3 || (count >= 2 && block.role !== 'headline' && block.role !== 'subhead') || (block.style?.columns ?? 1) > 1) {
+          openingDone = true;
+          remaining.push(block);
+          continue;
+        }
+        const made = textItems({ ...input, wording: { blocks: [block], notes: [] } }, B, preset, headW, adj.spacing);
+        openingRaised += made.raised;
+        const item = made.items[0];
+        if (!item || item.kind !== 'text') continue;
+        const take = Math.min(3 - count, item.lines.length);
+        const lines = item.lines.slice(0, take);
+        opening.push({ ...item, lines, width: Math.max(...lines.map((l) => measure(item.face, l.text, item.size, item.style.smallCaps))) });
+        count += take;
+        if (take < item.lines.length) remaining.push({ ...block, text: item.lines.slice(take).map((l) => l.text).join('\n') });
+      }
+      const head = stack(opening, B, gapMul, adj.spacing);
+      const bodyMade = textItems({ ...input, wording: { blocks: remaining, notes: [] } }, B, preset, maxW, adj.spacing);
+      raised = openingRaised + bodyMade.raised;
+      const bodyItems = bodyMade.items;
+      if (hasLogo) {
+        const logo = logoItem(rowBudget(0.4 * maxW, logos.length, 0.9 * maxW) * scale, 0.12 * maxH * scale, maxW);
+        if (slot === 'top') bodyItems.unshift(logo);
+        else if (slot === 'middle') bodyItems.splice(Math.min(bodyItems.length, 1), 0, logo);
+        else bodyItems.push(logo);
+      }
+      const body = stack(bodyItems, B, gapMul, adj.spacing);
+      const topH = Math.max(group.h, head.height);
+      const bodyY = Math.max(maxH * 0.5, topH + Math.max(0.3, B * gapMul));
+      colX = content.x + pad;
+      colW = maxW;
+      const headDx = headW + gutter + headW / 2 - maxW / 2;
+      const headY = (topH - head.height) / 2;
+      best = {
+        ...body,
+        lines: [...head.lines.map((l) => ({ ...l, baseline: l.baseline + headY, dx: l.dx + headDx, ...(l.left != null ? { left: l.left + headDx } : {}) })), ...body.lines.map((l) => ({ ...l, baseline: l.baseline + bodyY }))],
+        rules: [...head.rules.map((r) => ({ ...r, y: r.y + headY, w: headW, x: headW + gutter })), ...body.rules.map((r) => ({ ...r, y: r.y + bodyY }))],
+        frame: { x: (headW - group.w) / 2, y: (topH - group.h) / 2, w: group.w, h: group.h, cells: group.cells },
+        logo: body.logo ? { ...body.logo, y: body.logo.y + bodyY } : undefined,
+        height: Math.max(topH, bodyY + body.height),
+        maxLineWidth: Math.max(body.maxLineWidth, head.maxLineWidth + group.w + gutter),
+      };
+      if (best.height <= maxH && body.maxLineWidth <= maxW + 1e-6 && head.maxLineWidth <= headW + 1e-6) break;
+    } else if (imageLeft) {
       const contentW = content.w - 2 * pad;
       const contentH = content.h - 2 * pad;
-      // The image column: one frame, or two stacked.
+      // Keep one or two landscape photos stacked; other groups choose the largest fitting rows.
       const bw = Math.min(contentW * 0.65, contentW * preset.sideImageFrac * adj.imageScale * Math.min(1, scale + 0.15));
-      const group = groupCells(photoAspects, arrangePictures(photoAspects, bw, contentH, photoGap, { rows: photos.length }), photoGap);
+      const group = groupCells(photoAspects, arrangePictures(photoAspects, bw, contentH, photoGap, photos.length <= 2 && photos.every((p) => orientationOf(p.aspect) === 'landscape') ? { rows: photos.length } : { maxRows: photos.length }), photoGap);
       const fw = group.w;
       const fh = group.h;
       const gutter = 0.06 * contentW;
@@ -541,15 +600,15 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
   if (raised) warnings.push(`${raised} line${raised > 1 ? 's were' : ' was'} enlarged to the ¼" minimum letter height for casting.`);
 
   // Center the stack vertically in its area (or move it up/down within the free space).
-  const areaTop = imageLeft ? content.y + pad : content.y;
-  const areaH = imageLeft ? content.h - 2 * pad : content.h;
+  const areaTop = imageLeft || splitTop ? content.y + pad : content.y;
+  const areaH = imageLeft || splitTop ? content.h - 2 * pad : content.h;
   const slack = areaH - best.height;
-  const margin = imageLeft ? 0 : Math.max(0.3, 0.05 * content.h, screwD ? screwInset * 0.6 : 0);
+  const margin = imageLeft || splitTop ? 0 : Math.max(0.3, 0.05 * content.h, screwD ? screwInset * 0.6 : 0);
   const dy = adj.verticalOffset && slack > 2 * margin
     ? areaTop + margin + ((slack - 2 * margin) * (1 + adj.verticalOffset)) / 2
     : areaTop + slack / 2;
   const cx = colX + colW / 2;
-  const textWidth = imageLeft ? colW : Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
+  const textWidth = imageLeft || splitTop ? colW : Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
 
   const lines: TextLine[] = best.lines.map((l) => ({
     text: l.text,
@@ -561,9 +620,9 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
     face: l.faceFile,
     ...(l.left != null ? { x: cx + l.left } : {}),
   }));
-  const rules: Rect[] = best.rules.map((r) => ({ x: cx - (textWidth * 0.94) / 2, y: r.y + dy - r.t / 2, w: textWidth * 0.94, h: r.t }));
+  const rules: Rect[] = best.rules.map((r) => ({ x: r.x != null ? colX + r.x + r.w * 0.03 : cx - ((r.w || textWidth) * 0.94) / 2, y: r.y + dy - r.t / 2, w: (r.w || textWidth) * 0.94, h: r.t }));
   if (!imageLeft && best.frame) {
-    frameRect = { x: content.x + (content.w - best.frame.w) / 2, y: best.frame.y + dy, w: best.frame.w, h: best.frame.h };
+    frameRect = { x: splitTop ? colX + best.frame.x : content.x + (content.w - best.frame.w) / 2, y: best.frame.y + dy, w: best.frame.w, h: best.frame.h };
     frameCells = best.frame.cells;
   }
   const logoRow = best.logo ? { x: cx - best.logo.w / 2, y: best.logo.y + dy } : null;

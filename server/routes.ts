@@ -422,7 +422,8 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   const instruction = String(req.body?.instruction ?? '').trim();
   if (instruction.length < 3) throw new Error('Describe the change, for example "make the border thinner".');
   if (instruction.length > 1000) throw new Error('Keep the change to 1000 characters or fewer.');
-  const plan = await planInstruction(p, c, instruction);
+  const source = projectForConcept(p, c);
+  const plan = await planInstruction(source, c, instruction);
   if (plan.kind === 'refuse') return res.status(422).json({ error: plan.reason, nearestOptions: plan.nearestOptions });
   // Planning can take time: do not overwrite an order changed in another tab.
   if (getProject(p.id)?.updatedAt !== p.updatedAt) return res.status(409).json({ error: 'The order changed while this instruction was being read. Reload and try again.' });
@@ -434,20 +435,20 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   // edit the current picture to the new layout drawing; image-only changes edit it in place.
   const structural = changesOrder(plan);
   const previous = structural ? contentSnapshot(p) : undefined;
-  // An image-only edit of an older version works from that version's own content, so the
-  // picture being edited and the layout drawing it is checked against agree. The order as
-  // it is now is left alone.
-  const base = !structural && c.snapshot && !matchesSnapshot(p, c.snapshot) ? projectForConcept(p, c) : p;
+  // Plan and draw from the selected version, including when its order is older.
+  // Image-only edits leave the live order alone; structural edits publish this snapshot.
+  const base = source;
   applyPlan(base, plan, c.preset);
   if (!base.wording?.blocks.length) throw new Error('Add the customer wording first.');
   if (base.spec?.imageOption !== 'none' && !base.uploads.photos.length) throw new Error('Upload the photo before requesting this image treatment.');
   // Validate the changed layout before saving any order change.
   layoutFor(base, c.preset);
-  if (previous) p.selectedConceptId = null;
-  const regenerate = plan.kind === 'spec' || (plan.kind === 'edit' && !!plan.specPatch);
-  const rec = newConceptRecord(base, { preset: c.preset, kind: regenerate ? 'regenerate' : 'fix', batchId: c.batchId, parentId: c.id, note: plan.restated, plan, previous });
-  db.transaction(() => { if (previous) saveProject(p); saveConcept(rec); })();
-  await runStreamed(res, base, [rec], pickQuality(req.body?.quality) ?? 'high', plan);
+  if (previous) base.selectedConceptId = null;
+  // Every Fix edits the selected photograph, including catalog changes. New concepts
+  // alone use the current model/defaults; edits inherit the source version's settings.
+  const rec = newConceptRecord(base, { preset: c.preset, kind: 'fix', batchId: c.batchId, parentId: c.id, note: plan.restated, instruction, model: c.model === 'mock' ? (config.mockAI ? 'mock' : config.imageModel) : c.model || config.imageModel, quality: c.quality || config.imageQuality, plan, previous });
+  db.transaction(() => { if (previous) saveProject(base); saveConcept(rec); })();
+  await runStreamed(res, base, [rec], rec.quality, plan);
 }));
 
 api.post('/concepts/:id/undo', express.json(), ah((req, res) => {

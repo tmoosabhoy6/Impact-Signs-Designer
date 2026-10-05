@@ -254,7 +254,7 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     checkLimits(project.id, rec.id);
     const layout = layoutFor(project, rec.preset);
     const { w, h, size } = canvasSize(project.spec!.widthIn, project.spec!.heightIn);
-    const quality = opts.quality || config.imageQuality;
+    const quality = opts.quality || rec.quality || config.imageQuality;
     update({ status: 'running', size, quality });
     const layoutPng = await layoutDrawing(project, layout, w, h);
     fs.writeFileSync(conceptFile(rec, 'layout.png'), layoutPng);
@@ -273,8 +273,8 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
       const refs = await buildReferences(project, layout, layoutPng);
       images.push(...refs.filter((r) => r.name.startsWith('customer-logo')));
       prompt = rec.plan && changesOrder(rec.plan)
-        ? buildRelayoutPrompt(rec.note, designerChange(rec), layout)
-        : buildFixPrompt(designerChange(rec) ?? rec.note, layout, true);
+        ? buildRelayoutPrompt(rec.instruction ?? rec.note, designerChange(rec), layout)
+        : buildFixPrompt(rec.instruction ?? designerChange(rec) ?? rec.note, layout, true);
       if (layout.logos.length) {
         prompt += `\n\nLOGO TREATMENT (unless the requested edit changes it): ${mustOption('logoTreatments', project.spec!.logoTreatment ?? 'raised-cast').prompt}.\nImages after Image 2 are the original customer logos, in layout order. Preserve their complete artwork, including white lettering, fine rules and white color regions; use them to recover details missing in Image 1.`;
       }
@@ -285,6 +285,8 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     update({ prompt });
 
     const result = await imageAdapter().run({
+      model: rec.model,
+      preserveQuality: rec.kind === 'fix',
       prompt,
       images,
       size,
