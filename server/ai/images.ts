@@ -219,11 +219,11 @@ export function imageAdapter(): ImageAdapter {
   return config.mockAI ? mockAdapter : realAdapter;
 }
 
-export const MAX_IMAGE_EDGE = 2560;
+export const MAX_IMAGE_EDGE = 1536;
 export const MAX_IMAGE_PIXELS = 8_294_400;
 const MIN_IMAGE_PIXELS = 655_360;
 
-/** Every concept uses the same 2K/QHD canvas, including edits of older versions. */
+/** Every concept uses the same 1.5K canvas, including edits of older versions. */
 export function imageLongEdgeForQuality(_quality: string): number {
   return MAX_IMAGE_EDGE;
 }

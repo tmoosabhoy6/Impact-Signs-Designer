@@ -9,7 +9,7 @@ import { config } from '../server/config';
 import { createExampleJob } from '../server/examples';
 import { getConcept, getProject, listConcepts, listOutputs, newId, saveConcept, saveProject, spentToday } from '../server/db';
 import { conceptFile, contentSnapshot, newConceptRecord } from '../server/ai/pipeline';
-import { imageAdapter } from '../server/ai/images';
+import { imageAdapter, openai } from '../server/ai/images';
 import { storeUpload } from '../server/uploads';
 import { PDFDocument } from 'pdf-lib';
 import type { ConceptRecord, LayoutPresetId, OutputRecord, Project } from '../shared/types';
@@ -17,10 +17,13 @@ import type { ConceptRecord, LayoutPresetId, OutputRecord, Project } from '../sh
 let server: Server;
 let base: string;
 let cookie: string;
+let testClient = 0;
 /** The signed-in test user's id: fixture jobs belong to them, as real jobs do. */
 let ownerId: string;
 beforeAll(async () => {
   const app = express();
+  // Each fixture is a separate designer; avoid sharing one minute's generation allowance.
+  app.set('trust proxy', 1);
   app.use('/api', api);
   server = await new Promise<Server>((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const address = server.address();
@@ -33,9 +36,10 @@ beforeAll(async () => {
 afterAll(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
 
 async function post(url: string, body = {}) {
-  return fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(body) });
+  return fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie, 'X-Forwarded-For': `192.0.2.${testClient}` }, body: JSON.stringify(body) });
 }
 async function fixture() {
+  testClient++;
   const p = await createExampleJob('32241-edwin-feulner', 'Test', ownerId);
   const c = newConceptRecord(p, { preset: 'classic', kind: 'concept', batchId: newId('b'), status: 'done', hasImage: true });
   // A finished concept has its picture on disk (an image-only edit starts from it).
@@ -49,7 +53,61 @@ function streamEvents(text: string) {
 }
 
 describe('instruction routes in demo mode', () => {
-  it('runs fixed Max 2K end to end through generation, edit, proof and vector PDF', async () => {
+  it('always generates only Classic and Statement even if an old client asks for more', async () => {
+    const { p } = await fixture();
+    const run = vi.spyOn(imageAdapter(), 'run');
+    try {
+      const response = await post(`/projects/${p.id}/generate`, { presets: ['classic', 'portrait', 'statement', 'classic'], quality: 'low', size: '3840x2160' });
+      const events = streamEvents(await response.text());
+      expect(events.find((e) => e.type === 'start').concepts.map((c: ConceptRecord) => c.preset)).toEqual(['classic', 'statement']);
+      expect(run).toHaveBeenCalledTimes(2);
+      const catalog = await (await fetch(`${base}/catalog`)).json();
+      expect(catalog.presets.filter((pr: { active: boolean }) => pr.active).map((pr: { id: string }) => pr.id)).toEqual(['classic', 'statement']);
+    } finally { run.mockRestore(); }
+  });
+
+  it.each(['make the metal slightly darker', 'space out the wording just slightly so there is more room on the plaque'])('sends %s through the real Images edit API, with its source bytes first', async (instruction) => {
+    const { p, c } = await fixture();
+    const mock = imageAdapter();
+    const before = { mockAI: config.mockAI, openaiKey: config.openaiKey };
+    config.openaiKey = 'offline-placeholder';
+    const generate = vi.spyOn(openai().images, 'generate').mockRejectedValue(new Error('Fix must never generate a fresh image'));
+    const edit = vi.spyOn(openai().images, 'edit').mockImplementation((async (params: import('openai/resources/images').ImageEditParamsBase) => {
+      const files = params.image as File[];
+      const source = files.find((f) => f.name === 'layout.png') ?? files[0];
+      const [w, h] = String(params.size).split('x').map(Number);
+      const png = await sharp(Buffer.from(await source.arrayBuffer())).resize(w, h).png().toBuffer();
+      return (async function* () {
+        yield { type: 'image_edit.partial_image', b64_json: png.toString('base64') };
+        yield { type: 'image_edit.completed', b64_json: png.toString('base64'), size: params.size, quality: params.quality, usage: null };
+      })();
+    }) as never);
+    const run = vi.spyOn(mock, 'run').mockImplementation(async (request) => {
+      config.mockAI = false;
+      try { return await imageAdapter().run(request); }
+      finally { config.mockAI = true; }
+    });
+    try {
+      const response = await post(`/concepts/${c.id}/fix`, { instruction });
+      await response.text();
+      expect(edit).toHaveBeenCalledTimes(1);
+      expect(generate).not.toHaveBeenCalled();
+      const request = edit.mock.calls[0][0];
+      expect(request).toMatchObject({ n: 1, quality: 'max', size: '1024x1536', stream: true });
+      const files = request.image as File[];
+      expect(files[0].name).toBe('current.png');
+      expect(Buffer.from(await files[0].arrayBuffer())).toEqual(fs.readFileSync(conceptFile(c, 'image.png')));
+      expect(request.prompt).toContain(`The designer's exact instruction is:\n${instruction}\n`);
+      expect(request.prompt).not.toContain('fully and clearly visible');
+      expect(files.map((f) => f.name)).toEqual(instruction.startsWith('space') ? ['current.png', 'layout.png'] : ['current.png']);
+      const version = listConcepts(p.id).at(-1)!;
+      expect(version).toMatchObject({ parentId: c.id, instruction, status: 'done', quality: 'max' });
+      expect(await sharp(conceptFile(version, 'image.png')).metadata()).toMatchObject({ width: 1024, height: 1536 });
+      expect(getConcept(c.id)).toEqual(c);
+    } finally { run.mockRestore(); edit.mockRestore(); generate.mockRestore(); Object.assign(config, before); }
+  });
+
+  it('runs fixed Max 1.5K end to end through generation, edit, proof and vector PDF', async () => {
     const { p } = await fixture();
     const run = vi.spyOn(imageAdapter(), 'run');
     try {
@@ -57,10 +115,10 @@ describe('instruction routes in demo mode', () => {
       expect(response.status).toBe(200);
       await response.text();
       const generated = listConcepts(p.id).filter((c) => c.kind === 'concept' && c.size);
-      expect(generated).toHaveLength(3);
+      expect(generated.map((c) => c.preset)).toEqual(['classic', 'statement']);
       for (const c of generated) {
-        expect(c).toMatchObject({ status: 'done', quality: 'max', size: '1712x2560' });
-        expect(await sharp(conceptFile(c, 'image.png')).metadata()).toMatchObject({ height: 2560, width: 1707 });
+        expect(c).toMatchObject({ status: 'done', quality: 'max', size: '1024x1536' });
+        expect(await sharp(conceptFile(c, 'image.png')).metadata()).toMatchObject({ height: 1536, width: 1024 });
       }
       const source = generated.find((c) => c.preset === 'statement')!;
       // Even an older lower-quality image edits at the new fixed settings.
@@ -68,11 +126,11 @@ describe('instruction routes in demo mode', () => {
       saveConcept(source);
       await (await post(`/concepts/${source.id}/fix`, { instruction: 'make the metal slightly darker', quality: 'low' })).text();
       const edited = listConcepts(p.id).at(-1)!;
-      expect(edited).toMatchObject({ status: 'done', quality: 'max', size: '1712x2560', parentId: source.id });
+      expect(edited).toMatchObject({ status: 'done', quality: 'max', size: '1024x1536', parentId: source.id });
       await (await post(`/concepts/${edited.id}/regenerate`, { quality: 'high' })).text();
-      expect(listConcepts(p.id).at(-1)).toMatchObject({ status: 'done', quality: 'max', size: '1712x2560' });
-      expect(run).toHaveBeenCalledTimes(5);
-      for (const [request] of run.mock.calls) expect(request).toMatchObject({ quality: 'max', size: '1712x2560', preserveSize: true, preserveQuality: true });
+      expect(listConcepts(p.id).at(-1)).toMatchObject({ status: 'done', quality: 'max', size: '1024x1536' });
+      expect(run).toHaveBeenCalledTimes(4);
+      for (const [request] of run.mock.calls) expect(request).toMatchObject({ quality: 'max', size: '1024x1536', preserveSize: true, preserveQuality: true });
       const proofResponse = await post(`/projects/${p.id}/proof`, { conceptIds: generated.map((c) => c.preset === 'statement' ? edited.id : c.id), acknowledged: true });
       expect(proofResponse.status).toBe(200);
       const proof = (await proofResponse.json()).output as OutputRecord;
@@ -81,16 +139,16 @@ describe('instruction routes in demo mode', () => {
       const vector = (await vectorResponse.json()).output as OutputRecord;
       expect(vector.conceptId).toBe(edited.id);
       expect(vector.preflight?.filter((item) => !item.warnOnly).every((item) => item.ok)).toBe(true);
-      for (const [output, pages] of [[proof, 3], [vector, 1]] as const) {
+      for (const [output, pages] of [[proof, 2], [vector, 1]] as const) {
         const download = await fetch(`${base}/outputs/${output.id}/download`, { headers: { Cookie: cookie } });
         expect(download.status).toBe(200);
         const pdf = Buffer.from(await download.arrayBuffer());
         expect((await PDFDocument.load(pdf)).getPageCount()).toBe(pages);
-        fs.writeFileSync(`/tmp/fixed-2k-${output.kind}.pdf`, pdf);
+        fs.writeFileSync(`/tmp/fixed-1-5k-${output.kind}.pdf`, pdf);
       }
-      const preview = await fetch(`${base}/outputs/${proof.id}/preview.png?page=3`, { headers: { Cookie: cookie } });
+      const preview = await fetch(`${base}/outputs/${proof.id}/preview.png?page=2`, { headers: { Cookie: cookie } });
       expect(preview.status).toBe(200);
-      fs.writeFileSync('/tmp/fixed-2k-proof.png', Buffer.from(await preview.arrayBuffer()));
+      fs.writeFileSync('/tmp/fixed-1-5k-proof.png', Buffer.from(await preview.arrayBuffer()));
     } finally { run.mockRestore(); }
   });
   it.each(['generate', 'regenerate', 'fix'])('routes Max quality through %s to the image adapter and saved version', async (action) => {
@@ -102,18 +160,18 @@ describe('instruction routes in demo mode', () => {
       const response = await post(url, { quality: 'max', instruction: 'make the metal look warmer' });
       expect(response.status).toBe(200);
       await response.text();
-      expect(run).toHaveBeenCalledTimes(action === 'generate' ? 3 : 1);
-      run.mock.calls.forEach(([request]) => expect(request).toMatchObject({ quality: 'max', size: '1712x2560', preserveSize: true }));
+      expect(run).toHaveBeenCalledTimes(action === 'generate' ? 2 : 1);
+      run.mock.calls.forEach(([request]) => expect(request).toMatchObject({ quality: 'max', size: '1024x1536', preserveSize: true }));
       const versions = listConcepts(p.id).filter((version) => version.id !== c.id);
-      expect(versions).toHaveLength(action === 'generate' ? 3 : 1);
+      expect(versions).toHaveLength(action === 'generate' ? 2 : 1);
       for (const version of versions) {
-        expect(version).toMatchObject({ status: 'done', quality: 'max', size: '1712x2560' });
+        expect(version).toMatchObject({ status: 'done', quality: 'max', size: '1024x1536' });
         const metadata = await sharp(conceptFile(version, 'image.png')).metadata();
-        expect(metadata.height).toBe(2560);
+        expect(metadata.height).toBe(1536);
       }
     } finally { run.mockRestore(); }
   });
-  it.each([['medium', '1712x2560', 2560], ['high', '1712x2560', 2560], ['xhigh', '1712x2560', 2560]])('ignores legacy %s quality and keeps Max at 2K in the request and downloaded PNG', async (quality, size, edge) => {
+  it.each([['medium', '1024x1536', 1536], ['high', '1024x1536', 1536], ['xhigh', '1024x1536', 1536]])('ignores legacy %s quality and keeps Max at 1.5K in the request and downloaded PNG', async (quality, size, edge) => {
     const { p, c } = await fixture();
     const run = vi.spyOn(imageAdapter(), 'run');
     try {
@@ -141,7 +199,7 @@ describe('instruction routes in demo mode', () => {
       expect(getConcept(c.id)).toMatchObject({ model: c.model, quality: 'max' });
     } finally { run.mockRestore(); }
   });
-  it('does not mark a smaller Max image as a completed 2K result', async () => {
+  it('does not mark a smaller Max image as a completed 1.5K result', async () => {
     const { p, c } = await fixture();
     c.quality = 'max';
     saveConcept(c);
@@ -165,7 +223,7 @@ describe('instruction routes in demo mode', () => {
     expect(version.prompt).toContain('use a purple anodized finish');
     expect(getProject(p.id)).toEqual(p);
   });
-  it('sends open edits with the current picture, layout and informed preservation rules', async () => {
+  it('sends open edits with only the selected picture and requested preservation rules', async () => {
     const { p, c } = await fixture();
     const run = vi.spyOn(imageAdapter(), 'run');
     try {
@@ -173,11 +231,13 @@ describe('instruction routes in demo mode', () => {
       await (await post(`/concepts/${c.id}/fix`, { instruction: words })).text();
       expect(run).toHaveBeenCalledTimes(1);
       const request = run.mock.calls[0][0];
-      expect(request.images.map((i) => i.name)).toEqual(['current.png', 'layout.png']);
+      expect(request.images.map((i) => i.name)).toEqual(['current.png']);
+      expect(request.images[0].file).toEqual(fs.readFileSync(conceptFile(c, 'image.png')));
       expect(request.prompt).toContain(words);
-      expect(request.prompt).toContain('ZERO TOLERANCE');
-      expect(request.prompt).toContain('overrides any conflicting default rule');
-      expect(request.prompt).toContain('Image 2 shows the planned layout');
+      expect(request.prompt).toContain('character for character');
+      expect(request.prompt).toContain('overrides any conflicting preservation rule');
+      expect(request.prompt).not.toContain('Image 2');
+      expect(request.prompt).not.toContain('PLAQUE RENDERER');
       expect(getProject(p.id)).toEqual(p);
     } finally { run.mockRestore(); }
   });
@@ -192,11 +252,11 @@ describe('instruction routes in demo mode', () => {
     try {
       await (await post(`/concepts/${c.id}/fix`, { instruction: 'restore the missing white line and logo lettering' })).text();
       const request = run.mock.calls[0][0];
-      expect(request.images.map((i) => i.name)).toEqual(['current.png', 'layout.png', 'customer-logo.png']);
+      expect(request.images.map((i) => i.name)).toEqual(['current.png', 'customer-logo.png']);
       expect(request.prompt).toContain('original customer logos');
       expect(request.prompt).toContain('white lettering');
       // The reference is backed in gray so white artwork on transparency stays visible.
-      const reference = request.images[2].file;
+      const reference = request.images[1].file;
       const { data, info } = await sharp(reference).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       expect(data[0]).toBe(128);
       let whites = 0;
@@ -204,7 +264,7 @@ describe('instruction routes in demo mode', () => {
       expect(whites).toBeGreaterThan(100);
     } finally { run.mockRestore(); }
   });
-  it('still draws an order change to the updated layout, with the layout drawing and house rules', async () => {
+  it('uses the updated drawing only as geometry for the requested order change', async () => {
     const { c } = await fixture();
     const run = vi.spyOn(imageAdapter(), 'run');
     try {
@@ -212,7 +272,8 @@ describe('instruction routes in demo mode', () => {
       const request = run.mock.calls[0][0];
       expect(request.images.map((i) => i.name)).toEqual(['current.png', 'layout.png']);
       expect(request.prompt).toContain('NEW LAYOUT');
-      expect(request.prompt).toContain('ZERO TOLERANCE');
+      expect(request.prompt).toContain('elements affected by the request');
+      expect(request.prompt).not.toContain('PLAQUE RENDERER');
     } finally { run.mockRestore(); }
   });
   it('edits an older version from its own content when the order has moved on', async () => {

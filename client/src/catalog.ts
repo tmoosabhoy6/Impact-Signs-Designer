@@ -26,7 +26,7 @@ export interface Catalog {
     logoTreatments: (CatalogOption & { description: string })[];
     proofStyles: { id: string; label: string; description: string }[];
   };
-  presets: { id: string; label: string; description: string }[];
+  presets: { id: string; label: string; description: string; active?: boolean }[];
 }
 
 export const SPEC_FIELDS = [

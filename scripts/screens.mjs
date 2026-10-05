@@ -33,23 +33,20 @@ async function runExample(jobNumber, shot) {
   if (!ex) throw new Error(`No example for job ${jobNumber}`);
   const { project } = await (await ctx.request.post(`${base}/api/examples/${ex.id}`, { data: {} })).json();
   await page.goto(`${base}/jobs/${project.id}`);
-  await page.waitForSelector('text=Generate 3 concepts');
+  await page.waitForSelector('text=Generate 2 concepts');
   await page.waitForTimeout(1200);
   await page.screenshot({ path: `${out}/${shot}-a-order.png` });
-  // Verify the highest quality is selectable and reaches the server unchanged.
-  await page.locator('select').filter({ has: page.locator('option[value="max"]') }).selectOption('max');
+  // Quality and resolution are fixed on the server.
   const generation = page.waitForRequest((r) => r.url().endsWith(`/projects/${project.id}/generate`) && r.method() === 'POST');
-  await page.click('button:has-text("Generate 3 concepts")');
-  if ((await generation).postDataJSON().quality !== 'max') throw new Error('Max quality was not sent to the server.');
-  await page.waitForFunction(() => document.querySelectorAll('button').length && [...document.querySelectorAll('button')].filter((b) => b.textContent?.includes('Use this one')).length >= 3);
+  await page.click('button:has-text("Generate 2 concepts")');
+  if ('quality' in (await generation).postDataJSON()) throw new Error('Generation settings must be fixed by the server.');
+  await page.waitForFunction(() => document.querySelectorAll('button').length && [...document.querySelectorAll('button')].filter((b) => b.textContent?.includes('Use this one')).length >= 2);
   if (jobNumber === '32885') {
-    // Changing the new-generation dropdown must not lower a Max source image's edits.
-    await page.locator('select').filter({ has: page.locator('option[value="max"]') }).selectOption('medium');
     const column = page.locator('article').filter({ has: page.locator('h3', { hasText: 'Classic' }) });
     await column.getByLabel('Describe a change for this image').fill('make the border double line');
     const editing = page.waitForRequest((r) => r.url().endsWith('/fix') && r.method() === 'POST');
     await column.getByRole('button', { name: 'Apply', exact: true }).click();
-    if ('quality' in (await editing).postDataJSON()) throw new Error('Fix must inherit the source quality instead of the dropdown.');
+    if ('quality' in (await editing).postDataJSON()) throw new Error('Fix quality must be fixed by the server.');
     await column.getByRole('status').filter({ hasText: 'Interpreted as:' }).waitFor();
     await page.waitForFunction(() => !document.querySelector('article button[title="Generate this layout again"]')?.disabled);
     await column.screenshot({ path: `${out}/09-fix-plan.png` });
@@ -74,22 +71,22 @@ async function runExample(jobNumber, shot) {
   if (jobNumber === '32249') await perConceptFiles();
 }
 
-// One proof of three images: "Add as page" under the other concepts, then one PDF with a page each.
+// One proof of two images: "Add as page" under the other concepts, then one PDF with a page each.
 async function perConceptFiles() {
-  for (const [i, name] of ['Feature Image', 'Statement'].entries()) {
+  for (const [i, name] of ['Statement'].entries()) {
     const column = page.locator('article').filter({ has: page.locator('h3', { hasText: name }) });
     await column.getByRole('button', { name: `Add as page ${i + 2}` }).click();
     await column.getByRole('button', { name: 'On the proof · remove' }).waitFor();
   }
-  await page.waitForFunction(() => document.querySelectorAll('article[aria-current="true"]').length === 3);
-  await page.locator('aside').last().getByText('On the proof · 3 pages').waitFor();
-  await page.click('button:has-text("Create 3-page proof PDF")');
-  await page.locator('aside').last().getByText('Proof - 32249 - Classic + Feature Image + Statement v2.pdf').waitFor();
+  await page.waitForFunction(() => document.querySelectorAll('article[aria-current="true"]').length === 2);
+  await page.locator('aside').last().getByText('On the proof · 2 pages').waitFor();
+  await page.click('button:has-text("Create 2-page proof PDF")');
+  await page.locator('aside').last().getByText('Proof - 32249 - Classic + Statement v2.pdf').waitFor();
   await page.locator('aside').last().getByRole('button', { name: 'Page 2', exact: true }).click();
-  await page.locator('aside').last().getByText('From Classic v1 + Feature Image v1 + Statement v1').first().waitFor();
+  await page.locator('aside').last().getByText('From Classic v1 + Statement v1').first().waitFor();
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${out}/15-three-page-proof.png` });
-  await page.screenshot({ path: `${out}/16-three-page-proof-full.png`, fullPage: true });
+  await page.screenshot({ path: `${out}/15-two-page-proof.png` });
+  await page.screenshot({ path: `${out}/16-two-page-proof-full.png`, fullPage: true });
   // The full-size viewer: zoom in with the wheel and drag.
   await page.locator('article').filter({ has: page.locator('h3', { hasText: 'Classic' }) }).getByRole('button', { name: 'View full size' }).click();
   const viewer = page.getByRole('dialog');
@@ -140,7 +137,7 @@ async function runMultiFiles() {
   const ex = examples.find((e) => e.jobNumber === '32241');
   const { project } = await (await ctx.request.post(`${base}/api/examples/${ex.id}`, { data: {} })).json();
   await page.goto(`${base}/jobs/${project.id}`);
-  await page.waitForSelector('text=Generate 3 concepts');
+  await page.waitForSelector('text=Generate 2 concepts');
   // Two more photos in one pick, then three logos and two sketches.
   await page.getByLabel('Choose photos').setInputFiles(['references/31882-honeywell/photo.png', 'references/32717-camp-southern-ground/photo.png']);
   await page.getByText('3 of 4').waitFor();
@@ -169,12 +166,11 @@ async function runMultiFiles() {
   }
   await page.waitForTimeout(800);
   await page.locator('section', { hasText: 'Customer files' }).screenshot({ path: `${out}/12-multi-files.png` });
-  // Verify the highest quality is selectable and reaches the server unchanged.
-  await page.locator('select').filter({ has: page.locator('option[value="max"]') }).selectOption('max');
+  // Quality and resolution are fixed on the server.
   const generation = page.waitForRequest((r) => r.url().endsWith(`/projects/${project.id}/generate`) && r.method() === 'POST');
-  await page.click('button:has-text("Generate 3 concepts")');
-  if ((await generation).postDataJSON().quality !== 'max') throw new Error('Max quality was not sent to the server.');
-  await page.waitForFunction(() => [...document.querySelectorAll('button')].filter((b) => b.textContent?.includes('Use this one')).length >= 3);
+  await page.click('button:has-text("Generate 2 concepts")');
+  if ('quality' in (await generation).postDataJSON()) throw new Error('Generation settings must be fixed by the server.');
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].filter((b) => b.textContent?.includes('Use this one')).length >= 2);
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${out}/13-multi-concepts.png` });
   await page.locator('button', { hasText: 'Use this one' }).first().click();
@@ -218,7 +214,7 @@ if (mobileJobsWidth.scroll > mobileJobsWidth.view) throw new Error(`Mobile jobs 
 await mp.screenshot({ path: `${out}/08-mobile-jobs.png` });
 const firstJob = mp.locator('a[href^="/jobs/"]').first();
 await firstJob.click();
-await mp.getByRole('button', { name: /^Generate 3 (new )?concepts$/ }).waitFor();
+await mp.getByRole('button', { name: /^Generate 2 (new )?concepts$/ }).waitFor();
 const mobileWorkspaceWidth = await mp.evaluate(() => ({ scroll: document.documentElement.scrollWidth, view: window.innerWidth }));
 if (mobileWorkspaceWidth.scroll > mobileWorkspaceWidth.view) throw new Error(`Mobile workspace overflow: ${JSON.stringify(mobileWorkspaceWidth)}`);
 await mp.screenshot({ path: `${out}/11-mobile-workspace.png` });

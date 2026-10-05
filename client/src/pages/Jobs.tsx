@@ -18,7 +18,7 @@ interface JobRow {
 
 const STEPS = [
   { icon: ListOrdered, label: 'Order', text: 'Paste the specification and the customer wording. Upload photos, logos and sketches.' },
-  { icon: Images, label: 'Concepts', text: 'Three production-realistic layouts. Ask for changes in plain words.' },
+  { icon: Images, label: 'Concepts', text: 'Two production-realistic layouts. Ask for changes in plain words.' },
   { icon: FileCheck2, label: 'Proof', text: 'One customer proof PDF, up to three pages, on the real Impact Signs sheet.' },
   { icon: FileCog, label: 'Vector PDF', text: 'The one-ink production file that matches the chosen concept.' },
 ];

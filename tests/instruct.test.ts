@@ -20,16 +20,16 @@ async function heritage() {
 }
 
 describe('image-only edit prompt', () => {
-  it('keeps the informed rules while giving explicit edits priority', () => {
+  it('keeps the exact instruction and protects unmentioned details without generation rules', () => {
     const p = buildFixPrompt('  make the logo a UV print on a raised plate.  ');
     expect(p).toContain('make the logo a UV print on a raised plate.');
-    expect(p).toContain('IMPACT SIGNS PLAQUE RENDERER');
-    expect(p).toContain('ZERO TOLERANCE');
-    expect(p).toContain('overrides any conflicting default rule');
-    expect(p).toContain('Unmentioned details stay protected');
-    expect(p.indexOf('make the logo')).toBeLessThan(p.indexOf('DEFAULT PLAQUE RULES'));
-    expect(p).toContain('IMAGE 2 IS THE BLUEPRINT');
-    expect(p).not.toContain('REFERENCE 1 IS THE BLUEPRINT');
+    expect(p).toContain('character for character');
+    expect(p).toContain('overrides any conflicting preservation rule');
+    expect(p).toContain('small, restrained adjustment');
+    expect(p).toContain('  make the logo a UV print on a raised plate.  ');
+    expect(p).not.toContain('PLAQUE RENDERER');
+    expect(p).not.toContain('Image 2');
+    expect(p).not.toContain('fully and clearly visible');
   });
 });
 

@@ -512,7 +512,13 @@ Never refuse. Every request becomes a plan; when nothing else fits, the whole re
 
 export async function planInstruction(project: Project, concept: ConceptRecord, instruction: string): Promise<Plan> {
   const preset = concept.preset ?? 'classic';
-  if (config.mockAI || !config.openaiKey) return planSchema().parse(fallbackInstruction(project, instruction, preset));
+  const local = planSchema().parse(fallbackInstruction(project, instruction, preset));
+  // A spacing-only request already has an exact, bounded meaning. Do not let a
+  // second model expand it into font, photo, wording or placement changes.
+  const spacingOnly = local.kind === 'edit' && local.layoutPatch?.spacing != null
+    && Object.keys(local.layoutPatch).length === 1
+    && !local.specPatch && !local.wordingEdits && !local.placement && !local.imageEdit;
+  if (config.mockAI || !config.openaiKey || spacingOnly) return local;
   const catalog = Object.fromEntries(Object.entries(SPEC_GROUPS).map(([field, group]) => [field, getCatalog()[group].map(({ id, label, aliases }) => ({ id, label, aliases }))]));
   const context = {
     catalog, sizeLimits: getCatalog().sizeLimits, thickness: getCatalog().thickness, spec: project.spec,

@@ -286,19 +286,21 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     if (rec.kind === 'fix' && rec.parentId) {
       const parent = getConcept(rec.parentId);
       if (!parent?.hasImage) throw new Error('The image to fix is missing.');
-      const parentPng = await sharp(conceptFile(parent, 'image.png')).resize(w, h, { fit: 'fill' }).png().toBuffer();
+      // Send the actual selected image, without stretching it to the API's rounded canvas.
+      const parentPng = fs.readFileSync(conceptFile(parent, 'image.png'));
+      const structural = !!rec.plan && changesOrder(rec.plan);
       images = [
         { role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' },
-        { role: 'layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' },
+        ...(structural ? [{ role: 'updated layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' }] : []),
       ];
       // Original logo files restore details that may already be missing in the photograph.
       const refs = await buildReferences(project, layout, layoutPng);
       images.push(...refs.filter((r) => r.name.startsWith('customer-logo')));
-      prompt = rec.plan && changesOrder(rec.plan)
-        ? buildRelayoutPrompt(rec.instruction ?? rec.note, designerChange(rec), layout)
-        : buildFixPrompt(rec.instruction ?? designerChange(rec) ?? rec.note, layout, true);
+      prompt = structural
+        ? buildRelayoutPrompt(rec.instruction ?? rec.note, undefined, layout)
+        : buildFixPrompt(rec.instruction ?? designerChange(rec) ?? rec.note, layout);
       if (layout.logos.length) {
-        prompt += `\n\nLOGO TREATMENT (unless the requested edit changes it): ${mustOption('logoTreatments', project.spec!.logoTreatment ?? 'raised-cast').prompt}.\nImages after Image 2 are the original customer logos, in layout order. Preserve their complete artwork, including white lettering, fine rules and white color regions; use them to recover details missing in Image 1.`;
+        prompt += `\n\nImages after Image ${structural ? 2 : 1} are the original customer logos, in layout order. Use them only when the instruction asks to change or restore a logo. Preserve complete artwork, including white lettering, fine rules and white color regions. Otherwise keep the logos exactly as they appear in Image 1.`;
       }
     } else {
       images = await buildReferences(project, layout, layoutPng);
@@ -322,9 +324,9 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     fs.writeFileSync(conceptFile(rec, 'raw.png'), result.png);
     if (quality === 'max') {
       const actual = await sharp(result.png).metadata();
-      if (actual.width !== w || actual.height !== h) throw new Error('OpenAI returned a different image size than the requested 2K size. Generate again; this result was not marked complete.');
+      if (actual.width !== w || actual.height !== h) throw new Error('OpenAI returned a different image size than the requested 1.5K size. Generate again; this result was not marked complete.');
     }
-    // Keep the 2K resolution through cropping and into the proof image.
+    // Keep the 1.5K resolution through cropping and into the proof image.
     const fitted = await fitToPlaque(result.png, project.spec!.widthIn, project.spec!.heightIn, Math.max(w, h));
     fs.writeFileSync(conceptFile(rec, 'image.png'), fitted.png);
     fs.writeFileSync(conceptFile(rec, 'preview.jpg'), await smallPreview(fitted.png, 720));

@@ -104,6 +104,9 @@ export const PRESETS: PresetDef[] = [
   },
 ];
 
+// Keep retired definitions for saved images and their proofs; new batches use these two.
+export const ACTIVE_PRESETS = PRESETS.filter((p) => p.id !== 'portrait');
+
 // Vertical rhythm, in multiples of the body size (measured on production_32241.ai).
 const GAP = {
   frameToText: 2.549,

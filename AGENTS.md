@@ -4,7 +4,7 @@ Read this before changing anything. Then read `README.md` and `docs/DECISIONS.md
 
 ## What this is
 Impact Signs' internal tool for cast bronze (and aluminum) plaques. A designer enters an order. The app then:
-1. Generates 3 concept images with OpenAI's image model.
+1. Generates 2 concept images (Classic and Statement) with OpenAI's image model.
 2. Builds the customer **proof PDF** (the Description sheet; the two other measured templates stay for the samples and tests).
 3. Builds the one-ink **vector production PDF**.
 

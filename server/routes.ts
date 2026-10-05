@@ -18,7 +18,7 @@ import { parseSpec } from './parse/spec.js';
 import { docxToText, parseWording } from './parse/wording.js';
 import { addUpload, checkCanAdd, fileHash, prepareUpload, removeUpload, reorderUploads, uploadPath, photoPpi } from './uploads.js';
 import { isMultiKind, type UploadKind } from '../shared/uploads.js';
-import { PRESETS } from './layout/engine.js';
+import { ACTIVE_PRESETS, PRESETS } from './layout/engine.js';
 import { createExampleJob, listExamples } from './examples.js';
 import { upscaleRouter } from './upscale-routes.js';
 import { vectorRouter } from './vector-routes.js';
@@ -140,7 +140,7 @@ api.post('/health/test-image', genLimiter, ah(async (_req, res) => {
 }));
 
 // ---------- Catalog & admin ----------
-api.get('/catalog', (_req, res) => res.json({ catalog: getCatalog(), presets: PRESETS.map(({ id, label, description }) => ({ id, label, description })) }));
+api.get('/catalog', (_req, res) => res.json({ catalog: getCatalog(), presets: PRESETS.map(({ id, label, description }) => ({ id, label, description, active: ACTIVE_PRESETS.some((p) => p.id === id) })) }));
 api.get('/admin/assets', (_req, res) => res.json({ assets: assetLibraryStatus() }));
 api.get('/admin/prompts', (_req, res) => res.json({ version: promptVersion(), files: PROMPT_FILES.map((f) => ({ name: f, text: readPrompt(f) })) }));
 
@@ -187,7 +187,7 @@ function projectPayload(p: Project) {
   let layouts = null;
   if (p.spec) {
     try {
-      layouts = PRESETS.map((pr) => {
+      layouts = ACTIVE_PRESETS.map((pr) => {
         const l = layoutFor(p, pr.id);
         // Resolution of each photo at its printed size in this layout, by photo id.
         const ppi: Record<string, number> = {};
@@ -401,8 +401,8 @@ api.post('/projects/:id/generate', genLimiter, express.json(), ah(async (req, re
   if (!p.wording?.blocks.length) throw new Error('Add the customer wording first.');
   if (p.spec.imageOption !== 'none' && !p.uploads.photos.length) throw new Error(`The spec calls for ${mustOption('imageOptions', p.spec.imageOption).label}, but no photo is uploaded.`);
   const batchId = newId('b');
-  const presets: LayoutPresetId[] = Array.isArray(req.body?.presets) && req.body.presets.length ? req.body.presets : PRESETS.map((x) => x.id);
-  const records = presets.map((preset) => newConceptRecord(p, { preset, kind: 'concept', batchId }));
+  // Old clients cannot re-enable the retired variation or multiply paid requests.
+  const records = ACTIVE_PRESETS.map(({ id: preset }) => newConceptRecord(p, { preset, kind: 'concept', batchId }));
   await runStreamed(res, p, records);
 }));
 
@@ -430,8 +430,7 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   if (!c.hasImage) throw new Error('Wait for a finished image before editing it.');
   checkLimits(p.id);
   // Order changes (catalog, wording, layout) go through the layout so the proof and vector
-  // file follow. Catalog changes regenerate with the new swatches; wording and layout changes
-  // edit the current picture to the new layout drawing; image-only changes edit it in place.
+  // file follow. Every Fix edits the current picture; only order changes need a layout reference.
   const structural = changesOrder(plan);
   const previous = structural ? contentSnapshot(p) : undefined;
   // Plan and draw from the selected version, including when its order is older.

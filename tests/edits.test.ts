@@ -57,6 +57,22 @@ describe('layout adjustments', () => {
 });
 
 describe('offline planner for larger edits', () => {
+  it('keeps slight wording spacing deterministic even when the live planner is enabled', async () => {
+    const before = { mockAI: config.mockAI, openaiKey: config.openaiKey };
+    const p = await heritage();
+    create.mockClear();
+    Object.assign(config, { mockAI: false, openaiKey: 'offline-placeholder' });
+    try {
+      const plan = await planInstruction(p, { preset: 'statement' } as ConceptRecord, 'space out the wording just slightly so there is more room on the plaque');
+      expect(plan).toEqual({ kind: 'edit', restated: 'Spread the lines out by about 12%', layoutPatch: { spacing: 1.12 } });
+      expect(create).not.toHaveBeenCalled();
+      const wording = structuredClone(p.wording);
+      applyPlan(p, plan, 'statement');
+      expect(p.wording).toEqual(wording);
+      expect(p.layoutAdjust).toEqual({ statement: { spacing: 1.12 } });
+    } finally { Object.assign(config, before); }
+  });
+
   it.each([
     ['move the text up', { layoutPatch: { verticalOffset: -0.5 } }],
     ['make the text bigger', { layoutPatch: { textScale: 1.18 } }],

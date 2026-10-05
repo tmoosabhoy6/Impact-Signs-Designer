@@ -64,12 +64,12 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
             <StepBadge step="04" tone="light" />
             Concepts
           </h2>
-          <p className="mt-1 text-[13.5px] leading-snug text-white/60">Three production-realistic layouts. Add up to {MAX_PROOF_PAGES} to the proof: each one becomes its own page of one PDF, in the order you add them.</p>
+          <p className="mt-1 text-[13.5px] leading-snug text-white/60">Two layouts: Classic and Statement. Max quality at 1.5K (1536 px). Each selected image becomes its own proof page.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button disabled={blockers.length > 0} busy={running} onClick={() => runStream(`/projects/${p.id}/generate`, {})}>
             <Wand2 className="h-4 w-4" />
-            {concepts.length ? 'Generate 3 new concepts' : 'Generate 3 concepts'}
+            {concepts.length ? 'Generate 2 new concepts' : 'Generate 2 concepts'}
           </Button>
         </div>
       </div>
@@ -85,8 +85,8 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
       )}
       {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
 
-      <div className={`stagger mt-5 grid ${wide ? 'grid-cols-1 gap-6' : 'grid-cols-1 gap-6 @[560px]:grid-cols-3 @[560px]:gap-x-6 @[560px]:gap-y-3'}`}>
-        {catalog.presets.map((preset) => (
+      <div className={`stagger mt-5 grid ${wide ? 'grid-cols-1 gap-6' : 'grid-cols-1 gap-6 @[560px]:grid-cols-2 @[560px]:gap-x-6 @[560px]:gap-y-3'}`}>
+        {catalog.presets.filter((preset) => preset.active !== false).map((preset) => (
           <PresetColumn
             key={preset.id}
             preset={preset}
@@ -232,14 +232,14 @@ function PresetColumn({
                 onClick={() => setIndex(i)}
                 className={`h-6 min-w-6 rounded-[3px] px-1.5 font-mono text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-bronze ${c.id === current.id ? 'bg-white text-ink shadow-[0_2px_6px_-2px_rgba(0,0,0,0.6)]' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
                 aria-pressed={c.id === current.id}
-                title={c.kind === 'fix' ? `Fix: ${c.note}` : c.kind === 'regenerate' ? 'Regenerated' : 'Original'}
+                title={c.kind === 'fix' ? `Fix: ${c.instruction ?? c.note}` : c.kind === 'regenerate' ? 'Regenerated' : 'Original'}
               >
                 v{i + 1} · {c.plan?.kind === 'spec' ? 'spec' : c.plan?.kind === 'wording' ? 'wording' : c.plan?.kind === 'edit' || c.kind === 'fix' ? 'edit' : c.kind === 'regenerate' ? 'new' : 'original'}
               </button>
             ))}
             <span className="ml-auto font-mono text-[11px] text-white/40">{fmtUsd(current.costUsd)}</span>
           </div>
-          {(current.kind === 'fix' || current.plan?.kind === 'edit') && <p className="border-l-2 border-gold/60 pl-2 text-[12.5px] text-white/60">Fix: “{current.note}”</p>}
+          {(current.kind === 'fix' || current.plan?.kind === 'edit') && <p className="border-l-2 border-gold/60 pl-2 text-[12.5px] text-white/60">Fix: “{current.instruction ?? current.note}”</p>}
           {current.previous && current.plan && changesOrder(current.plan) && (
             <Button size="sm" variant="stage" disabled={running} onClick={() => onUndo(current)}>Undo order change</Button>
           )}
@@ -309,7 +309,7 @@ function PresetColumn({
                   Apply
                 </Button>
               </form>
-              <p className="text-[12px] text-white/50">Edits use this image’s original model at Max quality and 2K resolution.</p>
+              <p className="text-[12px] text-white/50">Edits change this image using your instruction, at Max quality and 1.5K resolution.</p>
               {planNote && <p id={`plan-${preset.id}`} role="status" className={`text-[12px] ${shownPlan?.kind === 'refuse' ? 'text-[#ffb3a6]' : 'text-white/65'}`}>{planNote}</p>}
               {shownPlan?.kind === 'refuse' && shownPlan.nearestOptions.length > 0 && (
                 <div className="flex flex-wrap gap-1.5" aria-label="Available alternatives">

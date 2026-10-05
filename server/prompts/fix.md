@@ -1,9 +1,11 @@
-EDIT MODE. Image 1 is the current photograph of this plaque. Image 2 is its flat layout drawing.
-Make this change, fully and clearly visible, even if it is a large one: {{instruction}}
-- Do what the change asks, not a token version of it. Moving, resizing, re-spacing or restyling the elements it names is allowed; for the explicitly requested change, the designer’s instruction overrides any conflicting default rule below. This applies to appearance, material, logo treatment, layout, lettering, or a complete redesign. Unmentioned details stay protected.
-- Everything the change does not name stays as it is: the framing (the plaque still fills the image edge to edge), camera angle and lighting, and the finish, paint, texture, border, image and logo.
-- The plaque is still the same real cast plaque: raised metal, recessed painted field, photographed straight on.
+EDIT THE EXISTING IMAGE. Image 1 is the selected plaque photograph and the source to edit.
+The designer's exact instruction is:
+{{instruction}}
 
+Make only the requested change to Image 1. Preserve everything else. Do not create a fresh concept or redesign the plaque unless the instruction explicitly asks for that.
+Respect the requested degree of change: "slightly", "a little" or "just" means a small, restrained adjustment, not a dramatic change. Do not enlarge the scope to make the edit more obvious.
+Keep all unmentioned wording, fonts, text sizes, line breaks, positions, photo and logo artwork, border, finish, paint, texture, lighting, camera angle and framing as they appear in Image 1. When changing spacing, change only the requested gaps; do not rewrite, restyle or reorder the text.
+The designer's instruction overrides any conflicting preservation rule only for the change it explicitly requests.
 {{layoutNote}}
-Unless the designer explicitly requests a wording change, every word and letter must read exactly:
+Unless explicitly changed by the instruction, reproduce this customer wording character for character (lettering embedded in logos must also be preserved):
 {{text}}

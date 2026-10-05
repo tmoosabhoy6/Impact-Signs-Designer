@@ -14,7 +14,7 @@ export const config = {
   /** Reads designer Fix instructions into a checked plan (falls back to the vision model). */
   plannerModel: process.env.OPENAI_PLANNER_MODEL || 'gpt-5.4',
   imageQuality: 'max' as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
-  imageLongEdge: 2560,
+  imageLongEdge: 1536,
   appPassword: process.env.APP_PASSWORD ?? '',
   /** Supabase project holding the sign-in accounts (username + password). */
   supabaseUrl: (process.env.SUPABASE_URL ?? '').replace(/\/+$/, ''),
@@ -25,7 +25,7 @@ export const config = {
   dataDir: path.resolve(ROOT, process.env.DATA_DIR || './data-store'),
   mockAI: process.env.MOCK_AI === '1',
   /** Image renders running at once across ALL users. Each one holds several large pictures in memory, so a small server needs a low number. */
-  maxParallelImages: Math.max(1, Math.floor(num(process.env.MAX_PARALLEL_IMAGES, 2))),
+  maxParallelImages: Math.min(2, Math.max(1, Math.floor(num(process.env.MAX_PARALLEL_IMAGES, 2)))),
   maxImageCallsPerProject: num(process.env.MAX_IMAGE_CALLS_PER_PROJECT, 40),
   dailyBudgetUsd: num(process.env.DAILY_BUDGET_USD, 40),
   prices: {
