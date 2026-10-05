@@ -9,15 +9,31 @@ import type { ConceptRecord, OutputRecord, Project } from '../shared/types.js';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
 export const db = new Database(path.join(config.dataDir, 'studio.db'));
-db.pragma('journal_mode = WAL');
-db.exec(`
+
+/**
+ * Switching a fresh database to WAL needs a moment of exclusive access, and SQLite answers
+ * "database is locked" at once (without waiting) if another connection opens it at the same
+ * time, e.g. parallel test workers. Retry briefly instead of failing.
+ */
+function whenUnlocked<T>(run: () => T): T {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return run();
+    } catch (e) {
+      if ((e as { code?: string }).code !== 'SQLITE_BUSY' || attempt >= 50) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+}
+whenUnlocked(() => db.pragma('journal_mode = WAL'));
+whenUnlocked(() => db.exec(`
 CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS concepts (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS outputs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS spend (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, usd REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS concepts_project ON concepts(project_id);
 CREATE INDEX IF NOT EXISTS outputs_project ON outputs(project_id);
-`);
+`));
 
 export const newId = (prefix: string) => `${prefix}_${crypto.randomBytes(6).toString('hex')}`;
 export const now = () => new Date().toISOString();

@@ -77,11 +77,12 @@ describe('username and password sign-in (Supabase accounts)', () => {
 
   it('rejects a cookie from the older shared-password sign-in', async () => {
     const supabaseCookie = await signIn('Taher', 'test-pass-1');
+    const teamPassword = config.appPassword;
     config.supabaseUrl = '';
     config.appPassword = 'team';
     const teamCookie = (await realFetch(`${base}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Taher', password: 'team' }) })).headers.get('set-cookie')!.split(';')[0];
     config.supabaseUrl = SUPABASE;
-    config.appPassword = '';
+    config.appPassword = teamPassword;
     expect((await get('/projects', teamCookie)).status).toBe(401);
     expect((await get('/projects', supabaseCookie)).status).toBe(200);
   });

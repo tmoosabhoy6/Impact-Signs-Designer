@@ -167,11 +167,14 @@ describe('fix route with larger edits (demo mode)', () => {
     base = `http://127.0.0.1:${address.port}/api`;
     const login = await fetch(`${base}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Test', password: config.appPassword }) });
     cookie = login.headers.get('set-cookie')!.split(';')[0];
+    ownerId = (await (await fetch(`${base}/me`, { headers: { Cookie: cookie } })).json()).user.id;
   });
   afterAll(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
   const post = (url: string, body = {}) => fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(body) });
+  /** The signed-in test user's id: fixture jobs belong to them, as real jobs do. */
+  let ownerId: string;
   async function fixture() {
-    const p = await createExampleJob('32241-edwin-feulner', 'Test');
+    const p = await createExampleJob('32241-edwin-feulner', 'Test', ownerId);
     const c = newConceptRecord(p, { preset: 'classic', kind: 'concept', batchId: newId('b'), status: 'done', hasImage: true });
     saveConcept(c);
     const dir = (await import('../server/ai/pipeline')).conceptFile(c, 'image.png');
