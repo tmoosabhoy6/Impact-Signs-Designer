@@ -1,16 +1,18 @@
 // Description-sheet proof: the one proof style the studio makes.
 // Measured on the real Awe, Raccoon River, Sax-Zim Bog and Hadar Family Hall proofs:
-//  - header: 3 lines of Helvetica 17.9 pt at baselines 21.1 / 42.4 / 63.7, x = 8.6;
-//    "ORDER# n" Myriad Bold 20.5 pt right-aligned to 776.4 (baseline 43.9), "VERSION n" in red;
+//  - "ORDER# n" Myriad Bold 20.5 pt right-aligned to 776.4 (baseline 43.9), "VERSION n" in red;
 //    grey rule 70.8–72.0
-//  - plaque left: box 32–477 x 101–557 (true size when it fits), blue #1A6EA6 0.22 pt
-//    dimension lines with arrowheads and decimal labels (6.00”)
-//  - captioned option tiles top-right
+//  - plaque: blue #1A6EA6 0.22 pt dimension lines with arrowheads and decimal labels (6.00”)
+//  - captioned option tiles
 //  - footer: navy rule 572.2–573.4 full width, centered impactsigns.com wordmark
-// The real proofs put a "Visual Scale" figure (a 6 ft person, or the site photo) bottom-right.
-// That panel is no longer made. The plaque keeps its measured size; when the description
-// does not fit the three header lines at full size, it is set in the freed bottom-right area
-// instead, at the same type size wherever it fits.
+// Page arrangement (a deliberate departure from the real proofs, which put the description in a
+// three-line header across the top and a Visual Scale figure bottom-right; neither is made now):
+//  - left: the plaque (and its width and height lines) takes the whole page height down to the
+//    navy rule, true size when it fits; the width label keeps a gap under the page top and the
+//    height line keeps a gap above the navy rule
+//  - top right: ORDER# / VERSION where they always were, then the description from y = 82
+//  - bottom right: the option tiles (and the Font line), in the same arrangement as before,
+//    resting just above the navy rule
 import fs from 'node:fs';
 import sharp from 'sharp';
 import { degrees, type PDFFont } from 'pdf-lib';
@@ -24,33 +26,25 @@ import {
 import { autoDescription, finishPhrase, materialPhrase, mountingPhrase } from './description-text.js';
 
 const inch = (v: number) => `${+v.toFixed(3)}”`;
-const HEADER_SIZE = 17.9;
-const HEADER_PITCH = 21.3;
+/** Description type size (17.9 pt, as in the measured header); lines are set at 1.19 × the size. */
+const DESC_SIZE = 17.9;
+/** Where the right-hand column starts under ORDER#; tiles and description both begin here. */
+const COLUMN_TOP = 82;
+/** The bottom of the left plaque and the right-hand tile block: clear of the navy rule at 572.2. */
+const CONTENT_BOTTOM = 556;
 
-/** The plaque box of the real proofs with a right-hand panel: true size when it fits, centered at (254.6, 318). */
+/**
+ * The plaque box: true size when it fits, in the left column, x 32–477 and y 40–556.
+ * The width line sits 14 pt above the plaque and its 22 pt label rises ~8.5 pt above that line,
+ * so the label stays ~17 pt under the page top; the height line ends at the plaque's bottom edge,
+ * ~16 pt above the navy footer rule (572.2).
+ */
 export function descriptionPlaqueRect(widthIn: number, heightIn: number) {
-  const box = { cx: 254.6, cy: 329, maxW: 444, maxH: 456 };
+  const box = { cx: 254.6, cy: 298, maxW: 444, maxH: 516 };
   const s = Math.min(72, box.maxW / widthIn, box.maxH / heightIn);
   const w = widthIn * s;
   const h = heightIn * s;
   return { x: box.cx - w / 2, y: box.cy - h / 2, w, h, scale: s };
-}
-
-/** The header may step down this far to hold three lines, as the real proofs do; below it the description moves aside. */
-const HEADER_MIN_SIZE = 14;
-
-/** Where the description goes: the measured three-line header when it fits, else the bottom-right area. */
-export function descriptionPlacement(font: PDFFont, description: string, orderWidth: number): { where: 'header' | 'aside'; lines: string[]; orderLine: number; size: number } {
-  for (let size = HEADER_SIZE; size >= HEADER_MIN_SIZE - 1e-9; size -= 0.4) {
-    const lines = description.split('\n').flatMap((para) => wrap(font, para, size, 778));
-    if (lines.length > 3) continue;
-    const widths = lines.map((l) => font.widthOfTextAtSize(l, size));
-    // ORDER# sits at the right end of whichever of lines 2-3 is shorter.
-    const candidates = [1, 2].filter((i) => i < lines.length || i === lines.length);
-    const orderLine = candidates.reduce((a, b) => ((widths[b] ?? 0) < (widths[a] ?? 0) ? b : a), candidates[0]);
-    if ((widths[orderLine] ?? 0) + orderWidth + 18 <= 778) return { where: 'header', lines, orderLine, size };
-  }
-  return { where: 'aside', lines: [], orderLine: 1, size: HEADER_SIZE };
 }
 
 interface Tile {
@@ -90,24 +84,20 @@ export async function buildDescriptionProof(input: ProofInput): Promise<Buffer> 
   const { doc, fonts } = await newProofDoc(`Proof - ${input.jobNumber}`, JSON.stringify(spec));
   const page = doc.addPage([PAGE.w, PAGE.h]);
 
-  // ---- Header ----
+  // ---- ORDER# / VERSION (the grey rule under them is drawn once the right column's left edge is known) ----
   const description = (input.description?.trim() || autoDescription(spec, input.wording, { fontStated: input.fontStated, photoCount: input.layout?.imageFrames.length, logoCount: input.layout?.logos.length })).replace(/\r/g, '');
   const order = `ORDER# ${input.jobNumber}`;
   const version = input.version > 1 ? `VERSION ${input.version}` : '';
   const orderW = fonts.labelBold.widthOfTextAtSize(order, 20.5) + (version ? fonts.labelBold.widthOfTextAtSize(` ${version}`, 20.5) : 0);
-  const placement = descriptionPlacement(fonts.helv, description, orderW);
-  if (placement.where === 'header') placement.lines.forEach((l, i) => text(page, fonts.helv, l, 8.6, 21.1 + i * HEADER_PITCH, placement.size));
-  const orderBaseline = 21.1 + placement.orderLine * HEADER_PITCH + 1.4;
+  const orderBaseline = 43.9;
   const ox = 776.4 - orderW;
   text(page, fonts.labelBold, order, ox, orderBaseline, 20.5);
   if (version) text(page, fonts.labelBold, ` ${version}`, ox + fonts.labelBold.widthOfTextAtSize(order, 20.5), orderBaseline, 20.5, COLORS.red);
-  page.drawRectangle({ x: 2.1, y: Y(72.0), width: 789.6, height: 1.2, color: COLORS.grey });
 
   // ---- Plaque + blue dimensions ----
   const r = descriptionPlaqueRect(spec.widthIn, spec.heightIn);
   const plaque = await plaqueJpg(doc, input.plaqueImage, r.w, r.h);
   page.drawImage(plaque, { x: r.x, y: Y(r.y + r.h), width: r.w, height: r.h });
-  // The width line sits well below the header rule (grey, 72-73.2) so its label never touches the header text.
   // A label too long for a short span is stepped down until it fits between the arrows.
   const DIM_SIZE = 22;
   const DIM_GAP = 5; // line to label
@@ -208,34 +198,43 @@ export async function buildDescriptionProof(input: ProofInput): Promise<Buffer> 
   const x0 = Math.max(r.x + r.w + 24, 425, callout ? r.x + r.w + 84 : 0);
   const cols = tiles.length >= 5 ? 3 : 2;
   const cw = (781 - x0) / cols;
+  const CAP = 7.6;
+  const ROW_Y = [0, 114]; // tile rows, from the top of the tile block
+  const ROW_IMG_H = [76, 70];
+  const FONT_Y = 218; // baseline of the Font line, from the top of the tile block
+
+  // The tile block rests on the bottom edge: measure it, then place its top.
+  const rowCount = Math.ceil(tiles.length / cols);
+  const lastRow = rowCount - 1;
+  const lastRowLines = Math.max(1, ...tiles.slice(lastRow * cols).map((t) => t.caption.flatMap((c) => wrap(fonts.helv, c, CAP, cw - 4)).length));
+  const lastRowBottom = ROW_Y[lastRow] + ROW_IMG_H[lastRow] + CAP + 3 + (lastRowLines - 1) * CAP * 1.18 + 2;
+  const blockH = showFont ? Math.max(lastRowBottom, FONT_Y + 3) : lastRowBottom;
+  const blockTop = CONTENT_BOTTOM - blockH;
   for (let i = 0; i < tiles.length; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
-    await drawTile(tiles[i], x0 + col * cw, row === 0 ? 82 : 196, cw, row === 0 ? 76 : 70, 7.6);
+    await drawTile(tiles[i], x0 + col * cw, blockTop + ROW_Y[row], cw, ROW_IMG_H[row], CAP);
   }
   if (showFont) {
     const label = 'Font: ';
     const lw = fonts.helv.widthOfTextAtSize(label, 12.4);
     const nw = fontFace.widthOfTextAtSize(fontLabel(spec), 12.4);
     const fx = x0 + (781 - x0) / 2 - (lw + nw) / 2;
-    text(page, fonts.helv, label, fx, 300, 12.4);
-    text(page, fontFace, fontLabel(spec), fx + lw, 300, 12.4);
+    text(page, fonts.helv, label, fx, blockTop + FONT_Y, 12.4);
+    text(page, fontFace, fontLabel(spec), fx + lw, blockTop + FONT_Y, 12.4);
   }
 
-  // ---- Description aside (bottom right, where the real proofs put the scale figure) ----
-  if (placement.where === 'aside') {
-    // Clear of the red callout at the plaque's right edge.
-    const ax = Math.max(x0, callout ? r.x + r.w + 84 : 0);
-    const aside = { x: ax, y: 324, w: 781 - ax, h: 556 - 324 };
-    let size = HEADER_SIZE;
-    let lines: string[] = [];
-    // Same type size as the header wherever it fits; otherwise the smallest step down that does.
-    for (; size >= 9; size -= 0.4) {
-      lines = description.split('\n').flatMap((para) => wrap(fonts.helv, para, size, aside.w));
-      if (lines.length * size * 1.19 <= aside.h) break;
-    }
-    lines.forEach((l, i) => text(page, fonts.helv, l, aside.x, aside.y + size + i * size * 1.19, size));
+  // ---- Description (top right, under ORDER#, where the tiles used to be) ----
+  page.drawRectangle({ x: x0, y: Y(72.0), width: 781 - x0, height: 1.2, color: COLORS.grey });
+  // Full header size wherever it fits the space above the tiles; otherwise the smallest step down that does.
+  const descBottom = blockTop - 14;
+  let size = DESC_SIZE;
+  let lines: string[] = [];
+  for (; size >= 7; size -= 0.4) {
+    lines = description.split('\n').flatMap((para) => wrap(fonts.helv, para, size, 781 - x0));
+    if (COLUMN_TOP + size + (lines.length - 1) * size * 1.19 <= descBottom) break;
   }
+  lines.forEach((l, i) => text(page, fonts.helv, l, x0, COLUMN_TOP + size + i * size * 1.19, size));
 
   // ---- Footer ----
   page.drawRectangle({ x: 0.3, y: Y(573.4), width: 791.2, height: 1.2, color: COLORS.navy });

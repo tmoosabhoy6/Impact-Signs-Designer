@@ -211,14 +211,19 @@ describe('proof styles', () => {
     });
   }
 
-  it('description sheet keeps the width arrows and label below the header rule, for any plaque size', () => {
-    // Header rule is at 72-73.2 pt; the width line sits 14 pt above the plaque and its 22 pt label (centered on the line) rises ~8.5 pt above it.
+  it('description sheet keeps a gap above the width label and above the navy rule, for any plaque size', () => {
+    // The plaque fills the left column from the page top to the navy footer rule (572.2 pt). The width line sits
+    // 14 pt above the plaque and its 22 pt label (centered on the line) rises ~8.5 pt above it; the height line
+    // ends at the plaque's bottom edge.
     for (const [w, h] of [[12, 16], [18, 24], [6, 4], [2, 8], [40, 10], [3, 40], [42, 36]]) {
       const r = descriptionPlaqueRect(w, h);
-      expect(r.y - 14 - 8.5, `${w}x${h} label top`).toBeGreaterThan(77);
-      expect(r.y + r.h, `${w}x${h} bottom`).toBeLessThan(560);
+      expect(r.y - 14 - 8.5, `${w}x${h} label top`).toBeGreaterThanOrEqual(15);
+      expect(572.2 - (r.y + r.h), `${w}x${h} gap to navy rule`).toBeGreaterThanOrEqual(15);
       expect(r.x - 17.5 - 9, `${w}x${h} left label`).toBeGreaterThan(4);
     }
+    // A tall plaque uses the whole height.
+    const tall = descriptionPlaqueRect(12, 24);
+    expect(tall.h).toBeCloseTo(516, 3);
   });
 
   it('still builds when an icon is missing from the asset library', async () => {
