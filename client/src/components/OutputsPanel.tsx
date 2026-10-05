@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, CheckCircle2, Download, ExternalLink, FileCheck2, FileCog, AlertTriangle, X, XCircle } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Download, ExternalLink, FileCheck2, FileCog, AlertTriangle, X, XCircle } from 'lucide-react';
 import { api, conceptUrl, type ProjectPayload } from '../api';
 import { assetUrl, type Catalog } from '../catalog';
-import { Button, Notice, Panel } from './ui';
+import { Button, EmptyState, Notice, Panel } from './ui';
 import { conceptTag, outputTag, useMakeOutput, WordingCheckWarning } from './outputs';
 import type { ConceptRecord, OutputRecord } from '../../../shared/types';
 import { MAX_PROOF_PAGES } from '../../../shared/proof';
@@ -23,11 +23,13 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
 
   return (
     <div>
-      <Panel step="05" title="Customer proof">
+      <Panel step="05" title="Customer proof" busy={busy === 'proof'}>
         {pages.length ? (
           <ProofPages pages={pages} data={data} catalog={catalog} onChange={onChange} finish={finish} paint={paint} />
         ) : (
-          <p className="text-[13px] text-muted">Press “Use this one” under a concept, then “Add as page 2” (and 3) under others. Each image becomes its own page of one proof PDF, in the order you add them.</p>
+          <EmptyState icon={<FileCheck2 className="h-5 w-5" />} title="Nothing on the proof yet" className="rounded-[3px] border border-dashed border-line py-7">
+            Press “Use this one” under a concept, then “Add as page 2” (and 3) under others. Each image becomes its own page of one proof PDF, in the order you add them.
+          </EmptyState>
         )}
         <ProofSettings data={data} catalog={catalog} onChange={onChange} />
         <Button className="mt-3 w-full" disabled={!selected} busy={busy === 'proof'} onClick={() => makeProof()}>
@@ -38,8 +40,8 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
         <OutputList outputs={proofs} concepts={data.concepts} catalog={catalog} />
       </Panel>
 
-      <Panel step="06" title="Vector production PDF">
-        <p className="text-[13px] text-muted">
+      <Panel step="06" title="Vector production PDF" busy={busy === 'production'}>
+        <p className="text-[13.5px] leading-relaxed text-muted">
           One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of {pages.length > 1 ? 'page 1 of the proof' : 'the concept on the proof'}{selected ? ` (${conceptTag(selected, data.concepts, catalog)})` : ''}.
         </p>
         <Button className="mt-3 w-full" variant="secondary" disabled={!p.spec || !p.wording?.blocks.length} busy={busy === 'production'} onClick={makeProduction}>
@@ -82,15 +84,15 @@ function ProofPages({ pages, data, catalog, onChange, finish, paint }: Props & {
     [ids[i], ids[i + by]] = [ids[i + by]!, ids[i]!];
     send({ order: ids });
   };
-  const iconButton = 'grid h-7 w-7 place-items-center rounded-[3px] border border-line text-graphite hover:border-navy/50 hover:text-navy disabled:opacity-30 disabled:hover:border-line disabled:hover:text-graphite';
+  const iconButton = 'grid h-7 w-7 place-items-center rounded-[3px] border border-line bg-white text-graphite hover:border-navy/50 hover:text-navy hover:shadow-card disabled:opacity-30 disabled:shadow-none disabled:hover:border-line disabled:hover:text-graphite';
   return (
     <div>
       <div className="label">{pages.length > 1 ? `On the proof · ${pages.length} pages` : 'On the proof'}</div>
-      <ol className="mt-1.5 space-y-2">
+      <ol className="stagger mt-1.5 space-y-2">
         {pages.map((c, i) => (
-          <li key={c.id} className="fade-in flex items-center gap-2.5 border border-line p-2">
+          <li key={c.id} className="flex items-center gap-2.5 rounded-[3px] border border-line bg-white p-2 shadow-card transition-[box-shadow,border-color] hover:border-navy/30 hover:shadow-card-hover">
             <div className="relative shrink-0">
-              <img src={conceptUrl(c, 'preview.jpg')} alt={`Page ${i + 1}`} className="h-16 w-auto max-w-[72px] bg-stage object-contain" />
+              <img src={conceptUrl(c, 'preview.jpg')} alt={`Page ${i + 1}`} className="h-16 w-auto max-w-[72px] rounded-[2px] bg-stage object-contain shadow-[0_6px_14px_-8px_rgba(0,0,0,0.7)]" />
               <span className="absolute -top-1.5 -left-1.5 grid h-5 w-5 place-items-center rounded-full bg-navy font-mono text-[11px] font-semibold text-white ring-2 ring-white" aria-hidden>{i + 1}</span>
             </div>
             <div className="min-w-0 flex-1">
@@ -111,17 +113,17 @@ function ProofPages({ pages, data, catalog, onChange, finish, paint }: Props & {
       </ol>
       {error && <div className="mt-2"><Notice tone="error">{error}</Notice></div>}
       {(finish || paint) && (
-        <div className="mt-2.5 space-y-1.5 text-[13px]">
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
           {finish && (
             <div className="flex items-center gap-2">
-              {finish.asset && <img src={assetUrl(finish.asset)} alt="" className="h-7 w-7 border border-line object-cover" />}
-              <span>{finish.proofLabel ?? finish.label}</span>
+              {finish.asset && <img src={assetUrl(finish.asset)} alt="" className="h-7 w-7 rounded-[2px] border border-line object-cover shadow-card" />}
+              <span className="text-ink">{finish.proofLabel ?? finish.label}</span>
             </div>
           )}
           {paint && (
             <div className="flex items-center gap-2">
-              {paint.asset ? <img src={assetUrl(paint.asset)} alt="" className="h-7 w-7 border border-line object-cover" /> : <span className="h-7 w-7 border border-line" style={{ background: paint.hex }} />}
-              <span>{paint.label} · Paint Fill</span>
+              {paint.asset ? <img src={assetUrl(paint.asset)} alt="" className="h-7 w-7 rounded-[2px] border border-line object-cover shadow-card" /> : <span className="h-7 w-7 rounded-[2px] border border-line shadow-card" style={{ background: paint.hex }} />}
+              <span className="text-ink">{paint.label} · Paint Fill</span>
             </div>
           )}
         </div>
@@ -158,7 +160,7 @@ function ProofSettings({ data, onChange }: Props) {
           )}
         </span>
         <textarea
-          className="mt-1 h-28 w-full resize-y rounded-[3px] border border-line px-2 py-1.5 text-[13px] leading-snug outline-none transition-colors focus:border-navy"
+          className="mt-1.5 h-28 w-full resize-y rounded-[3px] border border-line px-2.5 py-2 text-[13.5px] leading-snug outline-none transition-colors focus:border-navy"
           value={desc || data.autoDescription || ''}
           onChange={(e) => setDesc(e.target.value)}
           onBlur={() => desc && desc !== (p.proofDescription ?? '') && desc !== data.autoDescription && save({ proofDescription: desc })}
@@ -169,7 +171,7 @@ function ProofSettings({ data, onChange }: Props) {
       <label className="block">
         <span className="label">Red note under the plaque (optional)</span>
         <textarea
-          className="mt-1 h-14 w-full resize-y rounded-[3px] border border-line px-2 py-1.5 text-[13px] leading-snug outline-none transition-colors focus:border-navy"
+          className="mt-1.5 h-14 w-full resize-y rounded-[3px] border border-line px-2.5 py-2 text-[13.5px] leading-snug outline-none transition-colors focus:border-navy"
           placeholder="Note: Small letters are currently at minimum required height (1/4’’)"
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -186,7 +188,7 @@ function OutputList({ outputs, concepts, catalog }: { outputs: OutputRecord[]; c
   if (!outputs.length) return null;
   const seen = new Set<string>();
   return (
-    <ul className="mt-4 space-y-3">
+    <ul className="stagger mt-4 space-y-3">
       {outputs.map((o, i) => {
         const layout = o.presets?.join('+') ?? o.preset ?? concepts.find((c) => c.id === o.conceptId)?.preset ?? '';
         const latest = !seen.has(layout);
@@ -203,23 +205,26 @@ function OutputItem({ o, tag, latest, open: openFirst }: { o: OutputRecord; tag:
   const pageCount = o.conceptIds?.length ?? 1;
   const [page, setPage] = useState(1);
   return (
-    <li className="border border-line">
-      <button className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left" onClick={() => setOpen(!open)}>
+    <li className={`rounded-[3px] border bg-white transition-[box-shadow,border-color] ${open ? 'border-navy/30 shadow-card' : 'border-line hover:border-navy/30'}`}>
+      <button className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left" onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className="min-w-0">
-          <span className="block truncate text-[13px] font-medium">{o.fileName}</span>
+          <span className="block truncate text-[13.5px] font-medium text-ink">{o.fileName}</span>
           <span className="font-mono text-[11px] text-muted">
             {pageCount > 1 && <span className="mr-1.5 font-display font-semibold uppercase tracking-wider text-navy">{pageCount} pages</span>}
             {tag && <span className="mr-1.5 font-display font-semibold uppercase tracking-wider text-graphite">From {tag}</span>}
             {new Date(o.createdAt).toLocaleString()}
           </span>
         </span>
-        {latest && <span className="shrink-0 font-display text-[11px] font-semibold uppercase tracking-wider text-navy">Latest</span>}
+        <span className="flex shrink-0 items-center gap-2">
+          {latest && <span className="rounded-[3px] bg-navy-50 px-1.5 py-[1px] font-display text-[11px] font-semibold uppercase tracking-wider text-navy">Latest</span>}
+          <ChevronDown className="chev h-4 w-4 text-muted" aria-hidden />
+        </span>
       </button>
       {open && (
-        <div className="space-y-2 border-t border-line p-3">
+        <div className="fade-in space-y-2.5 border-t border-line p-3">
           {previewOk && (
-            <a href={`/api/outputs/${o.id}/download?inline=1`} target="_blank" rel="noreferrer" className="block bg-paper">
-              <img key={page} src={`/api/outputs/${o.id}/preview.png${page > 1 ? `?page=${page}` : ''}`} alt={`${o.fileName} preview, page ${page}`} className="mx-auto max-h-72 object-contain" onError={() => setPreviewOk(false)} />
+            <a href={`/api/outputs/${o.id}/download?inline=1`} target="_blank" rel="noreferrer" className="group block overflow-hidden rounded-[2px] border border-line bg-paper p-2 transition-colors hover:border-navy/40">
+              <img key={page} src={`/api/outputs/${o.id}/preview.png${page > 1 ? `?page=${page}` : ''}`} alt={`${o.fileName} preview, page ${page}`} className="fade-in mx-auto max-h-72 object-contain shadow-[0_10px_24px_-14px_rgba(31,38,64,0.5)] transition-transform duration-300 group-hover:scale-[1.01]" onError={() => setPreviewOk(false)} />
             </a>
           )}
           {previewOk && pageCount > 1 && (
@@ -250,10 +255,10 @@ function OutputItem({ o, tag, latest, open: openFirst }: { o: OutputRecord; tag:
             </ul>
           )}
           <div className="flex gap-2">
-            <a href={`/api/outputs/${o.id}/download`} className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[3px] bg-navy px-3 font-display text-[13px] font-semibold tracking-wide text-white hover:bg-navy-700">
+            <a href={`/api/outputs/${o.id}/download`} className="btn-primary inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-[3px] bg-navy px-3 font-display text-[13px] font-semibold tracking-wide text-white transition-[transform,box-shadow,background-color] duration-150 hover:bg-navy-700">
               <Download className="h-3.5 w-3.5" /> Download
             </a>
-            <a href={`/api/outputs/${o.id}/download?inline=1`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[3px] border border-line px-3 font-display text-[13px] font-semibold tracking-wide text-ink hover:border-navy/50 hover:text-navy">
+            <a href={`/api/outputs/${o.id}/download?inline=1`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[3px] border border-line bg-white px-3 font-display text-[13px] font-semibold tracking-wide text-ink transition-colors hover:border-navy/50 hover:text-navy">
               <ExternalLink className="h-3.5 w-3.5" /> Open
             </a>
           </div>

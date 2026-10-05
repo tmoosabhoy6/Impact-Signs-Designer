@@ -23,14 +23,15 @@ function StepTracker({ data }: { data: ProjectPayload }) {
       {steps.map((s, i) => (
         <li key={s.label} className="flex items-center gap-1">
           <span
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-[3px] px-2 py-1 font-display text-[12px] font-semibold uppercase tracking-wider transition-colors duration-300 ${
-              s.done ? 'text-ok' : i === current ? 'bg-navy text-white' : 'text-muted'
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-[3px] px-2 py-1 font-display text-[12px] font-semibold uppercase tracking-wider transition-[background-color,color,box-shadow] duration-300 ${
+              s.done ? 'text-ok' : i === current ? 'bg-navy text-white shadow-[0_4px_10px_-6px_rgba(31,38,64,0.6)]' : 'text-muted'
             }`}
+            aria-current={i === current ? 'step' : undefined}
           >
-            {s.done ? <Check className="h-3.5 w-3.5" /> : <span className="font-mono">{String(i + 1).padStart(2, '0')}</span>}
+            {s.done ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : <span className="font-mono">{String(i + 1).padStart(2, '0')}</span>}
             {s.label}
           </span>
-          {i < steps.length - 1 && <span className="h-px w-4 bg-line" />}
+          {i < steps.length - 1 && <span className={`step-link ${s.done ? 'is-done' : ''}`} />}
         </li>
       ))}
     </ol>
@@ -159,7 +160,7 @@ export function Workspace({ projectId, me }: { projectId: string; me: Me }) {
 
   if (error && !data)
     return (
-      <div className="min-h-full">
+      <div className="blueprint min-h-full">
         <TopBar me={me} />
         <div className="mx-auto max-w-lg p-8">
           <Notice tone="error">{error}</Notice>
@@ -168,9 +169,10 @@ export function Workspace({ projectId, me }: { projectId: string; me: Me }) {
     );
   if (!data || !catalog)
     return (
-      <div className="min-h-full">
+      <div className="blueprint min-h-full">
         <TopBar me={me} />
-        <div className="flex items-center gap-2 p-8 text-muted">
+        <div className="progress" aria-hidden />
+        <div className="fade-in flex items-center gap-2 p-8 text-muted">
           <Spinner /> Opening job
         </div>
       </div>
@@ -189,8 +191,9 @@ function Loaded({ data, catalog, me, setData, reload, stageRef }: { data: Projec
         center={
           <div className="flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-baseline gap-3">
+              <span className="hidden h-5 w-px bg-line sm:block" />
               <span className="font-mono text-[15px] font-medium text-navy">{p.jobNumber || 'No number'}</span>
-              <span className="truncate font-medium">{p.name}</span>
+              <span className="truncate text-[15px] font-medium text-ink">{p.name}</span>
             </div>
             <StepTracker data={data} />
           </div>
@@ -201,7 +204,7 @@ function Loaded({ data, catalog, me, setData, reload, stageRef }: { data: Projec
         className={`workspace-grid grid flex-1 grid-cols-1 lg:min-h-0 ${dragging ? 'is-dragging' : ''}`}
         style={desktop ? { gridTemplateColumns: `${widths.left}px 7px minmax(0,1fr) 7px ${widths.right}px` } : undefined}
       >
-        <aside className="order-2 min-w-0 border-r border-line bg-white lg:order-1 lg:min-h-0 lg:overflow-y-auto">
+        <aside className="rise order-2 min-w-0 border-r border-line bg-white lg:order-1 lg:min-h-0 lg:overflow-y-auto">
           <OrderPanel data={data} catalog={catalog} onChange={setData} />
         </aside>
         <Handle side="left" onDrag={startDrag('left')} onReset={reset} active={dragging === 'left'} />
@@ -209,7 +212,7 @@ function Loaded({ data, catalog, me, setData, reload, stageRef }: { data: Projec
           <ConceptStage data={data} catalog={catalog} onChange={setData} reload={reload} />
         </main>
         <Handle side="right" onDrag={startDrag('right')} onReset={reset} active={dragging === 'right'} />
-        <aside className="order-3 min-w-0 border-l border-line bg-white lg:order-5 lg:min-h-0 lg:overflow-y-auto">
+        <aside className="rise order-3 min-w-0 border-l border-line bg-white lg:order-5 lg:min-h-0 lg:overflow-y-auto" style={{ animationDelay: '80ms' }}>
           <OutputsPanel data={data} catalog={catalog} onChange={setData} />
         </aside>
       </div>

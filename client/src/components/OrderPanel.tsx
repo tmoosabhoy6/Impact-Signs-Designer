@@ -48,7 +48,7 @@ function SpecSection({ data, catalog, onChange }: Props) {
       <label className="block">
         <span className="label">Paste the order specification</span>
         <textarea
-          className="mt-1 h-32 w-full resize-y rounded-[3px] border border-line px-3 py-2 font-mono text-[12.5px] leading-relaxed outline-none focus:border-navy"
+          className="mt-1.5 h-32 w-full resize-y rounded-[3px] border border-line px-3 py-2 font-mono text-[12.5px] leading-relaxed outline-none focus:border-navy"
           placeholder={SAMPLE_SPEC}
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -73,12 +73,12 @@ function SpecSection({ data, catalog, onChange }: Props) {
         >
           Read specification
         </Button>
-        {p.spec && text !== p.specText && <span className="text-[12px] text-amber">Text changed: read again to update</span>}
+        {p.spec && text !== p.specText && <span className="fade-in text-[12.5px] font-medium text-amber">Text changed: read again to update</span>}
       </div>
       {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
 
       {p.spec && (
-        <div className="mt-4">
+        <div className="rise mt-5 border-t border-line pt-4">
           <div className="label mb-1 flex items-center justify-between">
             <span>What the app understood</span>
             {assumed.size > 0 && <Chip tone="amber">{assumed.size} assumed</Chip>}
@@ -113,7 +113,7 @@ function SpecSection({ data, catalog, onChange }: Props) {
                     )}
                     <select
                       aria-label={f.label}
-                      className={`h-8 max-w-[170px] rounded-[3px] border bg-white px-1.5 text-[13px] outline-none focus:border-navy ${assumed.has(f.key) ? 'border-amber/50' : 'border-line'}`}
+                      className={`h-8 max-w-[170px] rounded-[3px] border bg-white px-1.5 text-[13px] outline-none focus:border-navy ${assumed.has(f.key) ? 'border-amber/50 bg-amber-50/40' : 'border-line'}`}
                       value={value}
                       onChange={(e) => {
                         const patch = { [f.key]: e.target.value } as Partial<PlaqueSpec>;
@@ -255,7 +255,7 @@ function SizeInput({ value, onCommit, label }: { value: number; onCommit: (v: nu
 function ImageMarker({ index, count, photos, onMove }: { index: number; count: number; photos: number; onMove: (to: number | null) => void }) {
   const what = photos > 1 ? `the ${photos} photos` : 'the photo';
   return (
-    <div className="my-1 flex items-center gap-2 rounded-[3px] border border-dashed border-bronze bg-bronze/10 px-2 py-1 text-[12px] text-[#7a5a32]">
+    <div className="fade-in my-1 flex items-center gap-2 rounded-[3px] border border-dashed border-bronze bg-bronze/10 px-2 py-1.5 text-[12.5px] text-[#7a5a32]">
       <ImagePlus className="h-3.5 w-3.5" />
       <span className="flex-1">{photos > 1 ? `${photos} photos go here, side by side` : 'Photo goes here'}</span>
       <button className="rounded px-1.5 hover:bg-bronze/20 disabled:opacity-30" disabled={index < 0} onClick={() => onMove(index - 1 < 0 ? null : index - 1)} aria-label={`Move ${what} up`}>
@@ -272,7 +272,7 @@ function ImageMarker({ index, count, photos, onMove }: { index: number; count: n
 function StyleBar({ style, catalog, onChange }: { style: TextStyle; catalog: Catalog; onChange: (s: TextStyle) => void }) {
   const toggle = (k: 'italic' | 'bold' | 'smallCaps' | 'ruleBelow') => onChange({ ...style, [k]: !style[k] || undefined });
   const btn = (on: boolean) =>
-    `h-6 min-w-6 rounded-[3px] border px-1.5 text-[11px] ${on ? 'border-navy bg-navy text-white' : 'border-line bg-white text-graphite hover:border-navy/50'}`;
+    `h-6 min-w-6 rounded-[3px] border px-1.5 text-[11px] ${on ? 'border-navy bg-navy text-white shadow-[0_2px_6px_-3px_rgba(31,38,64,0.6)]' : 'border-line bg-white text-graphite hover:border-navy/50 hover:text-navy'}`;
   const size = style.size ?? 1;
   return (
     <div className="mt-1 mb-2 ml-[100px] flex flex-wrap items-center gap-1">
@@ -389,7 +389,7 @@ function WordingSection({ data, catalog, onChange }: Props) {
       <label className="block">
         <span className="label">Or paste it exactly as the customer sent it</span>
         <textarea
-          className="mt-1 h-24 w-full resize-y rounded-[3px] border border-line px-3 py-2 text-[13.5px] leading-relaxed outline-none focus:border-navy"
+          className="mt-1.5 h-24 w-full resize-y rounded-[3px] border border-line px-3 py-2 text-[14px] leading-relaxed outline-none focus:border-navy"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={'Edwin J. Feulner Jr., Founder\nThe Heritage Foundation\nTo honor Ed\'s boundless optimism…'}
@@ -401,11 +401,11 @@ function WordingSection({ data, catalog, onChange }: Props) {
       {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
 
       {blocks.length > 0 && (
-        <div className="mt-4 space-y-2">
+        <div className="rise mt-5 space-y-2 border-t border-line pt-4">
           <div className="label">Lines on the plaque, top to bottom</div>
           {hasImage && p.imageAfterBlock == null && <ImageMarker onMove={(to) => setImageAfter(to)} index={-1} count={blocks.length} photos={p.uploads.photos.length} />}
           {blocks.map((b, i) => (
-            <div key={b.id}>
+            <div key={b.id} className="rounded-[3px] border border-transparent px-1 pt-1 transition-colors hover:border-line hover:bg-paper/60">
               <div className="flex gap-2">
                 <select
                   aria-label="Line role"
@@ -446,7 +446,7 @@ function WordingSection({ data, catalog, onChange }: Props) {
               </Button>
             </div>
           )}
-          <p className="text-[12px] text-muted">Text is reproduced character for character. Press Enter inside a line to force a line break.</p>
+          <p className="text-[12.5px] text-muted">Text is reproduced character for character. Press Enter inside a line to force a line break.</p>
           {(p.wording?.notes ?? []).map((n, i) => (
             <Notice key={i} tone="info">
               {n}
@@ -602,12 +602,12 @@ function FileList({
         setDrag(false);
         send([...(e.dataTransfer.files ?? [])]);
       }}
-      className={`rounded-[3px] border p-2 transition-colors ${drag ? 'border-navy bg-navy-50' : 'border-line'} ${items.length ? '' : 'border-dashed'}`}
+      className={`rounded-[3px] border p-2.5 transition-[background-color,border-color,box-shadow] ${drag ? 'drop-active border-navy bg-navy-50' : 'border-line hover:border-navy/30'} ${items.length ? 'bg-white shadow-card' : 'border-dashed'}`}
     >
       <div className="flex items-center gap-3">
         {!items.length && (
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-[2px] bg-paper">
-            <Icon className="h-5 w-5 text-muted" />
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-[2px] bg-navy-50 text-navy">
+            <Icon className="h-5 w-5" />
           </div>
         )}
         <div className="min-w-0 flex-1">
@@ -638,10 +638,10 @@ function FileList({
         </Button>
       </div>
       {items.length > 0 && (
-        <ul className="mt-2 space-y-1.5">
+        <ul className="stagger mt-2.5 space-y-1.5">
           {items.map((f, i) => (
-            <li key={f.id} className="flex items-center gap-2 rounded-[2px] bg-paper/60 p-1">
-              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[2px] bg-white">
+            <li key={f.id} className="flex items-center gap-2.5 rounded-[2px] border border-line/70 bg-paper/60 p-1.5 transition-colors hover:bg-paper">
+              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[2px] border border-line bg-white">
                 <img src={`/api/projects/${p.id}/files/${kind}/${f.id}`} alt={f.name} className="h-full w-full object-contain" />
               </div>
               <div className="min-w-0 flex-1">
@@ -751,10 +751,10 @@ function UploadSlot({
           const f = e.dataTransfer.files?.[0];
           if (f) send(f);
         }}
-        className={`flex items-center gap-3 rounded-[3px] border p-2 transition-colors ${drag ? 'border-navy bg-navy-50' : 'border-line'} ${file ? '' : 'border-dashed'}`}
+        className={`flex items-center gap-3 rounded-[3px] border p-2.5 transition-[background-color,border-color,box-shadow] ${drag ? 'drop-active border-navy bg-navy-50' : 'border-line hover:border-navy/30'} ${file ? 'bg-white shadow-card' : 'border-dashed'}`}
       >
-        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[2px] bg-paper">
-          {file && !noPreview ? <img src={`/api/projects/${p.id}/files/${kind}?f=${file.file}`} alt={label} className="h-full w-full object-contain" /> : <Icon className="h-5 w-5 text-muted" />}
+        <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-[2px] bg-navy-50 text-navy">
+          {file && !noPreview ? <img src={`/api/projects/${p.id}/files/${kind}?f=${file.file}`} alt={label} className="h-full w-full object-contain" /> : <Icon className="h-5 w-5" />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-display text-[14px] font-semibold uppercase tracking-wide">{label}</div>

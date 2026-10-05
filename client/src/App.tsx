@@ -41,8 +41,10 @@ export function App() {
 
   if (!me)
     return (
-      <div className="grid h-full place-items-center text-muted">
-        <Spinner />
+      <div className="blueprint grid h-full place-items-center text-muted">
+        <div className="fade-in flex items-center gap-2 text-[14px]">
+          <Spinner /> Loading
+        </div>
       </div>
     );
   if (!me.user) return <Login mode={me.authMode} onDone={refresh} />;

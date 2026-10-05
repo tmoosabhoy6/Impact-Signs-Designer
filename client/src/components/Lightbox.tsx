@@ -81,7 +81,7 @@ export function Lightbox({ src, title, onClose }: { src: string; title: string; 
 
   return (
     <div role="dialog" aria-modal aria-label={`${title} full size`} className="fade-in fixed inset-0 z-50 flex flex-col bg-[#101114] text-white">
-      <div className="flex h-12 shrink-0 items-center gap-3 px-4">
+      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-white/10 bg-black/40 px-4 backdrop-blur">
         <span className="min-w-0 truncate font-display text-[13px] font-semibold uppercase tracking-wider text-white/80">{title}</span>
         <span className="hidden text-[12px] text-white/45 sm:inline">Scroll to zoom · drag to move · double-click to fit</span>
         <div className="ml-auto flex items-center gap-1">
@@ -153,8 +153,12 @@ export function Lightbox({ src, title, onClose }: { src: string; title: string; 
         {!natural && (
           <img src={src} alt="" className="sr-only" onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
         )}
-        {!natural && <div className="absolute inset-0 grid place-items-center text-white/60">Loading the full-size image…</div>}
-        {natural && <span className="pointer-events-none absolute bottom-3 left-3 rounded-[3px] bg-black/50 px-2 py-0.5 font-mono text-[11px] text-white/70"><Maximize2 className="mr-1 inline h-3 w-3" />{natural.w} × {natural.h} px</span>}
+        {!natural && (
+          <div className="absolute inset-0 grid place-items-center text-white/60">
+            <div className="flex items-center gap-2 text-[14px]"><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden /> Loading the full-size image…</div>
+          </div>
+        )}
+        {natural && <span className="pointer-events-none fade-in absolute bottom-3 left-3 rounded-[3px] border border-white/10 bg-black/50 px-2 py-0.5 font-mono text-[11px] text-white/70 backdrop-blur"><Maximize2 className="mr-1 inline h-3 w-3" />{natural.w} × {natural.h} px</span>}
       </div>
     </div>
   );

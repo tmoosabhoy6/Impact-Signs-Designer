@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Check, CheckCircle2, Maximize2, Plus, RefreshCw, Wand2 } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Circle, LayoutTemplate, Maximize2, Plus, RefreshCw, Wand2 } from 'lucide-react';
 import { api, ApiError, conceptUrl, stream, type ProjectPayload } from '../api';
 import type { Catalog } from '../catalog';
-import { Button, Notice, Spinner, fmtUsd } from './ui';
+import { Button, Notice, Spinner, StepBadge, fmtUsd } from './ui';
 import { Lightbox } from './Lightbox';
 import type { ConceptRecord, InstructionPlan } from '../../../shared/types';
 import { MAX_PROOF_PAGES } from '../../../shared/proof';
@@ -32,10 +32,13 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
     return [...map.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }, [data.concepts, live]);
 
-  const blockers: string[] = [];
-  if (!p.spec) blockers.push('read the specification');
-  if (!p.wording?.blocks.length) blockers.push('add the customer wording');
-  if (p.spec && p.spec.imageOption !== 'none' && !p.uploads.photos.length) blockers.push('upload the photo (or set Image option to No Image)');
+  // What the order still needs before concepts can be made, shown as a checklist.
+  const checklist: { label: string; done: boolean }[] = [
+    { label: 'Specification read', done: !!p.spec },
+    { label: 'Customer wording added', done: !!p.wording?.blocks.length },
+  ];
+  if (p.spec && p.spec.imageOption !== 'none') checklist.push({ label: 'Photo uploaded (or Image option set to No Image)', done: p.uploads.photos.length > 0 });
+  const blockers = checklist.filter((c) => !c.done);
 
   const runStream = async (url: string, body: unknown, preset?: string) => {
     setRunning(true);
@@ -61,21 +64,23 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   const wide = ratio > 1.15;
 
   return (
-    <div className="@container mx-auto max-w-[1440px] px-4 py-5 md:px-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-white">
-            <span className="mr-2 font-mono text-[12px] text-bronze">04</span>Concepts
+    <div className="@container relative mx-auto max-w-[1440px] px-4 py-5 md:px-6">
+      {running && <div className="progress is-light absolute inset-x-0 top-0" aria-hidden />}
+      <div className="rise flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2.5 font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-white">
+            <StepBadge step="04" tone="light" />
+            Concepts
           </h2>
-          <p className="text-[13px] text-white/55">Three production-realistic layouts. Add up to {MAX_PROOF_PAGES} to the proof: each one becomes its own page of one PDF, in the order you add them.</p>
+          <p className="mt-1 text-[13.5px] leading-snug text-white/60">Three production-realistic layouts. Add up to {MAX_PROOF_PAGES} to the proof: each one becomes its own page of one PDF, in the order you add them.</p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-[12px] text-white/60">
+          <label className="flex items-center gap-2 font-display text-[12px] font-semibold uppercase tracking-wider text-white/60">
             Quality
             <select
               value={quality}
               onChange={(e) => setQuality(e.target.value)}
-              className="h-8 rounded-[3px] border border-white/15 bg-white/10 px-1.5 text-[13px] text-white outline-none focus:border-white/40"
+              className="h-9 rounded-[3px] border border-white/15 bg-white/10 px-2 font-sans text-[13px] font-medium normal-case tracking-normal text-white outline-none hover:border-white/30 focus:border-white/40"
             >
               {QUALITY.map((q) => (
                 <option key={q.id} value={q.id} className="text-ink">
@@ -90,10 +95,19 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
           </Button>
         </div>
       </div>
-      {blockers.length > 0 && <p className="mt-2 text-[13px] text-white/60">To generate, first {blockers.join(', ')}.</p>}
+      {blockers.length > 0 && (
+        <ul className="fade-in mt-3 flex flex-wrap gap-x-5 gap-y-1.5" aria-label="Before generating">
+          {checklist.map((c) => (
+            <li key={c.label} className={`flex items-center gap-1.5 text-[13px] ${c.done ? 'text-white/45' : 'text-white/85'}`}>
+              {c.done ? <CheckCircle2 className="h-3.5 w-3.5 text-[#7fd1a6]" aria-hidden /> : <Circle className="h-3.5 w-3.5 text-bronze" aria-hidden />}
+              {c.label}
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
 
-      <div className={`mt-5 grid ${wide ? 'grid-cols-1 gap-6' : 'grid-cols-1 gap-6 @[560px]:grid-cols-3 @[560px]:gap-x-6 @[560px]:gap-y-3'}`}>
+      <div className={`stagger mt-5 grid ${wide ? 'grid-cols-1 gap-6' : 'grid-cols-1 gap-6 @[560px]:grid-cols-3 @[560px]:gap-x-6 @[560px]:gap-y-3'}`}>
         {catalog.presets.map((preset) => (
           <PresetColumn
             key={preset.id}
@@ -175,18 +189,21 @@ function PresetColumn({
   return (
     <article
       aria-current={selected ? 'true' : undefined}
-      className={`concept-column flex min-w-0 flex-col gap-3 rounded-[4px] border bg-stage-2/70 p-3.5 ${wide ? '' : '@[560px]:row-span-3 @[560px]:grid @[560px]:grid-cols-[minmax(0,1fr)] @[560px]:grid-rows-subgrid'} ${selected ? 'is-selected border-bronze' : 'border-white/10'}`}
+      className={`concept-column flex min-w-0 flex-col gap-3 rounded-[4px] border bg-stage-2/80 p-3.5 shadow-[0_20px_40px_-24px_rgba(0,0,0,0.7)] backdrop-blur-sm ${wide ? '' : '@[560px]:row-span-3 @[560px]:grid @[560px]:grid-cols-[minmax(0,1fr)] @[560px]:grid-rows-subgrid'} ${selected ? 'is-selected border-bronze' : 'border-white/10'}`}
     >
-      <header className="min-w-0">
+      <header className="min-w-0 border-b border-white/10 pb-2.5">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-display text-[15px] font-semibold uppercase tracking-[0.06em] text-white">{preset.label}</h3>
+          <h3 className="flex items-center gap-2 font-display text-[15px] font-semibold uppercase tracking-[0.06em] text-white">
+            <span className="h-3.5 w-[3px] rounded-sm bg-gold" aria-hidden />
+            {preset.label}
+          </h3>
           {selected && (
             <span className="flex shrink-0 items-center gap-1 rounded-[3px] bg-ok px-1.5 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-white">
               <Check className="h-3 w-3" /> {proofIds.length > 1 ? `Proof page ${page}` : 'On the proof'}
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-[12px] leading-snug text-white/50">{preset.description}</p>
+        <p className="mt-1 text-[12.5px] leading-snug text-white/55">{preset.description}</p>
       </header>
 
       <div className="relative mx-auto w-full min-w-0 self-start" style={{ maxWidth: ratio < 1 ? 440 : '100%' }}>
@@ -199,14 +216,21 @@ function PresetColumn({
           ) : partial ? (
             <img src={partial} alt="" className="plaque-shadow absolute inset-0 h-full w-full object-fill" />
           ) : busy ? (
-            <div className="skeleton absolute inset-0" />
+            <div className="skeleton absolute inset-0 rounded-[2px]" />
           ) : layout ? (
-            <div className="absolute inset-0">
-              <img src={`/api/projects/${p.id}/layout/${preset.id}?v=${encodeURIComponent(p.updatedAt)}`} alt="" className="h-full w-full object-fill opacity-60" />
-              <span className="absolute top-2 left-2 rounded-[2px] bg-black/60 px-1.5 py-0.5 font-display text-[10px] font-semibold uppercase tracking-wider text-white/80">Layout preview</span>
+            <div className="group absolute inset-0 overflow-hidden rounded-[2px] ring-1 ring-white/10">
+              <img src={`/api/projects/${p.id}/layout/${preset.id}?v=${encodeURIComponent(p.updatedAt)}`} alt="" className="fade-in h-full w-full object-fill opacity-70 transition-opacity duration-300 group-hover:opacity-90" />
+              <span className="absolute top-2 left-2 flex items-center gap-1 rounded-[2px] bg-black/60 px-1.5 py-0.5 font-display text-[10px] font-semibold uppercase tracking-wider text-white/80">
+                <LayoutTemplate className="h-3 w-3" aria-hidden /> Layout preview
+              </span>
             </div>
           ) : (
-            <div className="absolute inset-0 grid place-items-center border border-dashed border-white/15 text-[12px] text-white/40">Layout appears once the order is read</div>
+            <div className="absolute inset-0 grid place-items-center rounded-[2px] border border-dashed border-white/15 bg-white/[0.02] px-4 text-center">
+              <div className="text-white/45">
+                <LayoutTemplate className="mx-auto mb-2 h-6 w-6 opacity-60" aria-hidden />
+                <div className="text-[12.5px]">The layout drawing appears here once the order is read</div>
+              </div>
+            </div>
           )}
           {selected && (
             <span className="selected-check absolute top-2 left-2 z-10 grid h-8 w-8 place-items-center rounded-full bg-ok text-white shadow-lg ring-2 ring-white/80" title={`This concept is page ${page} of the proof`} aria-hidden>
@@ -214,7 +238,7 @@ function PresetColumn({
             </span>
           )}
           {busy && (
-            <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-black/60 px-2 py-1.5 text-[12px] text-white">
+            <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-black/65 px-2.5 py-2 text-[12.5px] text-white backdrop-blur-sm">
               <Spinner className="h-3.5 w-3.5" /> {partial ? 'Refining…' : 'Rendering… this takes about a minute'}
             </div>
           )}
@@ -228,7 +252,7 @@ function PresetColumn({
               <button
                 key={c.id}
                 onClick={() => setIndex(i)}
-                className={`h-6 min-w-6 rounded-[3px] px-1.5 font-mono text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-bronze ${c.id === current.id ? 'bg-white text-ink' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                className={`h-6 min-w-6 rounded-[3px] px-1.5 font-mono text-[11px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-bronze ${c.id === current.id ? 'bg-white text-ink shadow-[0_2px_6px_-2px_rgba(0,0,0,0.6)]' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
                 aria-pressed={c.id === current.id}
                 title={c.kind === 'fix' ? `Fix: ${c.note}` : c.kind === 'regenerate' ? 'Regenerated' : 'Original'}
               >
@@ -237,7 +261,7 @@ function PresetColumn({
             ))}
             <span className="ml-auto font-mono text-[11px] text-white/40">{fmtUsd(current.costUsd)}</span>
           </div>
-          {(current.kind === 'fix' || current.plan?.kind === 'edit') && <p className="text-[12px] text-white/50">Fix: “{current.note}”</p>}
+          {(current.kind === 'fix' || current.plan?.kind === 'edit') && <p className="border-l-2 border-gold/60 pl-2 text-[12.5px] text-white/60">Fix: “{current.note}”</p>}
           {current.previous && current.plan && changesOrder(current.plan) && (
             <Button size="sm" variant="stage" disabled={running} onClick={() => onUndo(current)}>Undo order change</Button>
           )}
@@ -298,7 +322,7 @@ function PresetColumn({
                   }}
                   rows={2}
                   placeholder="Describe any change to this image"
-                  className="min-h-[52px] min-w-0 flex-1 resize-y rounded-[3px] border border-white/15 bg-white/5 px-2 py-1.5 text-[12.5px] leading-snug text-white placeholder:text-white/35 outline-none focus:border-white/40"
+                  className="min-h-[52px] min-w-0 flex-1 resize-y rounded-[3px] border border-white/15 bg-white/5 px-2.5 py-1.5 text-[13px] leading-snug text-white placeholder:text-white/35 outline-none hover:border-white/30 focus:border-white/40"
                   aria-label="Describe a change for this image"
                   aria-describedby={planNote ? `plan-${preset.id}` : undefined}
                   maxLength={1000}
@@ -307,7 +331,7 @@ function PresetColumn({
                   Apply
                 </Button>
               </form>
-              <p className="text-[12px] text-white/55">Edits use this image’s original model and {current.quality === 'xhigh' ? 'Extra high' : current.quality === 'medium' ? 'Draft' : current.quality} quality.</p>
+              <p className="text-[12px] text-white/50">Edits use this image’s original model and {current.quality === 'xhigh' ? 'Extra high' : current.quality === 'medium' ? 'Draft' : current.quality} quality.</p>
               {planNote && <p id={`plan-${preset.id}`} role="status" className={`text-[12px] ${shownPlan?.kind === 'refuse' ? 'text-[#ffb3a6]' : 'text-white/65'}`}>{planNote}</p>}
               {shownPlan?.kind === 'refuse' && shownPlan.nearestOptions.length > 0 && (
                 <div className="flex flex-wrap gap-1.5" aria-label="Available alternatives">
