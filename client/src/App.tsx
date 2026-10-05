@@ -6,6 +6,7 @@ import { Workspace } from './pages/Workspace';
 import { Admin } from './pages/Admin';
 import { Upscaler } from './pages/Upscaler';
 import { Vectorizer } from './pages/Vectorizer';
+import { Merger } from './pages/Merger';
 import { Spinner } from './components/ui';
 
 export interface Me {
@@ -54,5 +55,6 @@ export function App() {
   if (path.startsWith('/admin')) return <Admin me={me} />;
   if (path.startsWith('/upscaler')) return <Upscaler me={me} />;
   if (path.startsWith('/vectorizer')) return <Vectorizer me={me} />;
+  if (path.startsWith('/merger')) return <Merger me={me} />;
   return <Jobs me={me} />;
 }

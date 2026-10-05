@@ -22,6 +22,7 @@ import { PRESETS } from './layout/engine.js';
 import { createExampleJob, listExamples } from './examples.js';
 import { upscaleRouter } from './upscale-routes.js';
 import { vectorRouter } from './vector-routes.js';
+import { mergeRouter } from './merge-routes.js';
 import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFiles, layoutFor, matchesSnapshot, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
 import { applyPlan, changesOrder, planInstruction } from './ai/instruct.js';
 import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
@@ -143,9 +144,10 @@ api.get('/catalog', (_req, res) => res.json({ catalog: getCatalog(), presets: PR
 api.get('/admin/assets', (_req, res) => res.json({ assets: assetLibraryStatus() }));
 api.get('/admin/prompts', (_req, res) => res.json({ version: promptVersion(), files: PROMPT_FILES.map((f) => ({ name: f, text: readPrompt(f) })) }));
 
-// ---------- AI Upscaler and Vectorizer (separate from jobs) ----------
+// ---------- AI Upscaler, Vectorizer and Proof Merger (separate from jobs) ----------
 api.use('/upscales', upscaleRouter);
 api.use('/vectors', vectorRouter);
+api.use('/merge', mergeRouter);
 
 // ---------- Projects ----------
 api.get('/projects', (req, res) => {

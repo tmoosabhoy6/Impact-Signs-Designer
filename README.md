@@ -72,6 +72,8 @@ The **AI Upscaler** tab, next to **Plaque Proof Studio** at the top, enlarges a 
 
 The **Vectorizer** tab turns a picture or PDF (PNG, JPG, WebP, TIFF, SVG, PDF, .ai) into a one-ink vector PDF (and an SVG): outlines only, no pixels, no fonts, at the width you ask for. It uses the same logo reader as the production file, so a photo of a finished plaque comes out as its logo. The page is always treated as white (dark marks on a light page). Choose how closely the outlines follow the pixels. It is separate from jobs.
 
+The **Proof Merger** tab joins up to 15 proof PDFs into one PDF. Add the files (drop them or click), look at the preview card of each, put them in the order you want by dragging a card or using its arrows, then press "Merge into one PDF". Page 1 of the result is the first card, and every page of every file is kept. Nothing is saved on the server.
+
 1. Drop in or choose an image (PNG, JPG, WebP, TIFF or GIF, up to 30 MB).
 2. Pick **720p** or **1080p**. The short side becomes 720 or 1080 px and the proportions stay the same. Pick the smallest size that works: the less the image is enlarged, the less the AI has to fill in. Images that are already that size are refused, at no cost.
 3. Click **Upscale image** (about 30 to 90 seconds). The original and the upscale appear side by side with a **% match** score. The score comes from shrinking the upscale back to the original size and comparing them.

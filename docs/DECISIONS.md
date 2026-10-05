@@ -243,3 +243,10 @@
 - Background is the app's brand navy token (`--color-navy`, `#1F2640`, the impactsigns.com navy) with a very light two-layer white dot texture (7% / 4%). `#2E3092`, the blue inside the logo file, was tried first and rejected as "not the Impact Signs blue".
 - The card floats: stacked drop shadows, a top-edge highlight, and a 4 px lift on hover or when a field is focused (disabled under reduced motion). The lift is on a wrapper because the card's `rise` entrance animation ends with `transform: none`.
 - Verification: typecheck and build pass; sign-in inspected in Chromium, including the hovered state.
+
+## Proof Merger tab
+
+- A third tool tab, "Proof Merger" (`/merger`), sits next to the Vectorizer. Up to 15 PDFs (40 MB each) are added, shown as cards with a page-1 preview and page count, reordered by dragging or with the arrows, and joined into one `merged-proofs.pdf`. Page 1 is the first card.
+- All pages of every file are kept (a proof can have up to three pages), so the merged file has as many pages as the files together. The join is the existing `mergeProofs` in `server/pdf/proofs/index.ts`; proofs are not redrawn or changed.
+- Nothing is stored: `server/merge-routes.ts` (`/api/merge`, behind sign-in) takes the PDFs, joins them in the order sent and returns the result, and `/api/merge/preview` renders page 1 with Poppler. Because no record is kept, there is nothing to own, so no `owns()` check applies. Files that are not PDFs or are damaged/password-protected are refused by name in plain English.
+- Verification: `tests/merge.test.ts` (order and page count, two-file minimum, 15-file limit, named bad file, preview); typecheck and build pass; the page was driven in Chromium in demo mode with five real sample proofs (upload, reorder, merge, 5-page result). Dragging a card was not exercised by the browser script; the arrows were.
