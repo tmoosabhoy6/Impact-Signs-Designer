@@ -68,7 +68,7 @@ The concept image, the layout drawing, the proof description and the vector file
 
 The **AI Upscaler** tab, next to **Plaque Proof Studio** at the top, enlarges a low-resolution image just enough to be usable, without changing it. It is separate from jobs.
 
-The **Vectorizer** tab turns a picture or PDF (PNG, JPG, WebP, TIFF, SVG, PDF, .ai) into a one-ink vector PDF (and an SVG): outlines only, no pixels, no fonts, at the width you ask for. It uses the same logo reader as the production file, so a photo of a finished plaque comes out as its logo. Choose the page tone (automatic, light or dark) and how closely the outlines follow the pixels. It is separate from jobs.
+The **Vectorizer** tab turns a picture or PDF (PNG, JPG, WebP, TIFF, SVG, PDF, .ai) into a one-ink vector PDF (and an SVG): outlines only, no pixels, no fonts, at the width you ask for. It uses the same logo reader as the production file, so a photo of a finished plaque comes out as its logo. The page is always treated as white (dark marks on a light page). Choose how closely the outlines follow the pixels. It is separate from jobs.
 
 1. Drop in or choose an image (PNG, JPG, WebP, TIFF or GIF, up to 30 MB).
 2. Pick **720p** or **1080p**. The short side becomes 720 or 1080 px and the proportions stay the same. Pick the smallest size that works: the less the image is enlarged, the less the AI has to fill in. Images that are already that size are refused, at no cost.
