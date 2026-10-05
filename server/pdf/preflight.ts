@@ -1,4 +1,5 @@
 // Automatic checks on a production PDF, shown to the designer after every build.
+import { mustOption } from '../catalog.js';
 import zlib from 'node:zlib';
 import { PDFDocument, PDFRawStream, PDFName, PDFDict } from 'pdf-lib';
 import type { PlaqueLayout, PreflightItem } from '../../shared/types.js';
@@ -70,7 +71,7 @@ export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logo
   const logos = layout.logos.length;
   if (logos) {
     const traced = Math.min(logos, extra.logosTraced ?? 0);
-    const uv = extra.logoTreatment === 'uv-print';
+    const uv = mustOption('logoTreatments', extra.logoTreatment ?? 'raised-cast').mode !== 'raised';
     const made = uv ? 'drawn as a raised UV print plate; the artwork is printed after casting' : 'traced to vector; check against the original';
     items.push({
       label: logos > 1 ? 'Logos' : 'Logo',

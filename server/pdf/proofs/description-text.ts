@@ -1,7 +1,7 @@
 // Writes the "DESCRIPTION: Qty. 1 set 6”x4” Cast Bronze Plaque. …" header used on the
 // Description-sheet proofs, in the same words the designers use (Awe, Raccoon River,
 // Sax-Zim Bog, Hadar Family Hall).
-import { findOption, fontLabel, paintLabel } from '../../catalog.js';
+import { mustOption, findOption, fontLabel, paintLabel } from '../../catalog.js';
 import type { PlaqueSpec, Wording } from '../../../shared/types.js';
 import { fractionText } from './common.js';
 
@@ -72,7 +72,11 @@ export function imagePhrase(spec: PlaqueSpec, count = 1): string {
 export function logoPhrase(spec: PlaqueSpec, count = 0): string {
   if (count < 1) return '';
   const many = count > 1;
-  if (spec.logoTreatment === 'uv-print') return many ? `Includes ${count} UV printed logos on raised plates.` : 'Includes UV printed logo on raised plate.';
+  const treatment = mustOption('logoTreatments', spec.logoTreatment ?? 'raised-cast');
+  if (treatment.mode !== 'raised') {
+    const tone = treatment.mode === 'color' ? 'color' : 'monochrome';
+    return many ? `Includes ${count} UV printed ${tone} logos on raised plates.` : `Includes UV printed ${tone} logo on raised plate.`;
+  }
   return many ? `Includes ${count} raised cast logos.` : 'Includes raised cast logo.';
 }
 

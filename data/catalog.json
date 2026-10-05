@@ -619,27 +619,50 @@
       ],
       "prompt": "the logo is cast into the plaque itself: every line and shape of the logo is raised metal in the plaque finish, standing proud of the recessed painted field exactly like the lettering, with crisp vertical sides and no plate or panel behind it",
       "proofLabel": "Raised cast logo",
-      "description": "The logo's lines and shapes are cast as raised metal, like the letters."
+      "description": "The logo's lines and shapes are cast as raised metal, like the letters.",
+      "mode": "raised"
     },
     {
-      "id": "uv-print",
+      "id": "uv-print-mono",
       "label": "UV Print",
+      "mode": "monochrome",
       "asset": "assets/logo-treatments/uv-print.png",
       "aliases": [
         "uv print logo",
         "uv printed logo",
         "uv print",
         "uv printed",
-        "uv-print",
         "uv-printed",
         "printed logo",
         "logo printed",
         "uv logo",
-        "full color logo"
+        "monochrome logo",
+        "monochrome uv print",
+        "black and white logo"
       ],
-      "prompt": "the logo is UV-printed in full detail onto a smooth raised rectangular metal plate in the plaque finish: the plate stands proud of the recessed field with crisp edges like the lettering, and the printed logo lies flat on the plate's brushed surface as ink (its own colors, or dark on the metal), not raised",
-      "proofLabel": "UV printed logo on raised plate",
-      "description": "The logo is UV printed onto a raised rectangular metal plate."
+      "prompt": "the complete logo is UV-printed in monochrome (black, white and gray) on a smooth raised rectangular metal plate in the plaque finish. Preserve all lettering, thin rules, white details and tonal separations. Only the plate is raised; all printed artwork is flat ink, not cast relief",
+      "proofLabel": "Monochrome UV printed logo on raised plate",
+      "description": "The complete logo is printed in black, white and gray on a raised metal plate."
+    },
+    {
+      "id": "uv-print",
+      "label": "UV Print Color",
+      "asset": "assets/logo-treatments/uv-print.png",
+      "aliases": [
+        "uv print color",
+        "uv print colour",
+        "uv color print",
+        "uv colour print",
+        "full color logo",
+        "full colour logo",
+        "color uv printed logo",
+        "colour uv printed logo",
+        "uv-print"
+      ],
+      "prompt": "the complete original logo is UV-printed in its exact original colors onto a smooth raised rectangular metal plate in the plaque finish. Preserve every letter, thin line, outline and colored region, including white lettering, white rules and white windows. Only the plate is raised; the printed artwork is flat ink. Do not tint the artwork bronze or convert it into relief",
+      "proofLabel": "UV printed color logo on raised plate",
+      "description": "The complete logo is printed in its original colors, including white, on a raised metal plate.",
+      "mode": "color"
     }
   ],
   "coating": "Protective clear polyurethane coating for outdoor durability.",
@@ -700,7 +723,39 @@
     {
       "id": "etched",
       "label": "Order version + outline art",
-      "description": "\"ORDER # – VERSION\" header with a second outline-art page, kept for the measured samples and tests only (like Structure of Merit)."
+      "description": "\"ORDER # \u2013 VERSION\" header with a second outline-art page, kept for the measured samples and tests only (like Structure of Merit)."
+    }
+  ],
+  "logoPositions": [
+    {
+      "id": "auto",
+      "label": "Automatic",
+      "aliases": [],
+      "prompt": "Use the existing order placement."
+    },
+    {
+      "id": "top",
+      "label": "Top",
+      "aliases": [],
+      "prompt": "Above the other plaque content."
+    },
+    {
+      "id": "bottom",
+      "label": "Bottom",
+      "aliases": [],
+      "prompt": "Below the other plaque content."
+    },
+    {
+      "id": "left",
+      "label": "Left",
+      "aliases": [],
+      "prompt": "To the left of the other plaque content."
+    },
+    {
+      "id": "right",
+      "label": "Right",
+      "aliases": [],
+      "prompt": "To the right of the other plaque content."
     }
   ]
 }

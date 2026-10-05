@@ -150,6 +150,17 @@ async function runMultiFiles() {
   await page.waitForFunction(() => document.querySelectorAll('button[aria-label="Remove photo.png"]').length === 1);
   await page.getByRole('button', { name: 'Move foundation.png left' }).click();
   await page.waitForFunction(() => [...document.querySelectorAll('li')].map((l) => l.textContent).join('|').match(/county-seal\.png.*foundation\.png.*rotary\.png/));
+  // Each logo keeps its own side; a save must not move its neighbours.
+  for (const [name, position] of [['county-seal.png', 'top'], ['foundation.png', 'left'], ['rotary.png', 'right']]) {
+    const saved = page.waitForResponse((r) => r.url().endsWith('/placement') && r.ok());
+    await page.getByLabel(`Position of ${name}`).selectOption(position);
+    await saved;
+  }
+  for (const treatment of ['uv-print-mono', 'uv-print', 'raised-cast']) {
+    const saved = page.waitForResponse((r) => r.url().endsWith(`/projects/${project.id}`) && r.request().method() === 'PATCH' && r.ok());
+    await page.getByLabel('Logo treatment', { exact: true }).selectOption(treatment);
+    await saved;
+  }
   await page.waitForTimeout(800);
   await page.locator('section', { hasText: 'Customer files' }).screenshot({ path: `${out}/12-multi-files.png` });
   await page.click('button:has-text("Generate 3 concepts")');

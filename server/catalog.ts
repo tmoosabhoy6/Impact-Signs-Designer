@@ -35,7 +35,8 @@ export interface Catalog {
   mountings: (Option & { diagram?: string; scale?: 'wall' | 'ground' })[];
   lettering: Option[];
   /** How a customer logo is made: cast as raised metal, or UV printed on a raised plate. */
-  logoTreatments: (Option & { description: string })[];
+  logoTreatments: (Option & { description: string; mode: 'raised' | 'monochrome' | 'color' })[];
+  logoPositions: Option[];
   processes: (Option & { proofFinishNote: string; proofPaintNote: string })[];
   thickness: { defaultIn: number; options: number[] };
   proofStyles: { id: string; label: string; description: string }[];
@@ -53,6 +54,7 @@ export type OptionGroup =
   | 'imageOptions'
   | 'mountings'
   | 'lettering'
+  | 'logoPositions'
   | 'logoTreatments'
   | 'processes';
 

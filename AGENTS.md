@@ -50,7 +50,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 |---|---|
 | Order parsing | `server/parse/spec.ts`, `server/parse/wording.ts` |
 | Layout + fonts | `server/layout/engine.ts` (photo frames and logos are groups: `arrangePictures`), `server/text/fonts.ts` (glyphs placed manually, no OpenType shaping) |
-| Customer files | `server/uploads.ts` (prepare / add / remove / reorder), `shared/uploads.ts` (limits, upgrade of single-file jobs). Photos, logos and sketches are lists; every route reads them through `loadProject`. |
+| Customer files | `server/uploads.ts` (prepare / add / remove / reorder), `shared/uploads.ts` (limits, upgrade of single-file jobs). Photos, logos and sketches are lists; each logo has an optional catalog `logoPositions` position frozen in snapshots. Every route reads them through `loadProject`. |
 | Image model | `server/ai/images.ts` (OpenAI adapter + mock), `server/ai/pipeline.ts` (`runConcept`, `buildReferences`, `layoutFor`), `server/ai/prompts.ts`, prompt text in `server/prompts/*.md` |
 | Fix instructions | `server/ai/instruct.ts`: the planner model (`OPENAI_PLANNER_MODEL`) returns one checked plan (catalog `specPatch`, literal `wordingEdits`, per-column `layoutPatch`, `placement`, image-only `imageEdit`); offline reader `fallbackInstruction` splits multi-part requests. **Nothing is refused:** what the order cannot hold becomes an `imageEdit` in the designer's words (`asImage`). Layout adjustments live in `Project.layoutAdjust[preset]` and go through `computeLayout` (`adjust`), so proof and vector agree. Prompts: `fix.md` (image-only), `relayout.md` (new layout drawing). |
 | Spell check | `server/ai/spellcheck.ts` (vision model reads the text back; word diff) |
@@ -61,7 +61,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx` (resizable sections, `useWorkspaceWidths`), `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx`, `components/Lightbox.tsx` (zoom/pan viewer), `components/outputs.tsx` (proof / vector requests and the "From Classic v2" tags) |
 | AI Upscaler | `server/ai/upscale.ts` (prompt, sizing, fidelity check, tone lock), `server/upscale-routes.ts` (`/api/upscales`), `shared/upscale.ts`, `client/src/pages/Upscaler.tsx`; files in `DATA_DIR/upscales/<id>/`. Independent of jobs and the layout engine. |
 | Vectorizer | `server/vectorize.ts` (reads image/SVG/PDF, `inkMask` + `traceMask`, one-ink PDF + SVG), `server/vector-routes.ts` (`/api/vectors`, `loadVector` ownership), `shared/vectorize.ts`, `client/src/pages/Vectorizer.tsx`; files in `DATA_DIR/vectors/<id>/`. |
-| Logo treatment | catalog group `logoTreatments` (`raised-cast`, `uv-print`), `PlaqueSpec.logoTreatment`; read by the parser, the planner, `render/flat.ts` (`logoForDrawing`), `ai/prompts.ts`, `proofs/description-text.ts` (`logoPhrase`) and `pdf/production.ts`. |
+| Logo treatment | catalog group `logoTreatments` (`raised-cast`, `uv-print-mono`, `uv-print` for color), `PlaqueSpec.logoTreatment`; read by the parser, the planner, `render/flat.ts` (`logoForDrawing`), `ai/prompts.ts`, `proofs/description-text.ts` (`logoPhrase`) and `pdf/production.ts`. |
 | Examples | `references/<job>/example.json` + `server/examples.ts` (tests, samples and scripts only; not shown in the app, never seeded) |
 | Tests | `tests/golden.test.ts`, `tests/uploads.test.ts` (several photos, logos and sketches), `tests/trace.test.ts` (logo reader, logo treatment), `tests/letters.test.ts` (¼" floor), `tests/vectorize.test.ts` |
 

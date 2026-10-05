@@ -355,8 +355,8 @@ describe('logos in the layout drawing', () => {
       return { r: data[i], g: data[i + 1], b: data[i + 2], a: data[i + 3] };
     };
     expect(at(0.01, 0.01)).toMatchObject({ r: 0xc4, g: 0x9a, b: 0x6c, a: 255 }); // the plate's padding
-    expect(at(0.5, 0.5)).toMatchObject({ r: 0xc4, g: 0x9a, b: 0x6c, a: 255 }); // the white hole shows the plate
-    const mark = at(0.15, 0.15); // hsl(200,70%,30%): a blue, printed as is
+    expect(at(0.5, 0.5)).toMatchObject({ r: 255, g: 255, b: 255, a: 255 }); // opaque white is printed white, not bronze
+    const mark = at(0.25, 0.3); // hsl(200,70%,30%): a blue, printed as is
     expect(mark.a).toBe(255);
     expect(mark.b).toBeGreaterThan(mark.r + 40);
   });
@@ -402,7 +402,7 @@ describe('Fix requests about several photos or logos', () => {
     expect(plan).toMatchObject({ kind: 'edit', layoutPatch: { logoScale: 1.18 } });
     expect(plan.kind === 'edit' && plan.restated).toMatch(/the 3 logos 18% larger/);
     expect(fallbackInstruction(withFiles(2, 0), 'make the photos smaller')).toMatchObject({ layoutPatch: { imageScale: 1 / 1.18 } });
-    expect(fallbackInstruction(withFiles(2, 3), 'move the logos to the top')).toMatchObject({ placement: { logoSlot: 'top' } });
+    expect(fallbackInstruction(withFiles(2, 3), 'move the logos to the top')).toMatchObject({ placement: { logos: [{ logoId: 'logo-0', position: 'top' }, { logoId: 'logo-1', position: 'top' }, { logoId: 'logo-2', position: 'top' }] } });
   });
 
   it('treats a change to one of several as image-only, and one logo as before', () => {
@@ -430,5 +430,73 @@ describe('content snapshots', () => {
     const swapped = { ...p, uploads: { ...p.uploads, logos: [...p.uploads.logos].reverse() } };
     expect(matchesSnapshot(p, snap)).toBe(true);
     expect(matchesSnapshot(swapped, snap)).toBe(false);
+  });
+});
+
+describe('individual logo placement', () => {
+  it('keeps automatic layouts unchanged and fits four independent sides without overlaps', async () => {
+    const p = await heritage();
+    const base = { spec: p.spec!, wording: p.wording, photos: [{ id: 'photo', aspect: 0.8 }], logos: [{ id: 'old', aspect: 1.5 }] };
+    expect(computeLayout({ ...base, logos: [{ ...base.logos[0], position: 'auto' }] }, 'classic')).toEqual(computeLayout(base, 'classic'));
+    for (const preset of ['classic', 'portrait', 'statement'] as const) {
+      const layout = computeLayout({ ...base, logos: [
+        { id: 'top', aspect: 1.5, position: 'top' }, { id: 'bottom', aspect: 2, position: 'bottom' },
+        { id: 'left', aspect: 0.55, position: 'left' }, { id: 'right', aspect: 0.7, position: 'right' },
+      ] }, preset);
+      expectClean(layout);
+      expect(layout.logos.map((l) => l.logoId)).toEqual(['top', 'bottom', 'left', 'right']);
+      const [top, bottom, left, right] = layout.logos;
+      const frame = layout.imageFrames[0].outer;
+      expect(top.y + top.h).toBeLessThan(frame.y);
+      expect(bottom.y).toBeGreaterThan(frame.y + frame.h);
+      expect(left.x + left.w).toBeLessThan(frame.x);
+      expect(right.x).toBeGreaterThan(frame.x + frame.w);
+    }
+  });
+
+  it('saves only the requested logo position and freezes it with older versions', async () => {
+    let p = await heritage();
+    p = await storeUpload(p, 'logo', 'first.png', await logoPng(20));
+    p = await storeUpload(p, 'logo', 'second.png', await logoPng(100));
+    saveProject(p);
+    const before = contentSnapshot(p);
+    const url = `${base}/api/projects/${p.id}/upload/logo/${p.uploads.logos[1].id}/placement`;
+    const patch = (position: string) => fetch(url, { method: 'PATCH', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ position }) });
+    expect((await patch('left')).status).toBe(200);
+    const saved = getProject(p.id)!;
+    expect(saved.uploads.logos[0]).toEqual(p.uploads.logos[0]);
+    expect(saved.uploads.logos[1].position).toBe('left');
+    expect(before.uploads!.logos[1].position).toBeUndefined();
+    expect(normalizeUploads(saved.uploads)).toEqual(saved.uploads);
+    expect(matchesSnapshot(saved, before)).toBe(false);
+    expect((await patch('diagonal')).status).toBe(400);
+    expect(getProject(p.id)!.uploads).toEqual(saved.uploads);
+    const restored = { ...saved, ...before };
+    expect(layoutFor(restored, 'classic')).toEqual(layoutFor(p, 'classic'));
+  });
+
+  it('moves numbered logos through Fix and keeps separate moves in a combined request', async () => {
+    const p = await heritage();
+    p.uploads.logos = [0, 1].map((i) => ({ id: `l${i}`, file: `l${i}.png`, name: `Mark ${i}.png`, width: 200, height: 300, vectorSource: false }));
+    expect(fallbackInstruction(p, 'move the second logo to the right')).toMatchObject({ placement: { logos: [{ logoId: 'l1', position: 'right' }] } });
+    expect(fallbackInstruction(p, 'move logo 1 to the left and move logo 2 to the bottom')).toMatchObject({ placement: { logos: [{ logoId: 'l0', position: 'left' }, { logoId: 'l1', position: 'bottom' }] } });
+  });
+});
+
+describe('UV print fidelity', () => {
+  it('preserves white and color regions; monochrome preserves the same artwork in gray', async () => {
+    const original = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#e5e5e5"/><rect x="30" y="30" width="160" height="160" fill="#f9a51a"/><rect x="210" y="30" width="160" height="160" fill="white"/><rect x="30" y="250" width="340" height="10" fill="white"/><text x="200" y="350" font-size="65" text-anchor="middle" fill="white">CAMP</text></svg>')).png().toBuffer();
+    for (const mode of ['uv-print', 'uv-print-mono']) {
+      const { data, info } = await sharp(await logoForDrawing(original, mode)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const pixel = (x: number, y: number) => {
+        const px = Math.round((x / 400 + 0.08) / 1.16 * info.width);
+        const py = Math.round((y / 400 + 0.08) / 1.16 * info.height);
+        return [...data.subarray((py * info.width + px) * 3, (py * info.width + px) * 3 + 3)];
+      };
+      expect(pixel(280, 100)).toEqual([255, 255, 255]);
+      expect(pixel(200, 255)).toEqual([255, 255, 255]);
+      if (mode === 'uv-print') expect(pixel(100, 100)).toEqual([249, 165, 26]);
+      else expect(new Set(pixel(100, 100)).size).toBe(1);
+    }
   });
 });

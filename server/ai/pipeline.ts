@@ -30,7 +30,7 @@ export function layoutFor(project: Project, preset: LayoutPresetId): PlaqueLayou
       spec: project.spec,
       wording: project.wording,
       photos: project.uploads.photos.map(aspect),
-      logos: project.uploads.logos.map(aspect),
+      logos: project.uploads.logos.map((l) => ({ ...aspect(l), position: l.position })),
       logoSlot: project.logoSlot,
       imageAfterBlock: project.imageAfterBlock,
       customFontFile: uploadPath(project, 'font'),
@@ -44,8 +44,8 @@ export function conceptFile(c: ConceptRecord, name: 'image.png' | 'raw.png' | 'l
   return path.join(projectDir(c.projectId, 'concepts', c.id), name);
 }
 
-async function asPng(file: string, maxEdge = 1536): Promise<Buffer> {
-  return sharp(file).rotate().resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true }).flatten({ background: '#ffffff' }).png().toBuffer();
+async function asPng(file: string, maxEdge = 1536, background = '#ffffff'): Promise<Buffer> {
+  return sharp(file).rotate().resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true }).flatten({ background }).png().toBuffer();
 }
 
 async function solidSwatch(hex: string): Promise<Buffer> {
@@ -78,13 +78,13 @@ export const MAX_REFERENCES = 16;
  * Several pictures on one white sheet, in reading order (left to right, then down), with a
  * thin rule between cells. Used only when separate references would exceed MAX_REFERENCES.
  */
-export async function contactSheet(files: string[], cell = 512): Promise<Buffer> {
+export async function contactSheet(files: string[], cell = 512, background = '#ffffff'): Promise<Buffer> {
   const cols = Math.ceil(Math.sqrt(files.length));
   const rows = Math.ceil(files.length / cols);
   const gap = 12;
   const tiles = await Promise.all(
     files.map(async (f, i) => ({
-      input: await sharp(f).rotate().resize({ width: cell - 2 * gap, height: cell - 2 * gap, fit: 'inside' }).flatten({ background: '#ffffff' }).png().toBuffer(),
+      input: await sharp(f).rotate().resize({ width: cell - 2 * gap, height: cell - 2 * gap, fit: 'inside' }).flatten({ background }).png().toBuffer(),
       left: (i % cols) * cell + gap,
       top: Math.floor(i / cols) * cell + gap,
     })),
@@ -111,8 +111,8 @@ interface CustomerGroup {
 
 async function groupRefs(g: CustomerGroup): Promise<RefImage[]> {
   if (!g.files.length) return [];
-  if (g.sheeted) return [{ role: g.sheet, file: await contactSheet(g.files), name: `${g.name}-sheet.png`, mime: 'image/png' }];
-  return Promise.all(g.files.map(async (f, i) => ({ role: g.one(i), file: await asPng(f), name: g.files.length > 1 ? `${g.name}-${i + 1}.png` : `${g.name}.png`, mime: 'image/png' })));
+  if (g.sheeted) return [{ role: g.sheet, file: await contactSheet(g.files, 512, g.name === 'customer-logo' ? '#808080' : '#ffffff'), name: `${g.name}-sheet.png`, mime: 'image/png' }];
+  return Promise.all(g.files.map(async (f, i) => ({ role: g.one(i), file: await asPng(f, 1536, g.name === 'customer-logo' ? '#808080' : '#ffffff'), name: g.files.length > 1 ? `${g.name}-${i + 1}.png` : `${g.name}.png`, mime: 'image/png' })));
 }
 
 export async function buildReferences(project: Project, layout: PlaqueLayout, layoutPng: Buffer): Promise<RefImage[]> {
@@ -265,16 +265,19 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
       const parent = getConcept(rec.parentId);
       if (!parent?.hasImage) throw new Error('The image to fix is missing.');
       const parentPng = await sharp(conceptFile(parent, 'image.png')).resize(w, h, { fit: 'fill' }).png().toBuffer();
-      const structural = !!rec.plan && changesOrder(rec.plan);
-      // An order change is drawn to the new layout. An image-only edit is the designer's words
-      // and the current picture alone: nothing about the layout or the house rules is sent.
-      images = structural
-        ? [
-            { role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' },
-            { role: 'layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' },
-          ]
-        : [{ role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' }];
-      prompt = structural ? buildRelayoutPrompt(rec.note, designerChange(rec), layout) : buildFixPrompt(designerChange(rec) ?? rec.note);
+      images = [
+        { role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' },
+        { role: 'layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' },
+      ];
+      // Original logo files restore details that may already be missing in the photograph.
+      const refs = await buildReferences(project, layout, layoutPng);
+      images.push(...refs.filter((r) => r.name.startsWith('customer-logo')));
+      prompt = rec.plan && changesOrder(rec.plan)
+        ? buildRelayoutPrompt(rec.note, designerChange(rec), layout)
+        : buildFixPrompt(designerChange(rec) ?? rec.note, layout, true);
+      if (layout.logos.length) {
+        prompt += `\n\nLOGO TREATMENT (unless the requested edit changes it): ${mustOption('logoTreatments', project.spec!.logoTreatment ?? 'raised-cast').prompt}.\nImages after Image 2 are the original customer logos, in layout order. Preserve their complete artwork, including white lettering, fine rules and white color regions; use them to recover details missing in Image 1.`;
+      }
     } else {
       images = await buildReferences(project, layout, layoutPng);
       prompt = buildConceptPrompt(project.spec!, layout, images, { logoCount: layoutFiles(project, layout).logos.filter(Boolean).length, direction: designerChange(rec) });

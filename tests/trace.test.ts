@@ -81,11 +81,12 @@ describe('logo treatment', () => {
   it('is read from the order, defaults to raised cast, and never turns a logo into a printed photo', () => {
     expect(heritage().logoTreatment).toBe('raised-cast');
     const uv = parseSpec('Bronze plaque 12"w x 16"h\nSatin finish\nUV print logo\nBlind mounting');
-    expect(uv.spec.logoTreatment).toBe('uv-print');
+    expect(uv.spec.logoTreatment).toBe('uv-print-mono');
     expect(uv.spec.imageOption).toBe('none');
     expect(uv.assumed).not.toContain('logoTreatment');
     const plain = parseSpec('Bronze plaque 12"w x 16"h\nSatin finish\nIncludes customer logo\nBlind mounting');
     expect(plain.spec.logoTreatment).toBe('raised-cast');
+    expect(parseSpec('Bronze 12 x 16 inches, UV print color logo').spec.logoTreatment).toBe('uv-print');
     expect(plain.assumed).toContain('logoTreatment');
     expect(parseSpec('Bronze plaque 12"w x 16"h\nFull Color UV printed photo').spec.imageOption).toBe('full-color-uv');
   });
@@ -93,7 +94,7 @@ describe('logo treatment', () => {
   it('is named in the Description-sheet header', () => {
     const s = heritage();
     expect(autoDescription(s, null, { logoCount: 1 })).toContain('Includes raised cast logo.');
-    expect(autoDescription({ ...s, logoTreatment: 'uv-print' }, null, { logoCount: 2 })).toContain('Includes 2 UV printed logos on raised plates.');
+    expect(autoDescription({ ...s, logoTreatment: 'uv-print' }, null, { logoCount: 2 })).toContain('Includes 2 UV printed color logos on raised plates.');
     expect(autoDescription(s, null, {})).not.toContain('logo');
   });
 
@@ -101,7 +102,8 @@ describe('logo treatment', () => {
     const p = blankProject({ jobNumber: 'L', name: 'L', createdBy: 'Test' });
     p.spec = heritage();
     p.wording = { blocks: [{ id: 'w1', role: 'headline', text: 'Name' }], notes: [] };
-    expect(fallbackInstruction(p, 'make it a UV print logo')).toMatchObject({ kind: 'spec', specPatch: { logoTreatment: 'uv-print' } });
+    expect(fallbackInstruction(p, 'make it a UV print logo')).toMatchObject({ kind: 'spec', specPatch: { logoTreatment: 'uv-print-mono' } });
+    expect(fallbackInstruction(p, 'change the logo to UV print color')).toMatchObject({ kind: 'spec', specPatch: { logoTreatment: 'uv-print' } });
     expect(fallbackInstruction(p, 'change the logo to raised cast')).toMatchObject({ kind: 'spec', specPatch: { logoTreatment: 'raised-cast' } });
   });
 
@@ -111,7 +113,7 @@ describe('logo treatment', () => {
     const layout = computeLayout({ spec: s, wording, logos: [{ id: 'l', aspect: 440 / 284 }], logoSlot: 'bottom' }, 'classic');
     const photo = fs.readFileSync('assets/logo-treatments/uv-print.png');
     const uv = await buildProductionPdf({ jobNumber: '1', name: 'uv', spec: { ...s, logoTreatment: 'uv-print' }, layout, logos: [{ png: photo, name: 'plate.png', fromVector: false }] });
-    expect(uv.notes.join(' ')).toMatch(/UV print\. The raised plate .* is in this file; the logo artwork is printed on it after casting/);
+    expect(uv.notes.join(' ')).toMatch(/UV Print Color\. The raised plate .* is in this file; the logo artwork is printed on it after casting/);
     const cast = await buildProductionPdf({ jobNumber: '1', name: 'cast', spec: s, layout, logos: [{ png: photo, name: 'plate.png', fromVector: false }] });
     expect(cast.notes.join(' ')).toMatch(/read from the marks on a plate/);
     // Outlined lettering makes the traced file much larger than one rectangle.
@@ -123,5 +125,38 @@ describe('logo treatment', () => {
     const plate = uvPlateRect(layout.logos[0], 412 / 738);
     expect(plate.w / plate.h).toBeCloseTo(412 / 738, 3);
     expect(plate.h).toBeLessThanOrEqual(layout.logos[0].h + 1e-9);
+  });
+});
+
+
+describe('white logo artwork', () => {
+  it('keeps dark marks, white rules and white letters on a gray page', async () => {
+    const png = await svg('<rect width="600" height="600" fill="#e5e5e5"/><rect width="600" height="600" fill="none" stroke="black" stroke-width="3"/><rect x="10" width="18" height="600" fill="white"/><rect x="100" y="40" width="400" height="250" fill="#153344"/><rect x="100" y="330" width="400" height="8" fill="white"/><text x="300" y="490" font-size="100" font-family="sans-serif" text-anchor="middle" fill="white">CAMP</text>');
+    const mask = await inkMask(png, {}, 600);
+    const at = (x: number, y: number) => mask.data[(y - mask.crop.y) * mask.width + x - mask.crop.x];
+    expect(at(300, 100)).toBe(1);
+    expect(at(300, 334)).toBe(1);
+    expect(at(300, 310)).toBe(0);
+    expect(mask.crop.y + mask.crop.h).toBeGreaterThan(485);
+    let lettering = 0;
+    for (let y = 415; y < 490; y++) for (let x = 100; x < 500; x++) lettering += at(x, y);
+    expect(lettering).toBeGreaterThan(2000);
+    expect(traceMask(mask).filter((p) => p.dark).length).toBeGreaterThan(4);
+  });
+
+  it('keeps a white-only logo on gray from becoming a solid rectangle', async () => {
+    const mask = await inkMask(await svg('<rect width="600" height="600" fill="#e5e5e5"/><text x="300" y="340" font-size="100" font-family="sans-serif" text-anchor="middle" fill="white">CAMP</text>'), {}, 600);
+    expect(mask.width).toBeLessThan(400);
+    expect(mask.height).toBeLessThan(120);
+    expect(inkShare(mask)).toBeLessThan(0.6);
+    expect(inkShare(mask)).toBeGreaterThan(0.15);
+  });
+
+  it('preserves white lettering on transparent artwork', async () => {
+    const png = await svg('<rect x="80" y="40" width="440" height="200" fill="#123"/><rect x="120" y="300" width="360" height="10" fill="white"/><text x="300" y="480" font-size="100" font-family="sans-serif" text-anchor="middle" fill="white">CAMP</text>');
+    const mask = await inkMask(png, {}, 600);
+    expect(mask.crop.y + mask.crop.h).toBeGreaterThan(470);
+    expect(bandInk(mask, 0.8, 0.95)).toBeGreaterThan(0.15);
+    expect(mask.data[(305 - mask.crop.y) * mask.width + 200 - mask.crop.x]).toBe(1);
   });
 });

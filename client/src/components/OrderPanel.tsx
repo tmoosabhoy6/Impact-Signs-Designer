@@ -458,7 +458,7 @@ function WordingSection({ data, catalog, onChange }: Props) {
   );
 }
 
-function FilesSection({ data, onChange }: Props) {
+function FilesSection({ data, catalog, onChange }: Props) {
   const p = data.project;
   const ppi = data.layouts?.[0]?.photoPpi ?? {};
   const low = p.uploads.photos.filter((f) => ppi[f.id] != null && ppi[f.id] < 150);
@@ -495,26 +495,12 @@ function FilesSection({ data, onChange }: Props) {
           kind="logo"
           label="Logos"
           hint="SVG or PDF/AI preferred; PNG or JPG works."
-          order="Several logos sit in one row, left to right in this order."
+          order="Logos on the same side follow this order."
+          logoPositions={catalog.catalog.logoPositions}
           accept="image/*,.svg,.pdf,.ai,.eps"
           data={data}
           onChange={onChange}
         />
-        {p.uploads.logos.length > 0 && (
-          <label className="flex items-center justify-between text-[13px]">
-            <span className="text-graphite">{p.uploads.logos.length > 1 ? 'Logo row position' : 'Logo position'}</span>
-            <select
-              className="h-8 rounded-[3px] border border-line bg-white px-1.5 text-[13px] outline-none focus:border-navy"
-              value={p.logoSlot}
-              onChange={async (e) => onChange(await api.patch<ProjectPayload>(`/projects/${p.id}`, { logoSlot: e.target.value }))}
-            >
-              <option value="auto">Automatic</option>
-              <option value="top">Top</option>
-              <option value="middle">Middle</option>
-              <option value="bottom">Bottom</option>
-            </select>
-          </label>
-        )}
         <FileList
           kind="sketch"
           label="Sketches"
@@ -533,8 +519,9 @@ function FilesSection({ data, onChange }: Props) {
  * and change their left-to-right order on the plaque.
  */
 function FileList({
-  kind, label, hint, order, accept, data, onChange, detail,
+  kind, label, hint, order, accept, data, onChange, detail, logoPositions,
 }: {
+  logoPositions?: { id: string; label: string }[];
   kind: MultiUploadKind;
   label: string;
   hint: string;
@@ -663,6 +650,20 @@ function FileList({
                   {f.name}
                 </div>
                 {detail?.(f)}
+                {kind === 'logo' && logoPositions && (
+                  <label className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-graphite">
+                    Position
+                    <select
+                      aria-label={`Position of ${f.name}`}
+                      className="h-7 max-w-full rounded-[3px] border border-line bg-white px-1 text-[12px]"
+                      value={p.uploads.logos.find((l) => l.id === f.id)?.position ?? 'auto'}
+                      disabled={busy}
+                      onChange={(e) => act(f.id, () => api.patch<ProjectPayload>(`/projects/${p.id}/upload/logo/${f.id}/placement`, { position: e.target.value }))}
+                    >
+                      {logoPositions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
+                  </label>
+                )}
               </div>
               <div className="flex shrink-0 items-center">
                 {order && items.length > 1 && (

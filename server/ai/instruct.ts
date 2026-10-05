@@ -8,7 +8,7 @@ import { matchOption, parseSize } from '../parse/spec.js';
 import { openai } from './images.js';
 import { ADJUST_LIMITS, normalizeAdjust } from '../layout/engine.js';
 import { normalizeUploads } from '../../shared/uploads.js';
-import type { ConceptRecord, InstructionPlan, LayoutAdjust, LayoutPresetId, PlacementPatch, PlaqueSpec, Project, Wording, WordingEdit } from '../../shared/types.js';
+import type { ConceptRecord, InstructionPlan, LayoutAdjust, LayoutPresetId, LogoPosition, PlacementPatch, PlaqueSpec, Project, Wording, WordingEdit } from '../../shared/types.js';
 
 export const SPEC_GROUPS = {
   material: 'materials', finish: 'finishes', backgroundColor: 'backgroundColors',
@@ -52,6 +52,7 @@ export const layoutPatchSchema = z.strictObject({
 export const placementSchema = z.strictObject({
   imageAfterBlock: z.number().int().min(0).nullable().optional(),
   logoSlot: z.enum(['auto', 'top', 'middle', 'bottom']).optional(),
+  logos: z.array(z.strictObject({ logoId: z.string().min(1), position: z.enum(getCatalog().logoPositions.map((o) => o.id) as [LogoPosition, ...LogoPosition[]]) })).min(1).max(6).optional(),
 }).refine((p) => Object.keys(p).length > 0, 'Specify a placement.');
 
 export function planSchema() {
@@ -206,6 +207,17 @@ function layoutClause(project: Project, s: string, preset: LayoutPresetId): Plan
   const files = normalizeUploads(project.uploads);
   const photoCount = files.photos.length;
   const logoCount = files.logos.length;
+  // Named/numbered logo moves update the shared layout, not only the picture.
+  const destination = t.match(/\b(?:to|at|on) (?:the )?(top|bottom|left|right)\b/);
+  if (logo && destination && /\b(?:move|put|place|position|shift)\b/.test(t) && files.logos.length) {
+    const numbered = t.match(/\blogo\s*(\d+)\b/);
+    const ordinals = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
+    const ordinal = ordinals.findIndex((word) => new RegExp(`\\b${word} logo\\b`).test(t));
+    const named = files.logos.filter((l) => t.includes(l.name.toLowerCase().replace(/\.[^.]+$/, '')));
+    const index = numbered ? Number(numbered[1]) - 1 : ordinal;
+    const targets = index >= 0 ? files.logos.slice(index, index + 1) : named.length === 1 ? named : /\ball\b|\blogos\b/.test(t) || files.logos.length === 1 ? files.logos : [];
+    if (targets.length) return { kind: 'edit', restated: `Move ${targets.map((l) => l.name).join(', ')} to the ${destination[1]}`, placement: { logos: targets.map((l) => ({ logoId: l.id, position: destination[1] as LogoPosition })) } };
+  }
   // Several photos (or logos) are sized and placed as one group. A request about just one
   // of them ("the left logo", "the second photo") is not a layout change: it becomes an
   // image-only edit rather than resizing the whole group.
@@ -305,7 +317,11 @@ function mergePlans(project: Project, plans: Plan[], instruction: string): Plan 
     const p = editParts(plan);
     if (p.specPatch) out.specPatch = { ...out.specPatch, ...p.specPatch };
     if (p.wordingEdits) out.wordingEdits = [...(out.wordingEdits ?? []), ...p.wordingEdits];
-    if (p.placement) out.placement = { ...out.placement, ...p.placement };
+    if (p.placement) {
+      const moves = [...(out.placement?.logos ?? []), ...(p.placement.logos ?? [])];
+      out.placement = { ...out.placement, ...p.placement };
+      if (moves.length) out.placement.logos = [...new Map(moves.map((l) => [l.logoId, l])).values()];
+    }
     if (p.imageEdit) out.imageEdit = out.imageEdit ? `${out.imageEdit}; ${p.imageEdit}` : p.imageEdit;
     if (p.layoutPatch) {
       const l: LayoutAdjust = { ...out.layoutPatch };
@@ -406,6 +422,10 @@ export function validateInstructionPlan(raw: unknown, project: Project, instruct
     applyWordingEdits(project.wording, parts.wordingEdits);
   }
   if (parts.placement?.imageAfterBlock != null && parts.placement.imageAfterBlock >= (project.wording?.blocks.length ?? 0)) throw new Error('The image position names a missing wording block.');
+  if (parts.placement?.logos) {
+    const ids = parts.placement.logos.map((l) => l.logoId);
+    if (new Set(ids).size !== ids.length || ids.some((id) => !normalizeUploads(project.uploads).logos.some((l) => l.id === id))) throw new Error('The logo position names a missing or repeated logo.');
+  }
   // Each clause the offline reader understands has a fixed meaning: the plan must contain
   // that catalog or wording change.
   const split = splitClauses(instruction);
@@ -448,7 +468,14 @@ export function applyPlan(p: Project, plan: Plan, preset: LayoutPresetId) {
   }
   if (parts.placement) {
     if (parts.placement.imageAfterBlock !== undefined) p.imageAfterBlock = parts.placement.imageAfterBlock;
-    if (parts.placement.logoSlot) p.logoSlot = parts.placement.logoSlot;
+    if (parts.placement.logoSlot) {
+      p.logoSlot = parts.placement.logoSlot;
+      p.uploads.logos = p.uploads.logos.map((l) => ({ ...l, position: 'auto' }));
+    }
+    if (parts.placement.logos) p.uploads.logos = p.uploads.logos.map((l) => {
+      const move = parts.placement!.logos!.find((m) => m.logoId === l.id);
+      return move ? { ...l, position: move.position } : l;
+    });
   }
   if (parts.layoutPatch) {
     const cur = normalizeAdjust(p.layoutAdjust?.[preset]);
@@ -477,8 +504,8 @@ Shape: {"kind":"edit","restated":"plain-English summary of everything that will 
 - specPatch: catalog options or plaque size, only when the designer names that option. Use catalog IDs. Respect sizeLimits and material/finish compatibility.
 - wordingEdits: literal customer text changes or per-line styling. Ops (each has "op"): replace_text {blockId,from,to}; insert_block {afterId: block ID or null for the top, text, role}; delete_block {blockId}; set_role {blockId,role}; set_style {blockId,style:{italic?,bold?,smallCaps?,size?}}. Roles: headline/subhead/body/footer. style.size is that line's absolute size multiplier, 0.5..2 (its current value is in the wording style, 1 if missing). New and inserted text must appear literally in the request; "from" is the exact current text. Never paraphrase, correct or invent customer wording. "The name" means the headline block.
 - layoutPatch (this layout only, relative to now): textScale (all text, multiplier: 1.15 = 15% larger), spacing (space between lines and groups, multiplier), imageScale (photo frame, multiplier), logoScale (multiplier), verticalOffset (absolute target: -1 top, 0 centered, 1 bottom; the current value is given). Steps: slightly 1.08, normal 1.15 to 1.25, a lot 1.4; smaller is the inverse (0.85).
-- placement (whole order): imageAfterBlock (index of the wording block the photo goes after; null = photo first, at the top or left), logoSlot (top, middle or bottom).
-- Several photos sit together as one group of frames, and several logos as one row, in the order listed in layout.photos / layout.logos. imageScale, logoScale and placement always resize or move the whole group. A change to just one of them (for example "make the left logo bigger") cannot be made in the layout: use imageEdit for it and say in restated that it changes the image only. Adding, removing or reordering photos and logos is done in Customer files, not here: refuse with that reason.
+- placement (whole order): imageAfterBlock (index of the wording block the photo goes after; null = photo first, at the top or left), logoSlot (legacy whole-group top, middle or bottom), logos: [{logoId, position}] for individual logos; position is auto, top, bottom, left or right. Use the supplied logo IDs.
+- Several photos sit together as one group of frames, and logos on the same side form a group, in the order listed in layout.photos / layout.logos. imageScale and logoScale resize the whole group; placement.logos moves each named logo independently. A change to just one of them (for example "make the left logo bigger") cannot be made in the layout: use imageEdit for it and say in restated that it changes the image only. For adding, removing or reordering files, explain that Customer files changes the order; imageEdit can change the picture only.
 - imageEdit: everything else, passed to the image model as a direct instruction in the designer's own words: how the photo, portrait, etching, logo, finish, paint or texture looks, moving or resizing one particular element, re-rendering letters, a finish, color or construction that is not in the catalog, a whole new rendering, anything at all. It changes the image only; the proof and the vector production file keep the order as it is, so say so in restated when an imageEdit asks for something the order cannot hold (wording, a non-catalog finish).
 Prefer specPatch, wordingEdits, layoutPatch and placement over imageEdit whenever they can express the change: they also update the proof and the vector production file. Use imageEdit together with them for the rest.
 Never refuse. Every request becomes a plan; when nothing else fits, the whole request is the imageEdit, word for word.`;
@@ -491,8 +518,8 @@ export async function planInstruction(project: Project, concept: ConceptRecord, 
     catalog, sizeLimits: getCatalog().sizeLimits, thickness: getCatalog().thickness, spec: project.spec,
     wording: project.wording?.blocks.map(({ id, role, text, style }, index) => ({ index, id, role, text, style })),
     layout: { preset, current: normalizeAdjust(project.layoutAdjust?.[preset]), imageAfterBlock: project.imageAfterBlock, logoSlot: project.logoSlot,
-      // File names only, in plaque order (left to right): enough to tell "the Rotary logo" apart.
-      photos: normalizeUploads(project.uploads).photos.map((f) => f.name), logos: normalizeUploads(project.uploads).logos.map((f) => f.name) },
+      // Stable logo IDs and file names let the planner address each uploaded logo.
+      photos: normalizeUploads(project.uploads).photos.map((f) => f.name), logos: normalizeUploads(project.uploads).logos.map((f) => ({ id: f.id, name: f.name, position: f.position ?? 'auto' })) },
     instruction,
   };
   // The stronger planner model first, then the vision model; each failure is fed back once.

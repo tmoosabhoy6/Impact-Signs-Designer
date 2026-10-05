@@ -209,6 +209,18 @@ function split(g: Gray, r: Region, opts: Required<Pick<InkOptions, 'background' 
   const t = opts.threshold ?? otsu(hist);
   const bg = opts.background === 'auto' ? ringMedian(g, r) : opts.background === 'dark' ? 0 : 255;
   const darkInk = bg > t;
+  // A flat mid-tone page can carry BOTH dark artwork and white lettering. A single
+  // light/dark split used to discard the latter. Restrict this to uniform page edges,
+  // so textured plaque photos continue through the existing plate reader.
+  let edgeTotal = 0;
+  let edgeNear = 0;
+  const edge = Math.max(2, Math.round(0.03 * Math.min(r.w, r.h)));
+  for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) {
+    if (x >= r.x + edge && x < r.x + r.w - edge && y >= r.y + edge && y < r.y + r.h - edge) continue;
+    edgeTotal++;
+    if (Math.abs(g.data[y * g.width + x] - bg) <= 5) edgeNear++;
+  }
+  const twoSided = darkInk && opts.background === 'auto' && opts.threshold == null && bg >= 150 && bg < 243 && edgeNear / edgeTotal > 0.6;
   let count = 0;
   let x0 = Infinity;
   let y0 = Infinity;
@@ -218,7 +230,7 @@ function split(g: Gray, r: Region, opts: Required<Pick<InkOptions, 'background' 
     const row = y * g.width;
     for (let x = r.x; x < r.x + r.w; x++) {
       const v = g.data[row + x];
-      const ink = darkInk ? v <= t : v > t;
+      const ink = twoSided ? v <= t || v >= bg + 12 : darkInk ? v <= t : v > t;
       if (!ink) continue;
       mask[row + x] = 1;
       count++;
@@ -322,6 +334,17 @@ export function inkMaskOfGray(g: Gray, options: InkOptions = {}): InkMask {
 
 /** The ink of a logo picture: 1 = raised metal. */
 export async function inkMask(png: Buffer, options: InkOptions = {}, maxEdge = TRACE_EDGE): Promise<InkMask> {
+  const meta = await sharp(png).metadata();
+  if (meta.hasAlpha) {
+    const { data, info } = await sharp(png).resize({ width: maxEdge, height: maxEdge, fit: 'inside' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let transparent = 0;
+    for (let i = info.channels - 1; i < data.length; i += info.channels) if (data[i] < 128) transparent++;
+    if (transparent > info.width * info.height * 0.02) {
+      // Alpha explicitly identifies empty space. White opaque strokes are artwork too.
+      const gray = Uint8Array.from({ length: info.width * info.height }, (_, i) => data[i * info.channels + info.channels - 1] >= 128 ? 0 : 255);
+      return inkMaskOfGray({ width: info.width, height: info.height, data: gray }, { ...options, background: 'light', threshold: 127, plate: false });
+    }
+  }
   return inkMaskOfGray(await toGray(png, maxEdge), options);
 }
 

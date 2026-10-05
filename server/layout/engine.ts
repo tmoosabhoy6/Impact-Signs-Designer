@@ -9,12 +9,13 @@
 //    band / gap / inner line, growing with the plaque's shorter side.
 import { getCatalog, mustOption, type BorderOption } from '../catalog.js';
 import { loadFontFile, measure, missingGlyphs, resolveFont, SMALL_CAPS_SCALE, wrapText, type OTFont } from '../text/fonts.js';
-import type { ImageFrame, LayoutAdjust, LayoutPresetId, LogoBox, PlaqueLayout, PlaqueSpec, Rect, TextLine, TextStyle, Wording, WordingRole } from '../../shared/types.js';
+import type { ImageFrame, LayoutAdjust, LayoutPresetId, LogoBox, LogoPosition, PlaqueLayout, PlaqueSpec, Rect, TextLine, TextStyle, Wording, WordingRole } from '../../shared/types.js';
 
 /** One uploaded photo or logo: its id (carried onto the layout) and width / height. */
 export interface LayoutPicture {
   id?: string;
   aspect: number;
+  position?: LogoPosition;
 }
 
 export interface LayoutInput {
@@ -382,7 +383,7 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
   return { items, raised };
 }
 
-export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): PlaqueLayout {
+function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverride?: Rect): PlaqueLayout {
   const { spec } = input;
   const preset = PRESETS.find((p) => p.id === presetId) ?? PRESETS[0];
   const W = spec.widthIn;
@@ -393,7 +394,8 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   const field: Rect = { x: bw, y: bw, w: W - 2 * bw, h: H - 2 * bw };
   // Content stays inside a double border's inner line.
   const innerOffset = geo.gap + geo.inner;
-  const content: Rect = { x: field.x + innerOffset, y: field.y + innerOffset, w: field.w - 2 * innerOffset, h: field.h - 2 * innerOffset };
+  const plaqueContent: Rect = { x: field.x + innerOffset, y: field.y + innerOffset, w: field.w - 2 * innerOffset, h: field.h - 2 * innerOffset };
+  const content = contentOverride ?? plaqueContent;
   const warnings: string[] = [];
   const adj = normalizeAdjust(input.adjust);
   const gapMul = preset.gaps * adj.spacing;
@@ -427,10 +429,10 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   const screwInset = screwD ? Math.max(0.2, 0.05 * Math.min(W, H)) + screwD / 2 : 0;
   const screws = screwD
     ? [
-        { cx: content.x + screwInset, cy: content.y + screwInset },
-        { cx: content.x + content.w - screwInset, cy: content.y + screwInset },
-        { cx: content.x + screwInset, cy: content.y + content.h - screwInset },
-        { cx: content.x + content.w - screwInset, cy: content.y + content.h - screwInset },
+        { cx: plaqueContent.x + screwInset, cy: plaqueContent.y + screwInset },
+        { cx: plaqueContent.x + plaqueContent.w - screwInset, cy: plaqueContent.y + screwInset },
+        { cx: plaqueContent.x + screwInset, cy: plaqueContent.y + plaqueContent.h - screwInset },
+        { cx: plaqueContent.x + plaqueContent.w - screwInset, cy: plaqueContent.y + plaqueContent.h - screwInset },
       ].map((s) => ({ ...s, d: screwD }))
     : [];
   const screwKeepOut = screwD ? screwInset + screwD : 0;
@@ -561,7 +563,7 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   }));
   const rules: Rect[] = best.rules.map((r) => ({ x: cx - (textWidth * 0.94) / 2, y: r.y + dy - r.t / 2, w: textWidth * 0.94, h: r.t }));
   if (!imageLeft && best.frame) {
-    frameRect = { x: (W - best.frame.w) / 2, y: best.frame.y + dy, w: best.frame.w, h: best.frame.h };
+    frameRect = { x: content.x + (content.w - best.frame.w) / 2, y: best.frame.y + dy, w: best.frame.w, h: best.frame.h };
     frameCells = best.frame.cells;
   }
   const logoRow = best.logo ? { x: cx - best.logo.w / 2, y: best.logo.y + dy } : null;
@@ -631,3 +633,66 @@ export function computeAllLayouts(input: LayoutInput): PlaqueLayout[] {
 }
 
 export { getCatalog };
+
+/**
+ * Explicit per-logo sides reserve their own space before fitting the wording and photos.
+ * Orders without these controls keep the measured legacy layout.
+ */
+export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): PlaqueLayout {
+  if (!input.logos?.some((l) => l.position && l.position !== 'auto')) return computeCore(input, presetId);
+  let layout: PlaqueLayout | undefined;
+  for (let attempt = 0; attempt <= 8; attempt++) {
+    layout = positionedLayout(input, presetId, 1 - attempt * 0.1);
+    if (!layout.warnings.some((w) => w.includes('wording does not fit'))) {
+      if (attempt) layout.warnings.push('Logos were reduced to leave room for the wording at the minimum letter height.');
+      return layout;
+    }
+  }
+  return layout!;
+}
+
+function positionedLayout(input: LayoutInput, presetId: LayoutPresetId, fit: number): PlaqueLayout {
+  const bare = { ...input, logos: [] };
+  const base = computeCore(bare, presetId);
+  const border = base.border;
+  const inner = border.innerLine;
+  const edge = inner ? (border.innerLineIn ?? 0) / 2 : 0;
+  const field = inner ? { x: inner.x + edge, y: inner.y + edge, w: inner.w - 2 * edge, h: inner.h - 2 * edge } : base.field;
+  const screwPad = base.screws.length ? Math.max(...base.screws.map((s) => s.d)) * 2 : 0;
+  const pad = Math.max(0.25, 0.04 * Math.min(field.w, field.h), screwPad);
+  const area = { x: field.x + pad, y: field.y + pad, w: Math.max(0.1, field.w - 2 * pad), h: Math.max(0.1, field.h - 2 * pad) };
+  const gap = Math.min(0.35, 0.035 * Math.min(area.w, area.h));
+  const scale = normalizeAdjust(input.adjust).logoScale * fit;
+  const fallback = input.logoSlot === 'bottom' ? 'bottom' : input.logoSlot === 'top' || input.logoSlot === 'middle' ? 'top' : base.imageFrames.length && input.spec.heightIn > input.spec.widthIn ? 'bottom' : 'top';
+  const groups = (side: LogoPosition) => input.logos!.filter((l) => (l.position && l.position !== 'auto' ? l.position : fallback) === side);
+  const boxes = new Map<LayoutPicture, Rect>();
+  const row = (pictures: LayoutPicture[]) => {
+    if (!pictures.length) return { w: 0, h: 0, cells: [] };
+    const aspects = pictures.map((l) => Math.max(0.05, l.aspect || 1));
+    return groupCells(aspects, arrangePictures(aspects, area.w, area.h * Math.min(0.25, 0.17 * scale), gap, { maxRows: pictures.length >= 4 ? 2 : 1 }), gap);
+  };
+  const top = groups('top');
+  const bottom = groups('bottom');
+  const topRow = row(top);
+  const bottomRow = row(bottom);
+  top.forEach((l, i) => boxes.set(l, offset(topRow.cells[i], area.x + (area.w - topRow.w) / 2, area.y)));
+  bottom.forEach((l, i) => boxes.set(l, offset(bottomRow.cells[i], area.x + (area.w - bottomRow.w) / 2, area.y + area.h - bottomRow.h)));
+  const middle = { ...area, y: area.y + (top.length ? topRow.h + gap : 0), h: area.h - (top.length ? topRow.h + gap : 0) - (bottom.length ? bottomRow.h + gap : 0) };
+  const column = (pictures: LayoutPicture[]) => {
+    if (!pictures.length) return { w: 0, h: 0, cells: [] };
+    // Arrange a row with reciprocal proportions, then transpose it into a column.
+    const aspects = pictures.map((l) => 1 / Math.max(0.05, l.aspect || 1));
+    const g = groupCells(aspects, arrangePictures(aspects, middle.h, area.w * Math.min(0.25, 0.2 * scale), gap, { maxRows: 1 }), gap);
+    return { w: g.h, h: g.w, cells: g.cells.map((c) => ({ x: c.y, y: c.x, w: c.h, h: c.w })) };
+  };
+  const left = groups('left');
+  const right = groups('right');
+  const leftCol = column(left);
+  const rightCol = column(right);
+  left.forEach((l, i) => boxes.set(l, offset(leftCol.cells[i], area.x, middle.y + (middle.h - leftCol.h) / 2)));
+  right.forEach((l, i) => boxes.set(l, offset(rightCol.cells[i], area.x + area.w - rightCol.w, middle.y + (middle.h - rightCol.h) / 2)));
+  const center = { ...middle, x: middle.x + (left.length ? leftCol.w + gap : 0), w: middle.w - (left.length ? leftCol.w + gap : 0) - (right.length ? rightCol.w + gap : 0) };
+  const layout = computeCore(bare, presetId, center);
+  layout.logos = input.logos!.map((l) => ({ ...boxes.get(l)!, ...(l.id ? { logoId: l.id } : {}) }));
+  return layout;
+}

@@ -39,8 +39,8 @@ The interface uses the current impactsigns.com palette: navy navigation and butt
    - **Use this one** to put it on the proof: the concept stands forward with a green check, and the right-hand panel switches to it (its picture, the description and the proof and vector buttons all work on that concept). Press **Use this one** under another concept to proof that one next; nothing you made for the first is lost. Three concepts, three proofs, three vector files, if you like. Every file in the right-hand panel says which concept it came from (*From Feature Image v2*).
    - **The full-size view** (click a picture): scroll to zoom, drag to move, double-click to fit, +/−/0/1 keys, Esc to close.
    - **Regenerate** (↻) the same layout for a fresh take.
-   - **Fix** with any instruction at all, small or large, and several changes at once if you like. Enter applies; Shift+Enter adds a line. The app shows how it read the request, and the result is saved as a new version (v2, v3…). Nothing is refused: whatever the catalog, the wording editor and the layout cannot express is sent to the image model word for word as an image-only change (the proof and vector file then keep the current order, and the note under the box says so). An image-only change is as open as it gets: the model receives only your words and the current picture (`server/prompts/fix.md`, five lines), with no house rules, no layout drawing and no wording list, so it can change the logo, the lettering, the background or redo the whole image. The result is still spell-checked against the order, and the proof asks before it uses a picture whose wording differs.
-     - **Layout** changes (text size, spacing, photo or logo size, moving the content up or down, photo above or below the text, logo position) change that column's layout drawing, so the proof and the vector production file follow them. Each column keeps its own adjustments. With several photos or logos, "make the logos bigger" resizes the whole row together; a change to just one of them ("make the left logo bigger") is made on the image only.
+   - **Fix** with any instruction at all, small or large, and several changes at once if you like. Enter applies; Shift+Enter adds a line. The app shows how it read the request, and the result is saved as a new version (v2, v3…). Nothing is refused: whatever the catalog, the wording editor and the layout cannot express is sent to the image model word for word as an image-only change (the proof and vector file then keep the current order, and the note under the box says so). The editing prompt keeps the original plaque rules, exact wording and layout drawing, and also receives the original logo artwork. Your explicit instruction overrides conflicting rules for the requested change; everything else stays protected. The result is still spell-checked against the order, and the proof asks before it uses a picture whose wording differs.
+     - **Layout** changes (text size, spacing, photo or logo size, moving the content up or down, photo above or below the text, logo position) change that column's layout drawing, so the proof and the vector production file follow them. Each column keeps its own adjustments. With several photos or logos, "make the logos bigger" resizes the group together. Move an individual logo with its Position control or a request such as "move logo 2 to the right". Resizing just one logo remains an image-only change.
      - Adding, removing or swapping photos and logos is done in **03 Customer files**, not with Fix.
      - **Catalog** options and **exact wording** changes update the order, as before.
      - **Anything else** about how the image looks (etching depth, photo detail, finish appearance, moving one element in a way the layout can't) is made by the image model on the current picture. These change the image only; the vector file keeps the layout drawing.
@@ -55,7 +55,10 @@ Nothing is ever overwritten: every image, proof and production file is kept as i
 
 **Logos** are made one of two ways; pick it under **Logo treatment** in the specification (the order's wording "UV print logo" sets it):
 - **Raised Cast:** the logo's lines and shapes are cast as raised metal, like the letters. The vector file carries the logo traced to outlines.
-- **UV Print:** the logo is printed in full detail on a smooth raised metal plate. The vector file carries the raised plate; the artwork is printed after casting.
+- **UV Print:** the complete logo is printed in black, white and gray on a smooth raised metal plate.
+- **UV Print Color:** the complete logo is printed in its original colors, including white lettering and fine white lines. Existing color UV jobs keep their color treatment.
+
+Both print options put only the raised plate in the one-ink production PDF; the artwork is printed after casting. Opaque white stays white, and transparent areas show the metal. Each uploaded logo has its own **Position** control: Automatic, Top, Bottom, Left or Right. Logos on the same side follow their upload order. Automatic keeps the existing order placement. If space is tight, logos shrink to preserve readable lettering; the layout reports when the wording still cannot fit.
 
 The concept image, the layout drawing, the proof description and the vector file all follow the choice. The logo reader works from any file: a clean logo on white, a gold logo on a dark background, a full-color logo, or a photo of a finished plaque (the marks on the plate are read as the logo).
 
@@ -156,7 +159,7 @@ The image API has no saved "system prompt": every request carries everything. Ea
 
 After generation, the app crops the image to the plaque's exact proportions (so the proof brackets line up) and spell-checks it.
 
-Edits are different. A change to the order (a catalog option, the wording, the layout) redraws the picture to the updated layout drawing under the house rules, so the picture still matches the proof and the vector file. A free-form image change sends only the current picture and your words.
+Edits are different. A change to the order (a catalog option, the wording, the layout) redraws the picture to the updated layout drawing under the house rules, so the picture still matches the proof and the vector file. A free-form image change sends the current picture, layout drawing, original logos and your words, with the informed preservation rules. Explicit requests take priority for the details they change.
 
 ---
 
@@ -171,7 +174,7 @@ Open this project folder in Terminal, or ask Codex to run these commands. Instal
 
 In Codex cloud, set `OPENAI_API_KEY` as a runtime environment variable, not a setup-only secret, and allow agent internet access to `api.openai.com`. Never paste the key into source code. Local Codex can use the git-ignored `.env` file.
 
-The **Fix** box distinguishes appearance edits from changes to the order. “Double line border” changes the catalog specification and regenerates the image, proof and vector together. “Change Founder to Chairman” changes exactly that text. Version chips show **edit / spec / wording**, and **Undo order change** restores the previous order without deleting images. Unsupported or ambiguous requests are refused with catalog alternatives.
+The **Fix** box distinguishes appearance edits from changes to the order. “Double line border” changes the catalog specification and regenerates the image, proof and vector together. “Change Founder to Chairman” changes exactly that text. Version chips show **edit / spec / wording**, and **Undo order change** restores the previous order without deleting images. Requests outside the order controls are sent as image-only edits, with that distinction shown beside the edit.
 
 ### Verification commands
 

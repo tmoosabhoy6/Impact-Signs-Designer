@@ -22,6 +22,7 @@ export interface Catalog {
     mountings: CatalogOption[];
     materials: CatalogOption[];
     processes: CatalogOption[];
+    logoPositions: CatalogOption[];
     logoTreatments: (CatalogOption & { description: string })[];
     proofStyles: { id: string; label: string; description: string }[];
   };

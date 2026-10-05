@@ -124,6 +124,7 @@ describe('each login has its own jobs and upscales', () => {
     expect((await send('POST', `/projects/${job.id}/upload/logo`, bea, fd)).status).toBe(400);
     expect((await send('DELETE', `/projects/${job.id}/upload/photo/${photo.id}`, bea)).status).toBe(400);
     expect((await send('PUT', `/projects/${job.id}/upload/photo/order`, bea, JSON.stringify({ ids: [photo.id] }), { 'Content-Type': 'application/json' })).status).toBe(400);
+    expect((await send('PATCH', `/projects/${job.id}/upload/logo/any-logo/placement`, bea, JSON.stringify({ position: 'right' }), { 'Content-Type': 'application/json' })).status).toBe(400);
     expect(getProject(job.id)!.uploads).toEqual(job.uploads);
   });
 

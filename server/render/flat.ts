@@ -55,52 +55,33 @@ export const UV_PLATE_PAD = 0.08;
  * Reference 1 and the production file agree:
  *  - raised cast: the logo's ink becomes raised metal in the plaque finish and everything
  *    else is see-through, so the recessed field shows there;
- *  - UV print: a raised metal plate with the logo printed on it in its own colors.
+ *  - UV print: a raised metal plate with the complete artwork, monochrome or color.
  */
 export async function logoForDrawing(png: Buffer, treatment = 'raised-cast', metalHex = '#C49A6C'): Promise<Buffer> {
+  const mode = mustOption('logoTreatments', treatment).mode;
+  if (mode !== 'raised') {
+    // Printing uses the entire original artwork, never the casting threshold. White ink,
+    // pale colors and negative spaces must not disappear or become bronze windows.
+    let art = sharp(png).rotate().resize({ width: TRACE_EDGE, height: TRACE_EDGE, fit: 'inside' });
+    if (mode === 'monochrome') art = art.greyscale().toColourspace('srgb');
+    const { data, info } = await art.png().toBuffer({ resolveWithObject: true });
+    const padX = Math.max(2, Math.round(info.width * UV_PLATE_PAD));
+    const padY = Math.max(2, Math.round(info.height * UV_PLATE_PAD));
+    return sharp({ create: { width: info.width + 2 * padX, height: info.height + 2 * padY, channels: 4, background: metalHex } })
+      .composite([{ input: data, left: padX, top: padY }]).png().toBuffer();
+  }
   const mask = await inkMask(png);
   const n = parseInt(metalHex.slice(1), 16);
   const metal = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  if (treatment !== 'uv-print') {
-    const out = Buffer.alloc(mask.width * mask.height * 4);
-    for (let i = 0; i < mask.data.length; i++) {
-      if (!mask.data[i]) continue;
-      out[i * 4] = metal[0];
-      out[i * 4 + 1] = metal[1];
-      out[i * 4 + 2] = metal[2];
-      out[i * 4 + 3] = 255;
-    }
-    return sharp(out, { raw: { width: mask.width, height: mask.height, channels: 4 } }).png().toBuffer();
-  }
-  // The logo in color, at the tracer's working size, cut to the same crop as the mask.
-  const { data: color, info } = await sharp(png)
-    .flatten({ background: '#ffffff' })
-    .resize({ width: TRACE_EDGE, height: TRACE_EDGE, fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const padX = Math.max(2, Math.round(mask.width * UV_PLATE_PAD));
-  const padY = Math.max(2, Math.round(mask.height * UV_PLATE_PAD));
-  const W = mask.width + 2 * padX;
-  const H = mask.height + 2 * padY;
-  const out = Buffer.alloc(W * H * 4);
-  for (let i = 0; i < W * H; i++) {
+  const out = Buffer.alloc(mask.width * mask.height * 4);
+  for (let i = 0; i < mask.data.length; i++) {
+    if (!mask.data[i]) continue;
     out[i * 4] = metal[0];
     out[i * 4 + 1] = metal[1];
     out[i * 4 + 2] = metal[2];
     out[i * 4 + 3] = 255;
   }
-  for (let y = 0; y < mask.height; y++) {
-    for (let x = 0; x < mask.width; x++) {
-      if (!mask.data[y * mask.width + x]) continue;
-      const src = ((mask.crop.y + y) * info.width + mask.crop.x + x) * info.channels;
-      const dst = ((y + padY) * W + x + padX) * 4;
-      out[dst] = color[src];
-      out[dst + 1] = color[src + 1];
-      out[dst + 2] = color[src + 2];
-    }
-  }
-  return sharp(out, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
+  return sharp(out, { raw: { width: mask.width, height: mask.height, channels: 4 } }).png().toBuffer();
 }
 
 export function layoutToSvg(layout: PlaqueLayout, spec: PlaqueSpec, opts: FlatOptions): string {

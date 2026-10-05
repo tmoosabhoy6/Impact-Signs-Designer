@@ -14,7 +14,7 @@ export interface PlaqueSpec {
   lettering: string;
   /** 'cast' (sand-cast, the default) or 'reverse-etched'. */
   process: string;
-  /** How logos are made: 'raised-cast' (the default) or 'uv-print' (printed on a raised plate). */
+  /** Catalog logo treatment: raised cast, monochrome UV print, or color UV print. */
   logoTreatment: string;
   /** Plate thickness in inches when the order states it (e.g. 0.25). */
   thicknessIn: number | null;
@@ -100,6 +100,7 @@ export interface PlacementPatch {
   /** Put the image after this wording block (index); null = image first. */
   imageAfterBlock?: number | null;
   logoSlot?: 'auto' | 'top' | 'middle' | 'bottom';
+  logos?: { logoId: string; position: LogoPosition }[];
 }
 
 export type InstructionPlan =
@@ -262,7 +263,11 @@ export interface UploadedImage extends UploadedFile {
   height: number;
 }
 
+export type LogoPosition = 'auto' | 'top' | 'bottom' | 'left' | 'right';
+
 export interface UploadedLogo extends UploadedImage {
+  /** Per-logo position; absent/auto follows the existing order placement. */
+  position?: LogoPosition;
   /** Supplied as SVG / PDF / AI / EPS (traced from a high-resolution render). */
   vectorSource: boolean;
 }

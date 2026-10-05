@@ -20,12 +20,13 @@ async function heritage() {
 }
 
 describe('image-only edit prompt', () => {
-  it('is the designer\u2019s words in a short, open instruction', () => {
+  it('keeps the informed rules while giving explicit edits priority', () => {
     const p = buildFixPrompt('  make the logo a UV print on a raised plate.  ');
     expect(p).toContain('make the logo a UV print on a raised plate.');
-    expect(p).toMatch(/^Image 1 is the current photograph of a plaque\./);
-    expect(p).toMatch(/It may be one small detail or the whole image/);
-    expect(p.length).toBeLessThan(700);
+    expect(p).toContain('IMPACT SIGNS PLAQUE RENDERER');
+    expect(p).toContain('ZERO TOLERANCE');
+    expect(p).toContain('overrides any conflicting preservation rule');
+    expect(p).toContain('Unmentioned details stay protected');
   });
 });
 

@@ -126,14 +126,13 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
   return `${readPrompt('house_rules.md')}\n\n${body}${direction}`;
 }
 
-/**
- * An image-only edit: the designer's words and the current picture, nothing else. No house
- * rules, no layout drawing and no wording are sent, so any change can be asked for (the
- * logo, the lettering, the background, a complete redo). The result is still read back
- * against the order's wording, and the proof asks before it uses a picture that differs.
- */
-export function buildFixPrompt(instruction: string): string {
-  return fill(readPrompt('fix.md'), { instruction: instruction.trim() });
+export function buildFixPrompt(instruction: string, layout: PlaqueLayout | null = null, hasLayoutRef = false): string {
+  const body = fill(readPrompt('fix.md'), {
+    instruction: instruction.trim().replace(/\.?$/, '.'),
+    layoutNote: hasLayoutRef ? 'For this edit, the house rules’ blueprint is Image 2 (Image 1 is the current photograph). Image 2 shows the planned layout: copy the exact wording and letterforms from it, and keep its positions except where the change moves or resizes something.' : '',
+    text: layout ? layoutText(layout) : '(unchanged)',
+  });
+  return `${readPrompt('house_rules.md')}\n\n${body}`;
 }
 
 /** Edit of the current image to follow an updated layout drawing (layout or wording change). */

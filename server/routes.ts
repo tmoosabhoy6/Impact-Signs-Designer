@@ -320,6 +320,17 @@ api.post('/projects/:id/upload/:kind', upload.single('file'), ah(async (req, res
   res.json(projectPayload(p));
 }));
 
+// Placement belongs to the uploaded logo and is frozen with each concept's uploads.
+api.patch('/projects/:id/upload/logo/:fileId/placement', express.json(), ah((req, res) => {
+  const p = loadProject(req);
+  const position = mustOption('logoPositions', req.body?.position).id as import('../shared/types.js').LogoPosition;
+  const logo = p.uploads.logos.find((l) => l.id === req.params.fileId);
+  if (!logo) return res.status(404).json({ error: 'That logo was not found in this job.' });
+  p.uploads.logos = p.uploads.logos.map((l) => l.id === logo.id ? { ...l, position } : l);
+  saveProject(p);
+  res.json(projectPayload(p));
+}));
+
 // Removing a file takes it off the job; the stored file stays for older versions that used it.
 const removeHandler = ah((req, res) => {
   const p = removeUpload(loadProject(req), uploadKind(req), req.params.fileId ? String(req.params.fileId) : undefined);

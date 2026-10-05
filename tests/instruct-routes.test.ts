@@ -8,9 +8,9 @@ import { api } from '../server/routes';
 import { config } from '../server/config';
 import { createExampleJob } from '../server/examples';
 import { getConcept, getProject, listConcepts, listOutputs, newId, saveConcept, saveProject, spentToday } from '../server/db';
-import { conceptFile, newConceptRecord } from '../server/ai/pipeline';
+import { conceptFile, contentSnapshot, newConceptRecord } from '../server/ai/pipeline';
 import { imageAdapter } from '../server/ai/images';
-import { buildFixPrompt } from '../server/ai/prompts';
+import { storeUpload } from '../server/uploads';
 import type { ConceptRecord, LayoutPresetId, OutputRecord, Project } from '../shared/types';
 
 let server: Server;
@@ -59,7 +59,7 @@ describe('instruction routes in demo mode', () => {
     expect(version.prompt).toContain('use a purple anodized finish');
     expect(getProject(p.id)).toEqual(p);
   });
-  it('sends an image-only edit as the designer\u2019s words and the current picture alone', async () => {
+  it('sends open edits with the current picture, layout and informed preservation rules', async () => {
     const { p, c } = await fixture();
     const run = vi.spyOn(imageAdapter(), 'run');
     try {
@@ -67,13 +67,35 @@ describe('instruction routes in demo mode', () => {
       await (await post(`/concepts/${c.id}/fix`, { instruction: words })).text();
       expect(run).toHaveBeenCalledTimes(1);
       const request = run.mock.calls[0][0];
-      // One reference image (the current picture): no layout drawing to pull it back to the old design.
-      expect(request.images.map((i) => i.name)).toEqual(['current.png']);
-      expect(request.prompt).toBe(buildFixPrompt(words));
+      expect(request.images.map((i) => i.name)).toEqual(['current.png', 'layout.png']);
       expect(request.prompt).toContain(words);
-      // None of the rules that keep a new concept faithful to the order.
-      for (const rule of ['ZERO TOLERANCE', 'Reference 1', 'IMPACT SIGNS PLAQUE RENDERER', 'Never redraw', 'must read exactly']) expect(request.prompt).not.toContain(rule);
+      expect(request.prompt).toContain('ZERO TOLERANCE');
+      expect(request.prompt).toContain('overrides any conflicting preservation rule');
+      expect(request.prompt).toContain('Image 2 shows the planned layout');
       expect(getProject(p.id)).toEqual(p);
+    } finally { run.mockRestore(); }
+  });
+  it('includes original logo artwork when repairing missing details', async () => {
+    const { p, c } = await fixture();
+    const png = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect x="30" y="30" width="240" height="120" fill="#145"/><text x="150" y="250" text-anchor="middle" font-size="48" fill="white">CAMP</text></svg>')).png().toBuffer();
+    const withLogo = await storeUpload(p, 'logo', 'camp.png', png);
+    saveProject(withLogo);
+    c.snapshot = contentSnapshot(withLogo);
+    saveConcept(c);
+    const run = vi.spyOn(imageAdapter(), 'run');
+    try {
+      await (await post(`/concepts/${c.id}/fix`, { instruction: 'restore the missing white line and logo lettering' })).text();
+      const request = run.mock.calls[0][0];
+      expect(request.images.map((i) => i.name)).toEqual(['current.png', 'layout.png', 'customer-logo.png']);
+      expect(request.prompt).toContain('original customer logos');
+      expect(request.prompt).toContain('white lettering');
+      // The reference is backed in gray so white artwork on transparency stays visible.
+      const reference = request.images[2].file;
+      const { data, info } = await sharp(reference).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      expect(data[0]).toBe(128);
+      let whites = 0;
+      for (let y = Math.floor(info.height * 0.6); y < info.height; y++) for (let x = 0; x < info.width; x++) if (data[(y * info.width + x) * 3] > 240) whites++;
+      expect(whites).toBeGreaterThan(100);
     } finally { run.mockRestore(); }
   });
   it('still draws an order change to the updated layout, with the layout drawing and house rules', async () => {

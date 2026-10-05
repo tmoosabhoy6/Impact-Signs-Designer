@@ -7,7 +7,9 @@
 import { PDFDocument, rgb, type PDFPage } from 'pdf-lib';
 import { resolveFont } from '../text/fonts.js';
 import { linePathData } from '../render/flat.js';
-import { inkMask, traceLogo } from './trace.js';
+import sharp from 'sharp';
+import { mustOption } from '../catalog.js';
+import { traceLogo } from './trace.js';
 import type { PlaqueLayout, PlaqueSpec, Rect } from '../../shared/types.js';
 
 export const INK_HEX = '#231F20';
@@ -103,7 +105,8 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
   // Logos, each centered in its own box: traced to raised outlines (raised cast), or drawn
   // as the raised plate the logo is printed on afterwards (UV print).
   const many = layout.logos.length > 1;
-  const uvPrint = spec.logoTreatment === 'uv-print';
+  const treatment = mustOption('logoTreatments', spec.logoTreatment ?? 'raised-cast');
+  const uvPrint = treatment.mode !== 'raised';
   for (const [i, box] of layout.logos.entries()) {
     const logo = input.logos?.[i];
     const which = many ? `Logo ${i + 1}${logo?.name ? ` (${logo.name})` : ''}` : 'Logo';
@@ -112,10 +115,10 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
       continue;
     }
     if (uvPrint) {
-      const mask = await inkMask(logo.png);
-      const plate = uvPlateRect(box, mask.width / mask.height);
+      const image = await sharp(logo.png).metadata();
+      const plate = uvPlateRect(box, image.width! / image.height!);
       rect(plate);
-      notes.push(`${which}: UV print. The raised plate (${+plate.w.toFixed(2)}" x ${+plate.h.toFixed(2)}") is in this file; the logo artwork is printed on it after casting, so it is not outlined here.`);
+      notes.push(`${which}: ${treatment.label}. The raised plate (${+plate.w.toFixed(2)}" x ${+plate.h.toFixed(2)}") is in this file; the logo artwork is printed on it after casting, so it is not outlined here.`);
       continue;
     }
     const traced = await traceLogo(logo.png);

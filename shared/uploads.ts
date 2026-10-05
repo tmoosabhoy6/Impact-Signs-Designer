@@ -45,7 +45,7 @@ export function normalizeUploads(input: LegacyUploads | null | undefined): Uploa
   const image = (x: Omit<UploadedImage, 'id'> & { id?: string }): UploadedImage => ({ ...file(x), width: x.width ?? 0, height: x.height ?? 0 });
   const out: Uploads = {
     photos: (u.photos ?? (u.photo ? [u.photo] : [])).map(image),
-    logos: (u.logos ?? (u.logo ? [u.logo] : [])).map((x: Omit<UploadedLogo, 'id'> & { id?: string }) => ({ ...image(x), vectorSource: !!x.vectorSource })),
+    logos: (u.logos ?? (u.logo ? [u.logo] : [])).map((x: Omit<UploadedLogo, 'id'> & { id?: string }) => ({ ...image(x), vectorSource: !!x.vectorSource, ...(x.position ? { position: x.position } : {}) })),
     sketches: (u.sketches ?? (u.sketch ? [u.sketch] : [])).map(file),
   };
   if (u.site) out.site = u.site;
