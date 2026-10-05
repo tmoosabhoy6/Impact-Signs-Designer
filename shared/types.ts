@@ -268,6 +268,8 @@ export interface Project {
   /** Proof footer wording. */
   disclaimer: 'standard' | 'photo';
   createdBy: string;
+  /** Signed-in account that owns this job (missing on jobs from before sign-in accounts). */
+  ownerId?: string;
   createdAt: string;
   updatedAt: string;
 }

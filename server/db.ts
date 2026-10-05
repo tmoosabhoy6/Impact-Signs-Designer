@@ -61,7 +61,7 @@ export function upgrade(p: Project): Project {
 }
 
 /** A new, empty job with every field at its default. */
-export function blankProject(fields: Pick<Project, 'jobNumber' | 'name' | 'createdBy'>): Project {
+export function blankProject(fields: Pick<Project, 'jobNumber' | 'name' | 'createdBy'> & Partial<Pick<Project, 'ownerId'>>): Project {
   const t = now();
   return upgrade({
     id: newId('p'),
@@ -83,7 +83,7 @@ export function getProject(id: string): Project | null {
   return row ? upgrade(JSON.parse(row.data) as Project) : null;
 }
 export function listProjects(): Project[] {
-  return (db.prepare('SELECT data FROM projects ORDER BY updated_at DESC LIMIT 500').all() as { data: string }[]).map((r) => JSON.parse(r.data));
+  return (db.prepare('SELECT data FROM projects ORDER BY updated_at DESC LIMIT 5000').all() as { data: string }[]).map((r) => JSON.parse(r.data));
 }
 /** Removes a job with its concepts, outputs and stored files. */
 export function deleteProject(id: string) {

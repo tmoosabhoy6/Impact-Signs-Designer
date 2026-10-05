@@ -16,6 +16,11 @@ export const config = {
   imageQuality: (process.env.IMAGE_QUALITY || 'high') as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
   imageLongEdge: num(process.env.IMAGE_LONG_EDGE, 1536),
   appPassword: process.env.APP_PASSWORD ?? '',
+  /** Supabase project holding the sign-in accounts (username + password). */
+  supabaseUrl: (process.env.SUPABASE_URL ?? '').replace(/\/+$/, ''),
+  supabaseKey: process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || '',
+  /** Jobs made before sign-in accounts existed belong to this username. */
+  legacyOwner: (process.env.LEGACY_JOBS_OWNER || 'taher').toLowerCase(),
   sessionSecret: process.env.SESSION_SECRET || 'change-me',
   dataDir: path.resolve(ROOT, process.env.DATA_DIR || './data-store'),
   mockAI: process.env.MOCK_AI === '1',

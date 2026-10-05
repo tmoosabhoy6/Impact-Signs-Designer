@@ -43,10 +43,10 @@ export function listExamples(): (ExampleManifest & { dir: string })[] {
     .sort((a, b) => a.jobNumber.localeCompare(b.jobNumber));
 }
 
-export async function createExampleJob(exampleId: string, createdBy: string): Promise<Project> {
+export async function createExampleJob(exampleId: string, createdBy: string, ownerId?: string): Promise<Project> {
   const ex = listExamples().find((e) => e.id === exampleId);
   if (!ex) throw new Error('Unknown example.');
-  let p: Project = blankProject({ jobNumber: ex.jobNumber, name: ex.name, createdBy });
+  let p: Project = blankProject({ jobNumber: ex.jobNumber, name: ex.name, createdBy, ownerId });
   p.specText = fs.readFileSync(path.join(ex.dir, ex.spec), 'utf8');
   p.logoSlot = ex.logoSlot ?? 'auto';
   p.proofStyle = ex.proofStyle ?? 'standard';

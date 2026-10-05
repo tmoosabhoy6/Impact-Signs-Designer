@@ -8,7 +8,9 @@ import { Upscaler } from './pages/Upscaler';
 import { Spinner } from './components/ui';
 
 export interface Me {
-  user: { name: string } | null;
+  user: { id: string; username: string; name: string } | null;
+  /** supabase = username + password accounts; password = shared team password; open = local development. */
+  authMode: 'supabase' | 'password' | 'open' | 'unconfigured';
   passwordRequired: boolean;
   mock: boolean;
 }
@@ -31,7 +33,7 @@ function usePath() {
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const path = usePath();
-  const refresh = useCallback(() => api.get<Me>('/me').then(setMe).catch(() => setMe({ user: null, passwordRequired: true, mock: false })), []);
+  const refresh = useCallback(() => api.get<Me>('/me').then(setMe).catch(() => setMe({ user: null, authMode: 'supabase', passwordRequired: true, mock: false })), []);
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -42,7 +44,7 @@ export function App() {
         <Spinner />
       </div>
     );
-  if (!me.user) return <Login onDone={refresh} />;
+  if (!me.user) return <Login mode={me.authMode} onDone={refresh} />;
 
   const job = path.match(/^\/jobs\/([a-z]+_[a-f0-9]+)/);
   if (job) return <Workspace key={job[1]} projectId={job[1]} me={me} />;

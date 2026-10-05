@@ -35,7 +35,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
    Any change to a plaque's content must go through the spec/wording → layout, or the image, the proof and the vector file will disagree.
 3. **Customer wording is reproduced character for character.** Never autocorrect, change quotes, or "improve" it.
 4. **Nothing is overwritten.** Every image, fix, proof and production file is a new record (`server/db.ts`) with a parent id.
-5. **Secrets only in environment variables** (`OPENAI_API_KEY`, `APP_PASSWORD`, `SESSION_SECRET`). Never put them in code, git, logs, test fixtures or the browser. `.env` is git-ignored.
+5. **Secrets only in environment variables** (`OPENAI_API_KEY`, `APP_PASSWORD`, `SESSION_SECRET`, `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`, and account passwords). Never put them in code, git (this repository is public), logs, test fixtures or the browser. `.env` is git-ignored.
 6. **The measured proof templates stay exact.** `server/pdf/proofs/{standard,description,etched}.ts` use positions and sizes measured from the real Impact Signs proofs in `references/`. The fixed parts are lifted as vector art from those PDFs (`server/templates/`). Do not "tidy" these numbers. If you change one, re-measure and prove it with `npm run samples`.
 7. **The production PDF is one ink:** `#231F20` means raised metal and white means the recessed field. All text is outlined and the file contains no images or fonts. `server/pdf/preflight.ts` must pass.
 8. **Static icons are never AI-generated.** Proof icons come from `assets/` as named in the catalog.
@@ -43,6 +43,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
    - colors: navy `#2E3092`, red `#ED1C24`, ink `#231F20`, bronze `#C49A6C` for plaques;
    - type: Barlow / Barlow Semi Condensed, with IBM Plex Mono for numbers;
    - no gradients-as-decoration, no emoji, no sparkle icons.
+10. **Each login sees only its own work.** Every route that reads a job, concept, output or upscale goes through `loadProject` / `loadConcept` / `loadOutput` / `loadUpscale`, which check `owns()` in `server/auth.ts`. A new route must do the same.
 
 ## Where things are
 | Area | Files |
@@ -55,6 +56,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Proofs | `server/pdf/proofs/index.ts` → `standard.ts`, `description.ts`, `etched.ts`, shared `common.ts`, header text `description-text.ts` |
 | Production PDF | `server/pdf/production.ts`, `server/pdf/trace.ts` (logo → vector), `server/pdf/preflight.ts` |
 | API | `server/routes.ts` (generation streams as Server-Sent Events) |
+| Sign-in | `server/auth.ts`: Supabase accounts (`app_login` RPC, `supabase/migrations/`), else shared `APP_PASSWORD`, else open (development only); signed cookie; `owns()` for per-login jobs and upscales (`ownerId`). |
 | Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx`, `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx` |
 | AI Upscaler | `server/ai/upscale.ts` (prompt, sizing, fidelity check, tone lock), `server/upscale-routes.ts` (`/api/upscales`), `shared/upscale.ts`, `client/src/pages/Upscaler.tsx`; files in `DATA_DIR/upscales/<id>/`. Independent of jobs and the layout engine. |
 | Examples | `references/<job>/example.json` + `server/examples.ts` (tests, samples and scripts only; not shown in the app, never seeded) |

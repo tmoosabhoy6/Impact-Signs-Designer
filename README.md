@@ -15,7 +15,7 @@ Impact Signs' internal tool for cast bronze plaques. It takes an order and produ
 
 ## How a designer uses it
 
-1. **Sign in** with your name and the team password.
+1. **Sign in** with your username and password. Each person sees only their own jobs, versions, proofs and upscales.
 2. **New plaque job:** enter the job number and a short name. To remove a job you no longer need, click the trash icon on its row in the Jobs list (this also removes its concepts, proofs and production files).
 3. **01 Specification:** paste the order spec exactly as written and click **Read specification**. The app fills in a spec sheet from the catalog. Anything the order didn't state gets an amber **Assumed** tag; check those and change any dropdown if needed.
 4. **02 Customer wording:** upload the customer's Word .docx or paste the text. The text is kept character for character. Each line gets a role (headline, subhead, body, footer), which you can change. Under each line, small buttons set:
@@ -67,15 +67,25 @@ Do these once. Afterwards changes pushed to the branch redeploy only after the a
 **Deploy**
 1. Click **[Deploy to Render](https://render.com/deploy?repo=https://github.com/tmoosabhoy6/Impact-Signs-Designer/tree/claude/blissful-mccarthy-63trmd)** and sign in to Render with GitHub. If Render asks, allow it to access the `Impact-Signs-Designer` repository; it is private, so Render needs permission to read it.
    - *Or manually:* Render dashboard → **New** → **Blueprint** → choose `Impact-Signs-Designer` → set the branch to **`claude/blissful-mccarthy-63trmd`**.
-2. Render reads `render.yaml` and shows one web service (`plaque-proof-studio`, Starter plan) with a 5 GB disk. It asks for two values:
+2. Render reads `render.yaml` and shows one web service (`plaque-proof-studio`, Starter plan) with a 5 GB disk. It asks for these values:
    - `OPENAI_API_KEY`: the new key from step 1.
-   - `APP_PASSWORD`: any password your team will use to sign in.
+   - `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`: from Supabase → your project → **Project Settings → API Keys** (see **Sign-in accounts** below).
+   - `APP_PASSWORD`: leave empty when the Supabase values are set.
 3. Click **Apply** (or **Deploy Blueprint**). The first build takes about 5 minutes. When it says **Live**, open the address shown at the top, e.g. `https://plaque-proof-studio.onrender.com`.
 4. Sign in, go to **Admin → System** and click **Run a test image**. One small image should appear within about a minute. If something is wrong, the message says exactly what (key, credit, organization verification…).
 
 The Starter plan plus the 5 GB disk costs about $7–9/month. Jobs, images and PDFs are kept between updates.
 
 **No webhook is needed.** The app calls OpenAI and receives each image in the same request, streaming progress to the screen.
+
+### Sign-in accounts
+
+Accounts (username + password) live in a Supabase project, in the `app_users` table created by [`supabase/migrations/`](supabase/migrations/). Passwords are stored only as bcrypt hashes. The table cannot be read with the publishable key. The app server checks a sign-in through the `app_login` database function, and ten wrong passwords in a row lock that account for 15 minutes.
+
+- **Add a person or change a password:** Supabase → **SQL Editor** → run `select public.app_set_user('Name', 'their-password');`. Usernames are not case-sensitive.
+- **Remove a person:** `delete from public.app_users where lower(username) = 'name';`
+- Each job and upscale belongs to the account that made it; other accounts cannot list, open, download or delete it. Jobs made before accounts existed belong to `LEGACY_JOBS_OWNER` (default `taher`).
+- Use passwords longer than 4 digits where you can: the lock-out slows guessing but a short PIN is still easy to guess over days.
 
 ---
 
@@ -84,7 +94,10 @@ The Starter plan plus the 5 GB disk costs about $7–9/month. Jobs, images and P
 | Setting | Default | What it does |
 |---|---|---|
 | `OPENAI_API_KEY` | (none) | OpenAI key. Required for real images. |
-| `APP_PASSWORD` | (none) | Team sign-in password. If empty, anyone with the link can use the app. |
+| `SUPABASE_URL` | (none) | Supabase project with the sign-in accounts, e.g. `https://<ref>.supabase.co`. |
+| `SUPABASE_PUBLISHABLE_KEY` | (none) | That project's publishable key (`sb_publishable_…`; the legacy anon key also works). Used only by the server. |
+| `LEGACY_JOBS_OWNER` | `taher` | Username that owns jobs and upscales made before sign-in accounts existed. |
+| `APP_PASSWORD` | (none) | Older setup without Supabase: one shared team password plus each person's name. In production, with neither set, nobody can sign in. |
 | `SESSION_SECRET` | generated | Signs login cookies. Render generates it. |
 | `OPENAI_IMAGE_MODEL` | `gpt-image-2.5-sunburst-2026-09-08` | Image model. |
 | `OPENAI_VISION_MODEL` | `gpt-5.4-mini` | Model that reads the text back for the spell check. |
@@ -129,7 +142,7 @@ After generation, the app crops the image to the plaque's exact proportions (so 
 Open this project folder in Terminal, or ask Codex to run these commands. Install Node.js 22 or 24 first if your computer does not have Node and npm.
 
 1. Run `npm install` once.
-2. Copy `.env.example` to `.env`. Open that file and fill in `OPENAI_API_KEY` and `APP_PASSWORD`. Keep the key private; never put it in a browser field or commit the file.
+2. Copy `.env.example` to `.env`. Open that file and fill in `OPENAI_API_KEY`, `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (or `APP_PASSWORD`). Keep the key private; never put it in a browser field or commit the file.
 3. Run `npm run build && npm start`, then open [localhost:8080](http://localhost:8080). Keep Terminal open while using the app.
 4. For a no-cost demonstration, run `npm run demo` instead. Images are simulated and spelling checks are skipped. A fresh data folder starts with an empty Jobs list.
 

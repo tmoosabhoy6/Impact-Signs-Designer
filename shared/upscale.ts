@@ -26,6 +26,8 @@ export interface UpscaleRecord {
   name: string;
   createdAt: string;
   createdBy: string;
+  /** Signed-in account that made it (missing on upscales from before sign-in accounts). */
+  ownerId?: string;
   target: UpscaleTarget;
   original: { width: number; height: number };
   output: { width: number; height: number };

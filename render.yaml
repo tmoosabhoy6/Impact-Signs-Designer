@@ -1,5 +1,7 @@
 # One-click deploy on Render.com: New > Blueprint > pick this repository.
-# Render asks for the two secret values (OPENAI_API_KEY, APP_PASSWORD) during setup.
+# Render asks for OPENAI_API_KEY, SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY during setup.
+# With the Supabase values set, people sign in with their own username and password and see
+# only their own jobs. APP_PASSWORD (one shared team password) is only used without Supabase.
 services:
   - type: web
     name: plaque-proof-studio
@@ -15,6 +17,12 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: LEGACY_JOBS_OWNER
+        value: taher
       - key: APP_PASSWORD
         sync: false
       - key: SESSION_SECRET

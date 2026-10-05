@@ -215,7 +215,7 @@ export function Upscaler({ me }: { me: Me }) {
           )}
 
           <div>
-            <h2 className="mb-3 font-display text-lg font-semibold uppercase tracking-[0.08em]">Recent upscales</h2>
+            <h2 className="mb-3 font-display text-lg font-semibold uppercase tracking-[0.08em]">Your recent upscales</h2>
             <div className="border border-line bg-white">
               {!recent && (
                 <div className="flex items-center gap-2 p-5 text-muted">

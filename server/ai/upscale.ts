@@ -136,7 +136,7 @@ export function checkUpscale(width: number, height: number, target: UpscaleTarge
   return out;
 }
 
-export async function upscaleImage(file: { name: string; buffer: Buffer }, target: UpscaleTarget, createdBy: string): Promise<UpscaleRecord> {
+export async function upscaleImage(file: { name: string; buffer: Buffer }, target: UpscaleTarget, createdBy: string, ownerId?: string): Promise<UpscaleRecord> {
   const t0 = Date.now();
   const src = await readImage(file.buffer);
   const out = checkUpscale(src.width, src.height, target);
@@ -202,6 +202,7 @@ export async function upscaleImage(file: { name: string; buffer: Buffer }, targe
     name: path.basename(file.name || 'image').replace(/\.[^.]+$/, '').slice(0, 80) || 'image',
     createdAt: now(),
     createdBy,
+    ownerId,
     target,
     original: { width: src.width, height: src.height },
     output: { width: out.width, height: out.height },
@@ -223,7 +224,7 @@ export async function upscaleImage(file: { name: string; buffer: Buffer }, targe
   return record;
 }
 
-export function listUpscales(limit = 30): UpscaleRecord[] {
+export function listUpscales(include: (r: UpscaleRecord) => boolean = () => true, limit = 30): UpscaleRecord[] {
   const root = upscaleRoot();
   if (!fs.existsSync(root)) return [];
   return fs
@@ -236,7 +237,7 @@ export function listUpscales(limit = 30): UpscaleRecord[] {
         return null;
       }
     })
-    .filter((r): r is UpscaleRecord => !!r)
+    .filter((r): r is UpscaleRecord => !!r && include(r))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
 }

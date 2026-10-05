@@ -9,7 +9,7 @@ import sharp from 'sharp';
 import { config } from './config.js';
 import { getCatalog, mustOption } from './catalog.js';
 import { assetLibraryStatus } from './assets.js';
-import { checkPassword, clearSession, issueSession, requireAuth, sessionUser } from './auth.js';
+import { authMode, checkLogin, clearSession, issueSession, owns, requireAuth, sessionUser, userOf } from './auth.js';
 import {
   blankProject, deleteProject, getConcept, getOutput, getProject, listConcepts, listOutputs, listProjects,
   newId, now, projectDir, saveConcept, saveOutput, saveProject, spentToday, db,
@@ -38,7 +38,8 @@ const genLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: tru
 const ah =
   (fn: (req: Request, res: Response) => Promise<unknown> | unknown) =>
   (req: Request, res: Response) =>
-    Promise.resolve(fn(req, res)).catch((e: Error) => {
+    // .then() also catches errors thrown synchronously by the handler.
+    Promise.resolve().then(() => fn(req, res)).catch((e: Error) => {
       console.error(e);
       if (!res.headersSent) res.status(400).json({ error: e.message || 'Something went wrong.' });
     });
@@ -52,28 +53,45 @@ const hasPoppler = (() => {
   }
 })();
 
-function loadProject(req: Request): Project {
-  const p = getProject(String(req.params.id));
-  if (!p) throw new Error('Job not found.');
+/** The job, if the signed-in person owns it (someone else's job reads as missing). */
+function loadProject(req: Request, id = String(req.params.id)): Project {
+  const p = getProject(id);
+  if (!p || !owns(userOf(req), p.ownerId)) throw new Error('Job not found.');
   return p;
 }
 
-const userName = (req: Request) => (req as Request & { user?: { name: string } }).user?.name ?? 'Designer';
+/** A concept and its job, if the signed-in person owns the job. */
+function loadConcept(req: Request, id = String(req.params.id)): { c: ConceptRecord; p: Project } | null {
+  const c = getConcept(id);
+  const p = c ? getProject(c.projectId) : null;
+  return c && p && owns(userOf(req), p.ownerId) ? { c, p } : null;
+}
+
+function loadOutput(req: Request): OutputRecord | null {
+  const o = getOutput(String(req.params.id));
+  const p = o ? getProject(o.projectId) : null;
+  return o && p && owns(userOf(req), p.ownerId) ? o : null;
+}
+
+const userName = (req: Request) => userOf(req).name;
 
 // ---------- Session ----------
-api.post('/login', express.json(), (req, res) => {
-  const { password = '', name = '' } = req.body ?? {};
-  if (!checkPassword(String(password))) return res.status(401).json({ error: 'That password is not right.' });
-  issueSession(res, String(name).trim().slice(0, 60) || 'Designer');
-  res.json({ ok: true });
-});
+const loginLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many sign-in attempts. Wait 15 minutes and try again.' } });
+api.post('/login', loginLimiter, express.json(), ah(async (req, res) => {
+  const { password = '', name = '', username = '' } = req.body ?? {};
+  const user = await checkLogin(String(username || name), String(password));
+  if (!user) return res.status(401).json({ error: authMode() === 'supabase' ? 'That username or password is not right.' : 'That password is not right.' });
+  issueSession(res, user);
+  res.json({ ok: true, user });
+}));
 api.post('/logout', (_req, res) => {
   clearSession(res);
   res.json({ ok: true });
 });
 api.get('/me', (req, res) => {
   const user = sessionUser(req);
-  res.json({ user, passwordRequired: !!config.appPassword, mock: config.mockAI });
+  const mode = authMode();
+  res.json({ user, authMode: mode, passwordRequired: mode === 'supabase' || mode === 'password', mock: config.mockAI });
 });
 
 // Basic health check is public (used by Render); the detailed one requires sign-in.
@@ -123,9 +141,10 @@ api.get('/admin/prompts', (_req, res) => res.json({ version: promptVersion(), fi
 api.use('/upscales', upscaleRouter);
 
 // ---------- Projects ----------
-api.get('/projects', (_req, res) => {
+api.get('/projects', (req, res) => {
+  const user = userOf(req);
   res.json({
-    projects: listProjects().map((p) => ({
+    projects: listProjects().filter((p) => owns(user, p.ownerId)).map((p) => ({
       id: p.id, jobNumber: p.jobNumber, name: p.name, updatedAt: p.updatedAt, createdBy: p.createdBy,
       size: p.spec ? `${p.spec.widthIn}" x ${p.spec.heightIn}"` : '',
       thumb: p.selectedConceptId,
@@ -138,7 +157,7 @@ api.get('/examples', (_req, res) => {
 });
 
 api.post('/examples/:id', ah(async (req, res) => {
-  const project = await createExampleJob(String(req.params.id), userName(req));
+  const project = await createExampleJob(String(req.params.id), userName(req), userOf(req).id);
   res.json({ project });
 }));
 
@@ -147,6 +166,7 @@ api.post('/projects', express.json(), (req, res) => {
     jobNumber: String(req.body?.jobNumber ?? '').trim().slice(0, 40),
     name: String(req.body?.name ?? '').trim().slice(0, 120) || 'Untitled plaque',
     createdBy: userName(req),
+    ownerId: userOf(req).id,
   });
   saveProject(p);
   res.json({ project: p });
@@ -316,20 +336,20 @@ api.post('/projects/:id/generate', genLimiter, express.json(), ah(async (req, re
 }));
 
 api.post('/concepts/:id/regenerate', genLimiter, express.json(), ah(async (req, res) => {
-  const c = getConcept(String(req.params.id));
-  if (!c) throw new Error('Concept not found.');
-  const p = getProject(c.projectId)!;
+  const found = loadConcept(req);
+  if (!found) throw new Error('Concept not found.');
+  const { c, p } = found;
   const rec = newConceptRecord(p, { preset: c.preset, kind: 'regenerate', batchId: c.batchId, parentId: c.id });
   await runStreamed(res, p, [rec], pickQuality(req.body?.quality));
 }));
 
 api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) => {
-  const c = getConcept(String(req.params.id));
-  if (!c) throw new Error('Concept not found.');
+  const found = loadConcept(req);
+  if (!found) throw new Error('Concept not found.');
+  const { c, p } = found;
   const instruction = String(req.body?.instruction ?? '').trim();
   if (instruction.length < 3) throw new Error('Describe the change, for example "make the border thinner".');
   if (instruction.length > 1000) throw new Error('Keep the change to 1000 characters or fewer.');
-  const p = getProject(c.projectId)!;
   const plan = await planInstruction(p, c, instruction);
   if (plan.kind === 'refuse') return res.status(422).json({ error: plan.reason, nearestOptions: plan.nearestOptions });
   // Planning can take time: do not overwrite an order changed in another tab.
@@ -358,9 +378,10 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
 }));
 
 api.post('/concepts/:id/undo', express.json(), ah((req, res) => {
-  const c = getConcept(String(req.params.id));
-  if (!c?.previous || !c.plan || !changesOrder(c.plan)) return res.status(422).json({ error: 'This version has no order change to undo.' });
-  const p = getProject(c.projectId)!;
+  const found = loadConcept(req);
+  if (!found) throw new Error('Concept not found.');
+  const { c, p } = found;
+  if (!c.previous || !c.plan || !changesOrder(c.plan)) return res.status(422).json({ error: 'This version has no order change to undo.' });
   if (listConcepts(p.id).some((v) => v.status === 'queued' || v.status === 'running')) return res.status(409).json({ error: 'Wait for this job’s images to finish before undoing.' });
   if (c.snapshot && !matchesSnapshot(p, c.snapshot)) {
     return res.status(409).json({ error: 'The order has changed since this version. Use this version first, then undo its change.' });
@@ -373,7 +394,7 @@ api.post('/concepts/:id/undo', express.json(), ah((req, res) => {
 }));
 
 api.get('/concepts/:id/:file', ah((req, res) => {
-  const c = getConcept(String(req.params.id));
+  const c = loadConcept(req)?.c;
   const name = String(req.params.file);
   if (!c || !['image.png', 'raw.png', 'layout.png', 'preview.jpg'].includes(name)) return res.status(404).end();
   const f = conceptFile(c, name as 'image.png');
@@ -478,7 +499,7 @@ api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
 }));
 
 api.get('/outputs/:id/download', ah((req, res) => {
-  const o = getOutput(String(req.params.id));
+  const o = loadOutput(req);
   if (!o) return res.status(404).end();
   if (req.query.inline) {
     res.type('application/pdf');
@@ -489,7 +510,7 @@ api.get('/outputs/:id/download', ah((req, res) => {
 }));
 
 api.get('/outputs/:id/preview.png', ah(async (req, res) => {
-  const o = getOutput(String(req.params.id));
+  const o = loadOutput(req);
   if (!o) return res.status(404).end();
   const cache = outputFile(o).replace(/\.pdf$/, '.png');
   if (!fs.existsSync(cache)) {
