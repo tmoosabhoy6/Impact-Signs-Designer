@@ -110,9 +110,9 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
     mounting: mounting.prompt,
     imageTreatment,
     logo: opts.logoCount > 1
-      ? `${opts.logoCount} supplied customer logos, each in its own logo position shown in Reference 1, in that order. LOGO TREATMENT: ${logoTreatment.prompt}. Keep them separate; never merge, swap, repeat or restyle them to match each other.`
+      ? `${opts.logoCount} supplied customer logos, each in its own logo position shown in Reference 1, in that order. LOGO TREATMENT: ${logoTreatment.prompt}. Preserve all embedded lettering, including text underneath each symbol, as part of its complete logo. Keep them separate; never merge, swap, repeat or restyle them to match each other.`
       : opts.logoCount === 1
-        ? `the supplied customer logo, in the logo position shown in Reference 1. LOGO TREATMENT: ${logoTreatment.prompt}.`
+        ? `the supplied customer logo, in the logo position shown in Reference 1. LOGO TREATMENT: ${logoTreatment.prompt}. Preserve all embedded lettering, including text underneath the symbol, as part of the complete logo.`
         : 'none.',
     presetLabel: layout.presetLabel,
     presetDescription: `${layout.presetDescription}${extras.length ? ' ' + extras.join(' ') : ''}`,

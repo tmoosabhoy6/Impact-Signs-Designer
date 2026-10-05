@@ -10,10 +10,10 @@ import { MAX_PROOF_PAGES } from '../../../shared/proof';
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void; reload: () => void };
 
 const QUALITY = [
-  { id: 'medium', label: 'Draft' },
-  { id: 'high', label: 'High' },
-  { id: 'xhigh', label: 'Extra high' },
-  { id: 'max', label: 'Max' },
+  { id: 'medium', label: 'Draft · ~720p' },
+  { id: 'high', label: 'High · ~1080p' },
+  { id: 'xhigh', label: 'Extra high · 2K' },
+  { id: 'max', label: 'Max · up to 4K' },
 ];
 
 export function ConceptStage({ data, catalog, onChange, reload }: Props) {

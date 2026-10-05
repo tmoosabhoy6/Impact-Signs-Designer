@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { config } from '../server/config';
-import { imageAdapter, openai, withImageCompatibility, friendlyError } from '../server/ai/images';
+import { canvasSize, imageLongEdgeForQuality, MAX_IMAGE_EDGE, MAX_IMAGE_PIXELS, imageAdapter, openai, withImageCompatibility, friendlyError } from '../server/ai/images';
 import type { ImageEditParamsBase } from 'openai/resources/images';
 
 const params: ImageEditParamsBase = { image: [], prompt: 'plaque', quality: 'xhigh', size: '1536x768', stream: true, partial_images: 2, background: 'opaque', output_format: 'png' };
@@ -58,14 +58,52 @@ describe('real Images API routing, with the SDK request stubbed offline', () => 
     const edit = vi.spyOn(openai().images, 'edit').mockImplementation(() => Promise.resolve({ data: [{ b64_json: png.toString('base64') }] }) as never);
     try {
       const model = 'gpt-image-2.5-sunburst-2026-09-08';
-      await imageAdapter().run({ model, quality: 'max', preserveQuality: true, size: '1024x1024', prompt: 'restore the white logo detail', images: [{ file: png, name: 'current.png', mime: 'image/png', role: 'current photograph' }] });
+      await imageAdapter().run({ model, quality: 'max', preserveQuality: true, size: '3840x2160', preserveSize: true, prompt: 'restore the white logo detail', images: [{ file: png, name: 'current.png', mime: 'image/png', role: 'current photograph' }] });
       expect(edit).toHaveBeenCalledTimes(1);
-      expect(edit.mock.calls[0][0]).toMatchObject({ model, quality: 'max', prompt: 'restore the white logo detail' });
+      expect(edit.mock.calls[0][0]).toMatchObject({ model, quality: 'max', size: '3840x2160', prompt: 'restore the white logo detail' });
     } finally { edit.mockRestore(); Object.assign(config, old); }
   });
   it('does not downgrade an inherited Extra high setting', async () => {
     const send = vi.fn().mockRejectedValue({ status: 400, param: 'quality', message: 'Unsupported quality' });
     await expect(withImageCompatibility(params, send, { preserveQuality: true })).rejects.toThrow('could not use xhigh quality');
     expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('supported 4K canvases', () => {
+  it.each([
+    [16, 9, 3840, 2160], [9, 16, 2160, 3840], [1, 1, 2880, 2880],
+    [18, 12, 3520, 2352], [12, 18, 2352, 3520], [3, 1, 3840, 1280],
+  ])('sizes %s x %s to %s x %s within every API limit', (w, h, ew, eh) => {
+    const size = canvasSize(w, h, MAX_IMAGE_EDGE);
+    expect(size).toMatchObject({ w: ew, h: eh });
+    expect(size.w * size.h).toBeLessThanOrEqual(MAX_IMAGE_PIXELS);
+    expect(size.w % 16).toBe(0);
+    expect(size.h % 16).toBe(0);
+    expect(Math.max(size.w, size.h)).toBeLessThanOrEqual(MAX_IMAGE_EDGE);
+  });
+  it('never silently downgrades a rejected 4K size', async () => {
+    const send = vi.fn().mockRejectedValue({ status: 400, param: 'size', message: 'Unsupported size' });
+    await expect(withImageCompatibility({ ...params, quality: 'max', size: '3840x2160' }, send, { preserveSize: true })).rejects.toThrow('not reduced to a smaller size');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('quality resolution tiers', () => {
+  it.each([['medium', 1280, 720], ['high', 1920, 1088], ['xhigh', 2560, 1440], ['max', 3840, 2160]])('requests %s at its resolution for either orientation', (quality, w, h) => {
+    const edge = imageLongEdgeForQuality(quality as string);
+    expect(canvasSize(16, 9, edge)).toMatchObject({ w, h });
+    expect(canvasSize(9, 16, edge)).toMatchObject({ w: h, h: w });
+  });
+  it.each([1/3, 1/2, 1, 2, 3])('keeps Draft at ratio %s within supported pixel limits', (ratio) => {
+    const { w, h } = canvasSize(ratio, 1, imageLongEdgeForQuality('medium'));
+    expect(w * h).toBeGreaterThanOrEqual(655360);
+    expect(w * h).toBeLessThanOrEqual(MAX_IMAGE_PIXELS);
+    expect(w % 16).toBe(0);
+    expect(h % 16).toBe(0);
+    expect(w / h).toBeGreaterThanOrEqual(1/3);
+    expect(w / h).toBeLessThanOrEqual(3);
   });
 });

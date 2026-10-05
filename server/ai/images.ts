@@ -16,6 +16,7 @@ export interface ImageUsage {
 export interface ImageRequest {
   model: string;
   preserveQuality?: boolean;
+  preserveSize?: boolean;
   prompt: string;
   images: RefImage[];
   size: string;
@@ -63,7 +64,7 @@ const COMPATIBLE_PARAMS = ['partial_images', 'stream', 'background', 'quality', 
 type ImageParams = ImageEditParamsBase | ImageGenerateParamsBase;
 
 /** Only a rejected optional parameter gets one retry; no retries after paid output. */
-export async function withImageCompatibility<T>(params: ImageParams, send: (params: ImageParams) => Promise<T>, opts: { preserveQuality?: boolean } = {}): Promise<T> {
+export async function withImageCompatibility<T>(params: ImageParams, send: (params: ImageParams) => Promise<T>, opts: { preserveQuality?: boolean; preserveSize?: boolean } = {}): Promise<T> {
   try {
     return await send(params);
   } catch (e) {
@@ -79,6 +80,9 @@ export async function withImageCompatibility<T>(params: ImageParams, send: (para
         ? 'This edit keeps the original image’s quality. Check the model settings, or generate a new image at a supported quality.'
         : 'Choose another quality or check your image model settings.';
       throw new Error(`OpenAI could not use ${label} quality for this request. ${next}`);
+    }
+    if (param === 'size' && opts.preserveSize) {
+      throw new Error('OpenAI could not use the requested image size. The image was not reduced to a smaller size. Check the image model settings and try again.');
     }
     const retry = { ...params };
     if (param === 'size') {
@@ -178,7 +182,7 @@ const realAdapter: ImageAdapter = {
         if (delivered) throw new Error(friendlyError(e));
         throw e;
       }
-    }, { preserveQuality: req.preserveQuality });
+    }, { preserveQuality: req.preserveQuality, preserveSize: req.preserveSize });
   },
 };
 
@@ -215,11 +219,37 @@ export function imageAdapter(): ImageAdapter {
   return config.mockAI ? mockAdapter : realAdapter;
 }
 
-/** Output canvas matching the plaque's proportions (multiples of 16, ratio clamped to 1:3..3:1). */
+export const MAX_IMAGE_EDGE = 3840;
+export const MAX_IMAGE_PIXELS = 8_294_400;
+const MIN_IMAGE_PIXELS = 655_360;
+
+/** Resolution and rendering quality travel together for each designer setting. */
+export function imageLongEdgeForQuality(quality: string): number {
+  return ({ low: 1280, medium: 1280, high: 1920, xhigh: 2560, max: MAX_IMAGE_EDGE } as Record<string, number>)[quality] ?? config.imageLongEdge;
+}
+
+/** Match plaque proportions within OpenAI's edge, pixel-area and multiple-of-16 limits. */
 export function canvasSize(widthIn: number, heightIn: number, longEdge = config.imageLongEdge): { w: number; h: number; size: string } {
   const ratio = Math.min(3, Math.max(1 / 3, widthIn / heightIn));
+  longEdge = Math.min(MAX_IMAGE_EDGE, longEdge);
   const r16 = (v: number) => Math.max(256, Math.round(v / 16) * 16);
-  const w = ratio >= 1 ? r16(longEdge) : r16(longEdge * ratio);
-  const h = ratio >= 1 ? r16(longEdge / ratio) : r16(longEdge);
+  let w = ratio >= 1 ? r16(longEdge) : r16(longEdge * ratio);
+  let h = ratio >= 1 ? r16(longEdge / ratio) : r16(longEdge);
+  if (w * h < MIN_IMAGE_PIXELS) {
+    // Very narrow Draft canvases need a small increase to meet the API minimum.
+    const fit = Math.sqrt(MIN_IMAGE_PIXELS / (w * h));
+    w = Math.ceil(w * fit / 16) * 16;
+    h = Math.ceil(h * fit / 16) * 16;
+  }
+  if (w * h > MAX_IMAGE_PIXELS) {
+    const fit = Math.sqrt(MAX_IMAGE_PIXELS / (w * h));
+    w = r16(w * fit);
+    h = r16(h * fit);
+    // Nearest rounding keeps the shape closer than flooring both dimensions.
+    while (w * h > MAX_IMAGE_PIXELS) {
+      if (w >= h) w -= 16;
+      else h -= 16;
+    }
+  }
   return { w, h, size: `${w}x${h}` };
 }

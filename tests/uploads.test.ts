@@ -296,6 +296,33 @@ describe('upload routes', () => {
 });
 
 describe('image model references', () => {
+  it.each(['classic', 'portrait', 'statement'].flatMap((preset) => ['portrait', 'landscape'].map((orientation) => [preset, orientation])))('preserves embedded logo captions in %s on a %s plaque', async (preset, orientation) => {
+    let p = await heritage();
+    p.spec = { ...p.spec!, widthIn: orientation === 'portrait' ? 12 : 18, heightIn: orientation === 'portrait' ? 18 : 12 };
+    const artwork = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="white"/><circle cx="300" cy="130" r="90" fill="black"/><text x="300" y="350" font-family="sans-serif" font-size="60" font-weight="bold" text-anchor="middle">IMPACT SIGNS</text></svg>')).png().toBuffer();
+    p = await storeUpload(p, 'logo', 'logo-with-caption.png', artwork);
+    const layout = layoutFor(p, preset as 'classic' | 'portrait' | 'statement');
+    const w = orientation === 'portrait' ? 1200 : 1800;
+    const h = orientation === 'portrait' ? 1800 : 1200;
+    const drawing = await layoutDrawing(p, layout, w, h);
+    const refs = await buildReferences(p, layout, drawing);
+    const logo = refs.find((r) => r.name === 'customer-logo.png')!;
+    expect(logo).toBeDefined();
+    const expected = await sharp(artwork).flatten({ background: '#808080' }).png().toBuffer();
+    expect(logo.file).toEqual(expected);
+    expect(logo.role).toContain('including all embedded text underneath');
+    const prompt = buildConceptPrompt(p.spec!, layout, refs, { logoCount: 1 });
+    expect(prompt).toContain('Text already present inside a supplied logo is required artwork');
+    expect(prompt).toContain('TEXT lists only the separate plaque wording');
+    expect(prompt).toContain('Never crop to just the symbol');
+    // The bottom quarter contains only the embedded caption, separated from the symbol.
+    const box = layout.logos[0];
+    const px = w / layout.widthIn;
+    const caption = await sharp(drawing).extract({ left: Math.ceil(box.x * px), top: Math.ceil((box.y + box.h * 0.75) * px), width: Math.floor(box.w * px) - 1, height: Math.floor(box.h * 0.2 * px) }).stats();
+    expect(caption.channels.some((channel) => channel.stdev > 5)).toBe(true);
+    fs.writeFileSync(`/tmp/logo-caption-${orientation}-${preset}.png`, drawing);
+  });
+
   it('names each photo and logo by its place in the layout drawing', async () => {
     let p = await heritage();
     p = await storeUpload(p, 'photo', 'mother.png', await picture(400, 500, 200));

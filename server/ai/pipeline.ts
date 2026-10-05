@@ -12,7 +12,7 @@ import { getConcept, newId, now, projectDir, saveConcept, addSpend, spentToday, 
 import { uploadPath } from '../uploads.js';
 import { buildConceptPrompt, buildFixPrompt, buildRelayoutPrompt, placeNames, promptVersion, type RefImage } from './prompts.js';
 import { changesOrder } from './instruct.js';
-import { canvasSize, costUsd, friendlyError, imageAdapter } from './images.js';
+import { canvasSize, imageLongEdgeForQuality, costUsd, friendlyError, imageAdapter } from './images.js';
 import { fitToPlaque, smallPreview } from './postprocess.js';
 import { spellcheckImage } from './spellcheck.js';
 import type { ConceptRecord, ContentSnapshot, LayoutPresetId, PlaqueLayout, Project } from '../../shared/types.js';
@@ -135,9 +135,9 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   const logos: CustomerGroup = {
     files: logoFiles, name: 'customer-logo',
     one: (i) => (logoFiles.length === 1
-      ? 'the customer logo (reproduce exactly, made as LOGO TREATMENT says)'
-      : `customer logo ${i + 1} of ${logoFiles.length}, for the ${logoPlaces[i]} logo position in Reference 1 only (reproduce exactly, made as LOGO TREATMENT says)`),
-    sheet: `all ${logoFiles.length} customer logos on one sheet, in this order: ${logoPlaces.map((p, i) => `${i + 1} = the ${p} logo`).join(', ')} (reading the sheet left to right, then down; reproduce each exactly in its own position, made as LOGO TREATMENT says)`,
+      ? 'the complete customer logo, including all embedded text underneath or beside its symbol (reproduce exactly as one unit, made as LOGO TREATMENT says)'
+      : `customer logo ${i + 1} of ${logoFiles.length}, for the ${logoPlaces[i]} logo position in Reference 1 only (preserve the complete artwork and all embedded text as one unit, made as LOGO TREATMENT says)`),
+    sheet: `all ${logoFiles.length} customer logos on one sheet, in this order: ${logoPlaces.map((p, i) => `${i + 1} = the ${p} logo`).join(', ')} (reading the sheet left to right, then down; reproduce each complete logo including all embedded text in its own position, made as LOGO TREATMENT says)`,
   };
   const sketches: CustomerGroup = {
     files: sketchFiles, name: 'customer-sketch',
@@ -253,8 +253,8 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
   try {
     checkLimits(project.id, rec.id);
     const layout = layoutFor(project, rec.preset);
-    const { w, h, size } = canvasSize(project.spec!.widthIn, project.spec!.heightIn);
     const quality = opts.quality || rec.quality || config.imageQuality;
+    const { w, h, size } = canvasSize(project.spec!.widthIn, project.spec!.heightIn, imageLongEdgeForQuality(quality));
     update({ status: 'running', size, quality });
     const layoutPng = await layoutDrawing(project, layout, w, h);
     fs.writeFileSync(conceptFile(rec, 'layout.png'), layoutPng);
@@ -287,6 +287,7 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     const result = await imageAdapter().run({
       model: rec.model,
       preserveQuality: rec.kind === 'fix',
+      preserveSize: true,
       prompt,
       images,
       size,
@@ -296,7 +297,12 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
       },
     });
     fs.writeFileSync(conceptFile(rec, 'raw.png'), result.png);
-    const fitted = await fitToPlaque(result.png, project.spec!.widthIn, project.spec!.heightIn);
+    if (quality === 'max') {
+      const actual = await sharp(result.png).metadata();
+      if (actual.width !== w || actual.height !== h) throw new Error('OpenAI returned a different image size than the requested 4K size. Generate again; this result was not marked complete.');
+    }
+    // Keep Max's full resolution through cropping; the old default reduced it to 2048 px.
+    const fitted = await fitToPlaque(result.png, project.spec!.widthIn, project.spec!.heightIn, Math.max(w, h));
     fs.writeFileSync(conceptFile(rec, 'image.png'), fitted.png);
     fs.writeFileSync(conceptFile(rec, 'preview.jpg'), await smallPreview(fitted.png, 720));
     const cost = costUsd(result.usage);

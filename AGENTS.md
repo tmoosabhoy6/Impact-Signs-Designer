@@ -13,7 +13,8 @@ The users are designers, not developers. All UI text and error messages are plai
 ## Commands
 ```bash
 npm install                 # once
-npm test                    # 110+ offline tests (golden, planner, routes, accounts) against the real files in references/ — must stay green
+npm test                    # full offline suite; use only when broad regression coverage is warranted
+MOCK_AI=1 npx vitest run tests/<affected>.test.ts  # run relevant test files; use -t to focus on affected behavior
 npm run typecheck           # tsc --noEmit
 npm run build               # builds the web app into dist/
 npm start                   # serves app + API on http://localhost:8080 (reads .env)
@@ -66,14 +67,15 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Tests | `tests/golden.test.ts`, `tests/uploads.test.ts` (several photos, logos and sketches), `tests/trace.test.ts` (logo reader, logo treatment), `tests/letters.test.ts` (¼" floor), `tests/vectorize.test.ts` |
 
 ## How to work
-- Make small, verified steps. Before you finish any task, run all of these:
-  - `npm test`
-  - `npm run typecheck`
-  - `npm run build`
-  - `npm run samples`, when proofs, layouts or production files could be affected
-  - `scripts/screens.mjs` against `MOCK_AI=1 npm start`, when the UI changed
-- Look at the rendered PNGs and screenshots yourself before you claim something works.
-- Add tests for new behavior next to the existing ones.
+- Make small, verified steps. Run only the tests and checks relevant to the changed code and the behavior it affects; do not run the entire suite for every task.
+  - Select affected test files or cases with `MOCK_AI=1 npx vitest run ...` (use `-t` when appropriate). Cover the changed behavior, important edge cases, failure paths and directly affected integrations robustly.
+  - Run `npm run typecheck` when TypeScript types or contracts could be affected, and `npm run build` when application compilation or bundling could be affected.
+  - For proof, layout or production changes, render and inspect the affected samples. Run all samples only when the change affects all of them.
+  - For UI changes, check the affected flow in mock mode. Run the complete `scripts/screens.mjs` flow only when broader UI coverage is warranted.
+  - Expand testing when shared code affects multiple areas, a failure exposes a wider issue, or the user explicitly requests it. Run `npm test` only when the scope warrants the full suite.
+  - Documentation-only changes need a content/diff check, not application tests.
+- Look at relevant rendered PNGs and screenshots yourself before claiming visual behavior works.
+- Add regression tests for new or fixed behavior next to the existing ones; do not remove or weaken unrelated tests.
 - Record decisions and anything unverified in `docs/DECISIONS.md`. Keep `README.md` current, written for a non-developer.
 - Match the surrounding code style: TypeScript, small functions, comments that explain *why*.
 - Never delete reference files, measured constants, or tests to make something pass.

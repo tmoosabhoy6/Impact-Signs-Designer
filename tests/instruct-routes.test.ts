@@ -59,10 +59,26 @@ describe('instruction routes in demo mode', () => {
       expect(response.status).toBe(200);
       await response.text();
       expect(run).toHaveBeenCalledTimes(action === 'generate' ? 3 : 1);
-      run.mock.calls.forEach(([request]) => expect(request.quality).toBe('max'));
+      run.mock.calls.forEach(([request]) => expect(request).toMatchObject({ quality: 'max', size: '2352x3520', preserveSize: true }));
       const versions = listConcepts(p.id).filter((version) => version.id !== c.id);
       expect(versions).toHaveLength(action === 'generate' ? 3 : 1);
-      versions.forEach((version) => expect(version).toMatchObject({ status: 'done', quality: 'max' }));
+      for (const version of versions) {
+        expect(version).toMatchObject({ status: 'done', quality: 'max', size: '2352x3520' });
+        const metadata = await sharp(conceptFile(version, 'image.png')).metadata();
+        expect(metadata.height).toBe(3520);
+      }
+    } finally { run.mockRestore(); }
+  });
+  it.each([['medium', '848x1280', 1280], ['high', '1280x1920', 1920], ['xhigh', '1712x2560', 2560]])('routes %s resolution tiers into the request and downloaded PNG', async (quality, size, edge) => {
+    const { p, c } = await fixture();
+    const run = vi.spyOn(imageAdapter(), 'run');
+    try {
+      await (await post(`/concepts/${c.id}/regenerate`, { quality })).text();
+      expect(run.mock.calls[0][0]).toMatchObject({ quality, size });
+      const version = listConcepts(p.id).at(-1)!;
+      expect(version).toMatchObject({ status: 'done', quality, size });
+      const metadata = await sharp(conceptFile(version, 'image.png')).metadata();
+      expect(metadata.height).toBe(edge);
     } finally { run.mockRestore(); }
   });
   it.each(['make the etching deeper', 'make the border double line'])('inherits the source model and Max quality for %s, ignoring dropdown and server changes', async (instruction) => {
@@ -79,6 +95,19 @@ describe('instruction routes in demo mode', () => {
       expect(request.prompt).toContain(instruction);
       expect(listConcepts(p.id).at(-1)).toMatchObject({ kind: 'fix', model: c.model, quality: 'max', instruction, parentId: c.id });
       expect(getConcept(c.id)).toMatchObject({ model: c.model, quality: 'max' });
+    } finally { run.mockRestore(); }
+  });
+  it('does not mark a smaller Max image as a completed 4K result', async () => {
+    const { p, c } = await fixture();
+    c.quality = 'max';
+    saveConcept(c);
+    const png = await sharp({ create: { width: 32, height: 48, channels: 3, background: '#fff' } }).png().toBuffer();
+    const run = vi.spyOn(imageAdapter(), 'run').mockResolvedValue({ png, usage: null });
+    try {
+      await (await post(`/concepts/${c.id}/fix`, { instruction: 'make the etching deeper' })).text();
+      const version = listConcepts(p.id).at(-1)!;
+      expect(version).toMatchObject({ status: 'error', hasImage: false });
+      expect(version.error).toContain('different image size');
     } finally { run.mockRestore(); }
   });
   it('makes any request an image edit instead of refusing, without changing the order', async () => {
