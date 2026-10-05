@@ -13,7 +13,7 @@ The users are designers, not developers. All UI text and error messages are plai
 ## Commands
 ```bash
 npm install                 # once
-npm test                    # 33+ golden tests against the real files in references/ — must stay green
+npm test                    # 110+ offline tests (golden, planner, routes, accounts) against the real files in references/ — must stay green
 npm run typecheck           # tsc --noEmit
 npm run build               # builds the web app into dist/
 npm start                   # serves app + API on http://localhost:8080 (reads .env)

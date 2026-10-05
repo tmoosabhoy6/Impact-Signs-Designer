@@ -23,7 +23,7 @@ function StepTracker({ data }: { data: ProjectPayload }) {
       {steps.map((s, i) => (
         <li key={s.label} className="flex items-center gap-1">
           <span
-            className={`flex items-center gap-1.5 rounded-[3px] px-2 py-1 font-display text-[12px] font-semibold uppercase tracking-wider ${
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-[3px] px-2 py-1 font-display text-[12px] font-semibold uppercase tracking-wider ${
               s.done ? 'text-ok' : i === current ? 'bg-navy text-white' : 'text-muted'
             }`}
           >
@@ -82,7 +82,8 @@ export function Workspace({ projectId, me }: { projectId: string; me: Me }) {
           </div>
         }
       />
-      <div className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[380px_minmax(0,1fr)_340px]">
+      {/* Below 1400 px the side panels give up a little width so three concepts still fit across the stage. */}
+      <div className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[340px_minmax(0,1fr)_300px] wide:grid-cols-[380px_minmax(0,1fr)_340px]">
         <aside className="order-2 min-w-0 border-r border-line bg-white lg:order-1 lg:min-h-0 lg:overflow-y-auto">
           <OrderPanel data={data} catalog={catalog} onChange={setData} />
         </aside>

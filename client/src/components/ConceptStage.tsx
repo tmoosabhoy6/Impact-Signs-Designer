@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Maximize2, RefreshCw, Wand2, X } from 'lucide-react';
 import { api, ApiError, conceptUrl, stream, type ProjectPayload } from '../api';
 import type { Catalog } from '../catalog';
@@ -22,6 +22,12 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   const [quality, setQuality] = useState('high');
   const [lightbox, setLightbox] = useState<ConceptRecord | null>(null);
   const [plans, setPlans] = useState<Record<string, InstructionPlan>>({});
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setLightbox(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
 
   const concepts = useMemo(() => {
     const map = new Map(data.concepts.map((c) => [c.id, c]));
@@ -58,7 +64,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   const wide = ratio > 1.15;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-4 py-5 md:px-6">
+    <div className="@container mx-auto max-w-[1440px] px-4 py-5 md:px-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-white">
@@ -90,7 +96,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
       {blockers.length > 0 && <p className="mt-2 text-[13px] text-white/60">To generate, first {blockers.join(', ')}.</p>}
       {error && <div className="mt-3"><Notice tone="error">{error}</Notice></div>}
 
-      <div className={`mt-5 grid gap-5 ${wide ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'}`}>
+      <div className={`mt-5 grid ${wide ? 'grid-cols-1 gap-6' : 'grid-cols-1 gap-6 @[560px]:grid-cols-3 @[560px]:gap-x-6 @[560px]:gap-y-3'}`}>
         {catalog.presets.map((preset) => (
           <PresetColumn
             key={preset.id}
@@ -101,6 +107,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
             ratio={ratio}
             running={running}
             plan={plans[preset.id]}
+            wide={wide}
             onOpen={setLightbox}
             onSelect={async (c) => {
               setError('');
@@ -123,11 +130,16 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
       </div>
 
       {lightbox && (
-        <div role="dialog" aria-modal className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-6" onClick={() => setLightbox(null)}>
-          <button className="absolute top-4 right-4 text-white/70 hover:text-white" aria-label="Close">
+        <div role="dialog" aria-modal aria-label="Concept full size" className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-6" onClick={() => setLightbox(null)}>
+          <button className="absolute top-4 right-4 text-white/70 hover:text-white" aria-label="Close" onClick={() => setLightbox(null)} autoFocus>
             <X className="h-6 w-6" />
           </button>
-          <img src={conceptUrl(lightbox, 'image.png')} alt="Concept full size" className="max-h-full max-w-full object-contain" />
+          <figure className="flex max-h-full max-w-full flex-col items-center gap-3">
+            <img src={conceptUrl(lightbox, 'image.png')} alt="Concept full size" className="min-h-0 max-w-full flex-1 object-contain" />
+            <figcaption className="font-display text-[13px] font-semibold uppercase tracking-wider text-white/70">
+              {catalog.presets.find((x) => x.id === lightbox.preset)?.label ?? lightbox.preset} · Esc to close
+            </figcaption>
+          </figure>
         </div>
       )}
     </div>
@@ -135,9 +147,10 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
 }
 
 function PresetColumn({
-  preset, concepts, data, partials, ratio, running, plan, onOpen, onSelect, onRegenerate, onFix, onUndo,
+  preset, concepts, data, partials, ratio, running, plan, wide, onOpen, onSelect, onRegenerate, onFix, onUndo,
 }: {
   preset: { id: string; label: string; description: string };
+  wide: boolean;
   concepts: ConceptRecord[];
   data: ProjectPayload;
   partials: Record<string, string>;
@@ -164,18 +177,20 @@ function PresetColumn({
     : shownPlan ? `Interpreted as: ${shownPlan.restated} ${planScope(shownPlan)}` : '';
 
   return (
-    <article className={`flex flex-col rounded-[4px] border bg-stage-2/70 p-3 ${selected ? 'border-bronze ring-1 ring-bronze' : 'border-white/10'}`}>
-      <header className="mb-3 flex items-start justify-between gap-2">
-        <div>
+    <article
+      className={`flex min-w-0 flex-col gap-3 rounded-[4px] border bg-stage-2/70 p-3.5 ${wide ? '' : '@[560px]:row-span-3 @[560px]:grid @[560px]:grid-cols-[minmax(0,1fr)] @[560px]:grid-rows-subgrid'} ${selected ? 'border-bronze ring-1 ring-bronze' : 'border-white/10'}`}
+    >
+      <header className="min-w-0">
+        <div className="flex items-center justify-between gap-2">
           <h3 className="font-display text-[15px] font-semibold uppercase tracking-[0.06em] text-white">{preset.label}</h3>
-          <p className="text-[12px] leading-snug text-white/50">{preset.description}</p>
+          {selected && (
+            <span className="shrink-0 rounded-[3px] bg-bronze px-1.5 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-ink">Selected</span>
+          )}
         </div>
-        {selected && (
-          <span className="shrink-0 rounded-[3px] bg-bronze px-1.5 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-ink">Selected</span>
-        )}
+        <p className="mt-0.5 text-[12px] leading-snug text-white/50">{preset.description}</p>
       </header>
 
-      <div className="relative mx-auto w-full" style={{ maxWidth: ratio < 1 ? 340 : '100%' }}>
+      <div className="relative mx-auto w-full min-w-0 self-start" style={{ maxWidth: ratio < 1 ? 440 : '100%' }}>
         <div className="relative w-full" style={{ aspectRatio: String(ratio) }}>
           {current?.hasImage ? (
             <button className="group plaque-shadow absolute inset-0" onClick={() => onOpen(current)} aria-label="View full size">
@@ -203,7 +218,7 @@ function PresetColumn({
       </div>
 
       {current && (
-        <div className="mt-3 space-y-2">
+        <div className="min-w-0 space-y-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
             {concepts.map((c, i) => (
               <button
@@ -238,11 +253,11 @@ function PresetColumn({
           )}
           {current.hasImage && (
             <>
-              <div className="flex gap-2">
-                <Button size="sm" variant={selected ? 'stage' : 'primary'} className="flex-1" disabled={!!selected || running} onClick={() => onSelect(current)}>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant={selected ? 'stage' : 'primary'} className="flex-1 whitespace-nowrap" disabled={!!selected || running} onClick={() => onSelect(current)}>
                   {selected ? 'Selected for proof' : 'Use this one'}
                 </Button>
-                <Button size="sm" variant="stage" disabled={running} onClick={() => { setIndex(null); onRegenerate(current); }} title="Generate this layout again">
+                <Button size="sm" variant="stage" className="shrink-0" disabled={running} onClick={() => { setIndex(null); onRegenerate(current); }} title="Generate this layout again">
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -274,7 +289,7 @@ function PresetColumn({
                   aria-describedby={planNote ? `plan-${preset.id}` : undefined}
                   maxLength={1000}
                 />
-                <Button size="sm" variant="stage" type="submit" disabled={running || !fix.trim()}>
+                <Button size="sm" variant="stage" type="submit" className="shrink-0" disabled={running || !fix.trim()}>
                   Apply
                 </Button>
               </form>
