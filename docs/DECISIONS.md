@@ -101,3 +101,5 @@
 
 - The owner requested automatic commits of all work as it progresses. Commit completed changes without asking each time; secrets and ignored files remain excluded.
 - Existing interface palette changes and screenshots were committed as a checkpoint. `git diff --check` passed. Tests, typecheck and build could not run in this shell because `npm` was not on PATH; this checkpoint does not establish runtime or visual verification.
+
+- **Shell tooling restored:** Node.js v24.19.0 and npm/npx v11.6.2 are available through user-local binaries, with `~/.local/bin` added to the zsh PATH. npm was copied from the existing temporary installation into persistent user-local storage. The earlier checkpoint checks now pass: 117 offline tests, typecheck, and production build. No application code changed for this environment repair.
