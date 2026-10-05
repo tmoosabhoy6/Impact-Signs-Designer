@@ -1,12 +1,15 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Server } from 'node:http';
 import express from 'express';
+import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { api } from '../server/routes';
 import { config } from '../server/config';
 import { createExampleJob } from '../server/examples';
-import { getConcept, getProject, listConcepts, newId, saveConcept, saveProject, spentToday } from '../server/db';
-import { newConceptRecord } from '../server/ai/pipeline';
-import type { ConceptRecord, Project } from '../shared/types';
+import { getConcept, getProject, listConcepts, listOutputs, newId, saveConcept, saveProject, spentToday } from '../server/db';
+import { conceptFile, newConceptRecord } from '../server/ai/pipeline';
+import type { ConceptRecord, LayoutPresetId, OutputRecord, Project } from '../shared/types';
 
 let server: Server;
 let base: string;
@@ -110,5 +113,77 @@ describe('instruction routes in demo mode', () => {
       expect(response.status).toBe(409);
       expect(await response.json()).toMatchObject({ error: expect.stringContaining('not completed a spelling check') });
     } finally { config.mockAI = mock; }
+  });
+});
+
+describe('a proof and a vector file from each concept', () => {
+  /** One finished, spell-checked concept per layout, each with an image on disk. */
+  async function threeConcepts() {
+    const p = await createExampleJob('32241-edwin-feulner', 'Test', ownerId);
+    const batchId = newId('b');
+    const concepts: Record<LayoutPresetId, ConceptRecord> = {} as never;
+    for (const preset of ['classic', 'portrait', 'statement'] as LayoutPresetId[]) {
+      const c = newConceptRecord(p, { preset, kind: 'concept', batchId, status: 'done', hasImage: true, spellcheck: { ok: true, checked: true, differences: [], message: 'Wording matches.' } });
+      fs.mkdirSync(path.dirname(conceptFile(c, 'image.png')), { recursive: true });
+      await sharp({ create: { width: 400, height: 600, channels: 3, background: '#8a6a43' } }).png().toFile(conceptFile(c, 'image.png'));
+      saveConcept(c);
+      concepts[preset] = c;
+    }
+    return { p, concepts };
+  }
+  const made = async (r: Response) => {
+    expect(r.status).toBe(200);
+    return ((await r.json()) as { output: OutputRecord }).output;
+  };
+
+  it('proofs every layout without selecting it or changing the order', async () => {
+    const { p, concepts } = await threeConcepts();
+    const proofs = [];
+    for (const c of Object.values(concepts)) proofs.push(await made(await post(`/projects/${p.id}/proof`, { conceptId: c.id })));
+    expect(proofs.map((o) => [o.conceptId, o.preset])).toEqual(Object.values(concepts).map((c) => [c.id, c.preset]));
+    // Three options of one job, each its own first version, named by layout.
+    expect(proofs.map((o) => o.fileName)).toEqual(['Proof - 32241 - Classic.pdf', 'Proof - 32241 - Feature Image.pdf', 'Proof - 32241 - Statement.pdf']);
+    expect(getProject(p.id)).toEqual(p);
+    // A second Classic proof is Classic v2, whatever the other layouts did.
+    expect((await made(await post(`/projects/${p.id}/proof`, { conceptId: concepts.classic.id }))).fileName).toBe('Proof - 32241 - Classic v2.pdf');
+  });
+
+  it('builds a vector file from each layout, named by layout', async () => {
+    const { p, concepts } = await threeConcepts();
+    const files = [];
+    for (const c of Object.values(concepts)) files.push(await made(await post(`/projects/${p.id}/production`, { conceptId: c.id })));
+    expect(files.map((o) => o.preset)).toEqual(['classic', 'portrait', 'statement']);
+    expect(files.map((o) => o.fileName)).toEqual([
+      '32241_Heritage_Foundation_12x18_Classic_production.pdf',
+      '32241_Heritage_Foundation_12x18_Feature_Image_production.pdf',
+      '32241_Heritage_Foundation_12x18_Statement_production.pdf',
+    ]);
+    for (const o of files) expect(o.preflight?.filter((i) => !i.ok && !i.warnOnly)).toEqual([]);
+    expect(getProject(p.id)).toEqual(p);
+    expect(listOutputs(p.id)).toHaveLength(3);
+  });
+
+  it('uses each concept’s own content, not the order as edited since', async () => {
+    const { p, concepts } = await threeConcepts();
+    // The order moves on after the concepts were made.
+    const edited: Project = { ...structuredClone(p), spec: { ...p.spec!, widthIn: 24, heightIn: 36 } };
+    saveProject(edited);
+    const o = await made(await post(`/projects/${p.id}/production`, { conceptId: concepts.statement.id }));
+    expect(o.fileName).toContain('_12x18_');
+    expect(o.preflight?.find((i) => i.label === 'Page size')).toMatchObject({ ok: true, detail: expect.stringContaining('plaque 12" x 18"') });
+    await made(await post(`/projects/${p.id}/proof`, { conceptId: concepts.statement.id }));
+    // Proofing an older concept leaves the edited order alone.
+    expect(getProject(p.id)?.spec).toMatchObject({ widthIn: 24, heightIn: 36 });
+  });
+
+  it('refuses a vector file for a concept that is not in the job', async () => {
+    const { p } = await threeConcepts();
+    const other = await threeConcepts();
+    for (const conceptId of ['c_missing', other.concepts.classic.id]) {
+      const r = await post(`/projects/${p.id}/production`, { conceptId });
+      expect(r.status).toBe(400);
+      expect(await r.json()).toMatchObject({ error: 'That concept was not found in this job.' });
+    }
+    expect(listOutputs(p.id)).toEqual([]);
   });
 });

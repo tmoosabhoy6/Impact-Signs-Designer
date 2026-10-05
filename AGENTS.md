@@ -58,7 +58,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Production PDF | `server/pdf/production.ts`, `server/pdf/trace.ts` (logo → vector), `server/pdf/preflight.ts` |
 | API | `server/routes.ts` (generation streams as Server-Sent Events) |
 | Sign-in | `server/auth.ts`: Supabase accounts (`app_login` RPC, `supabase/migrations/`), else shared `APP_PASSWORD`, else open (development only); signed cookie; `owns()` for per-login jobs and upscales (`ownerId`). |
-| Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx`, `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx` |
+| Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx`, `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx`; `components/outputs.tsx` makes a proof / vector PDF from any concept (column buttons and the right panel share it) |
 | AI Upscaler | `server/ai/upscale.ts` (prompt, sizing, fidelity check, tone lock), `server/upscale-routes.ts` (`/api/upscales`), `shared/upscale.ts`, `client/src/pages/Upscaler.tsx`; files in `DATA_DIR/upscales/<id>/`. Independent of jobs and the layout engine. |
 | Examples | `references/<job>/example.json` + `server/examples.ts` (tests, samples and scripts only; not shown in the app, never seeded) |
 | Tests | `tests/golden.test.ts`, `tests/uploads.test.ts` (several photos, logos and sketches) |

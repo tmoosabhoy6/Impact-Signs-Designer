@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Maximize2, RefreshCw, Wand2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, FileCheck2, FileCog, Maximize2, RefreshCw, Wand2, X } from 'lucide-react';
 import { api, ApiError, conceptUrl, stream, type ProjectPayload } from '../api';
 import type { Catalog } from '../catalog';
 import { Button, Notice, Spinner, fmtUsd } from './ui';
+import { useMakeOutput, WordingCheckWarning } from './outputs';
 import type { ConceptRecord, InstructionPlan } from '../../../shared/types';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void; reload: () => void };
@@ -70,7 +71,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
           <h2 className="font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-white">
             <span className="mr-2 font-mono text-[12px] text-bronze">04</span>Concepts
           </h2>
-          <p className="text-[13px] text-white/55">Three production-realistic layouts. Pick one to send to the proof.</p>
+          <p className="text-[13px] text-white/55">Three production-realistic layouts. Make a proof and vector PDF from any of them.</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-[12px] text-white/60">
@@ -109,6 +110,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
             plan={plans[preset.id]}
             wide={wide}
             onOpen={setLightbox}
+            onChange={onChange}
             onSelect={async (c) => {
               setError('');
               try { onChange(await api.post<ProjectPayload>(`/projects/${p.id}/select`, { conceptId: c.id })); }
@@ -147,7 +149,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
 }
 
 function PresetColumn({
-  preset, concepts, data, partials, ratio, running, plan, wide, onOpen, onSelect, onRegenerate, onFix, onUndo,
+  preset, concepts, data, partials, ratio, running, plan, wide, onOpen, onChange, onSelect, onRegenerate, onFix, onUndo,
 }: {
   preset: { id: string; label: string; description: string };
   wide: boolean;
@@ -158,6 +160,7 @@ function PresetColumn({
   running: boolean;
   plan?: InstructionPlan;
   onOpen: (c: ConceptRecord) => void;
+  onChange: (d: ProjectPayload) => void;
   onSelect: (c: ConceptRecord) => void;
   onRegenerate: (c: ConceptRecord) => void;
   onFix: (c: ConceptRecord, instruction: string) => void;
@@ -172,6 +175,9 @@ function PresetColumn({
   const busy = current && (current.status === 'running' || current.status === 'queued');
   const partial = current ? partials[current.id] : undefined;
   const shownPlan = plan ?? current?.plan;
+  // Proof and vector file for the version shown here, whether or not it is the selected one.
+  const out = useMakeOutput(p.id, current?.id ?? null, onChange);
+  const made = (kind: 'proof' | 'production') => data.outputs.find((o) => o.kind === kind && o.conceptId === current?.id);
   const planNote = shownPlan?.kind === 'refuse' ? shownPlan.reason
     : shownPlan?.kind === 'visual' ? 'Visual edit to this image'
     : shownPlan ? `Interpreted as: ${shownPlan.restated} ${planScope(shownPlan)}` : '';
@@ -261,6 +267,30 @@ function PresetColumn({
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
               </div>
+              {/* Side by side when they fit; a narrow column (1366 px laptop) stacks them. */}
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="stage" className="grow whitespace-nowrap px-2" disabled={running || !!out.busy} busy={out.busy === 'proof'} onClick={() => out.makeProof()} title={`Customer proof of ${preset.label} v${concepts.indexOf(current) + 1}`}>
+                  {out.busy !== 'proof' && <FileCheck2 className="h-3.5 w-3.5" />} Proof PDF
+                </Button>
+                <Button size="sm" variant="stage" className="grow whitespace-nowrap px-2" disabled={running || !!out.busy} busy={out.busy === 'production'} onClick={() => out.makeProduction()} title={`Vector production file of ${preset.label} v${concepts.indexOf(current) + 1}`}>
+                  {out.busy !== 'production' && <FileCog className="h-3.5 w-3.5" />} Vector PDF
+                </Button>
+              </div>
+              {out.error && <Notice tone="error">{out.error.message}</Notice>}
+              {out.check && <WordingCheckWarning check={out.check} onConfirm={() => out.makeProof(true)} />}
+              {(made('proof') || made('production')) && (
+                <ul className="space-y-1" aria-label={`Files from ${preset.label}`}>
+                  {[made('proof'), made('production')].map((o) => o && (
+                    <li key={o.id} className="flex min-w-0 items-center gap-1.5 text-[12px] text-white/70">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#7fd1a6]" />
+                      <a href={`/api/outputs/${o.id}/download?inline=1`} target="_blank" rel="noreferrer" className="min-w-0 truncate hover:text-white hover:underline" title={o.fileName}>{o.fileName}</a>
+                      <a href={`/api/outputs/${o.id}/download`} className="ml-auto shrink-0 text-white/80 hover:text-white" aria-label={`Download ${o.fileName}`} title="Download">
+                        <Download className="h-3.5 w-3.5" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <form
                 className="flex items-start gap-2"
                 onSubmit={(e) => {

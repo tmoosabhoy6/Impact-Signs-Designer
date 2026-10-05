@@ -237,6 +237,8 @@ export interface OutputRecord {
   projectId: string;
   kind: 'proof' | 'production';
   conceptId: string | null;
+  /** The layout it was made from. Older records only name the concept. */
+  preset?: LayoutPresetId;
   fileName: string;
   preflight: PreflightItem[] | null;
   createdAt: string;

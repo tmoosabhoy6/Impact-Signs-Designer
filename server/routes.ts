@@ -487,6 +487,13 @@ function productionLogos(p: Project, layout: PlaqueLayout): ProductionLogo[] {
   });
 }
 
+const presetLabel = (id: LayoutPresetId) => PRESETS.find((x) => x.id === id)?.label ?? id;
+
+/** The layout an output was made from (older records only name the concept). */
+function outputPreset(o: OutputRecord): LayoutPresetId | null {
+  return o.preset ?? (o.conceptId ? getConcept(o.conceptId)?.preset ?? null : null);
+}
+
 function outputFile(o: OutputRecord) {
   return path.join(projectDir(o.projectId, 'outputs'), `${o.id}.pdf`);
 }
@@ -508,14 +515,15 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
   let p = loadProject(req);
   const c = getConcept(String(req.body?.conceptId ?? p.selectedConceptId ?? ''));
   if (!c || c.projectId !== p.id || !c.hasImage) throw new Error('Select one of the generated images first.');
+  // Built from the concept's own frozen content. Any of the three concepts can be proofed
+  // without selecting it, so the order and the selection are left as they are.
   p = projectForConcept(p, c);
   if ((!c.spellcheck?.ok || (!config.mockAI && !c.spellcheck.checked)) && req.body?.acknowledged !== true) {
     return res.status(409).json({ error: c.spellcheck?.checked ? 'The spelling check found wording differences in this image.' : 'This image has not completed a spelling check. Proofread it before confirming.', differences: c.spellcheck?.differences ?? [] });
   }
-  p.selectedConceptId = c.id;
-  saveProject(p);
   const layout = layoutFor(p, c.preset);
-  const version = listOutputs(p.id).filter((x) => x.kind === 'proof').length + 1;
+  // Versions count per layout: three proofs of three layouts are three options, not v1-v3.
+  const version = listOutputs(p.id).filter((x) => x.kind === 'proof' && outputPreset(x) === c.preset).length + 1;
   let productionPdf: Buffer | null = null;
   if (p.proofStyle === 'etched') {
     productionPdf = (
@@ -541,8 +549,8 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
     siteMountHeightIn: p.siteMountHeightIn,
     productionPdf,
   });
-  const fileName = `Proof - ${p.jobNumber || 'draft'}${version > 1 ? ` v${version}` : ''}.pdf`;
-  const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'proof', conceptId: c.id, fileName, preflight: null, createdAt: now() };
+  const fileName = `Proof - ${p.jobNumber || 'draft'} - ${presetLabel(c.preset)}${version > 1 ? ` v${version}` : ''}.pdf`;
+  const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'proof', conceptId: c.id, preset: c.preset, fileName, preflight: null, createdAt: now() };
   fs.writeFileSync(outputFile(o), pdf);
   saveOutput(o);
   res.json({ output: o, ...projectPayload(p) });
@@ -550,10 +558,13 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
 
 api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
   let p = loadProject(req);
-  const c = getConcept(String(req.body?.conceptId ?? p.selectedConceptId ?? ''));
-  if (c && c.projectId !== p.id) throw new Error('That concept belongs to a different job.');
+  const asked = req.body?.conceptId;
+  const c = getConcept(String(asked ?? p.selectedConceptId ?? ''));
+  // A concept that was asked for by name must exist: never fall back to another layout.
+  if ((asked && !c) || (c && c.projectId !== p.id)) throw new Error('That concept was not found in this job.');
   if (c) p = projectForConcept(p, c);
-  const preset = (c?.preset ?? req.body?.preset ?? 'classic') as LayoutPresetId;
+  if (!p.spec || !p.wording?.blocks.length) throw new Error('Read the specification and add the customer wording first.');
+  const preset = c?.preset ?? (PRESETS.some((x) => x.id === req.body?.preset) ? req.body.preset as LayoutPresetId : 'classic');
   const layout = layoutFor(p, preset);
   const logos = productionLogos(p, layout);
   const result = await buildProductionPdf({
@@ -561,7 +572,9 @@ api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
     customFontFile: uploadPath(p, 'font'),
   });
   const checks = await preflight(result.pdf, layout, { logosTraced: logos.filter((l) => l.png).length, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed });
-  const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'production', conceptId: c?.id ?? null, fileName: result.fileName, preflight: checks, createdAt: now() };
+  // The layout name keeps the vector files of the three concepts apart once downloaded.
+  const fileName = result.fileName.replace(/_production\.pdf$/, `_${presetLabel(preset).replace(/\s+/g, '_')}_production.pdf`);
+  const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'production', conceptId: c?.id ?? null, preset, fileName, preflight: checks, createdAt: now() };
   fs.writeFileSync(outputFile(o), result.pdf);
   saveOutput(o);
   res.json({ output: o, notes: result.notes, ...projectPayload(p) });

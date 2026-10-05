@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Download, ExternalLink, FileCheck2, FileCog, AlertTriangle, XCircle } from 'lucide-react';
-import { api, ApiError, conceptUrl, type ProjectPayload } from '../api';
+import { api, conceptUrl, type ProjectPayload } from '../api';
 import { assetUrl, type Catalog } from '../catalog';
 import { Button, Notice, Panel } from './ui';
 import { UploadSlot } from './OrderPanel';
-import type { OutputRecord } from '../../../shared/types';
+import { outputTag, useMakeOutput, WordingCheckWarning } from './outputs';
+import type { ConceptRecord, OutputRecord } from '../../../shared/types';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void };
 
@@ -13,48 +14,10 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
   const selected = data.concepts.find((c) => c.id === p.selectedConceptId) ?? null;
   const proofs = data.outputs.filter((o) => o.kind === 'proof');
   const productions = data.outputs.filter((o) => o.kind === 'production');
-  const [busy, setBusy] = useState<'proof' | 'production' | null>(null);
-  // An error stays under the button that caused it.
-  const [error, setError] = useState<{ kind: 'proof' | 'production' | null; message: string }>({ kind: null, message: '' });
-  const [diffs, setDiffs] = useState<{ expected: string; seen: string }[] | null>(null);
-  const [proofWarning, setProofWarning] = useState('');
-  const [notes, setNotes] = useState<string[]>([]);
-  useEffect(() => { setDiffs(null); setProofWarning(''); }, [selected?.id]);
+  const { busy, error, check, notes, makeProof, makeProduction } = useMakeOutput(p.id, selected?.id ?? null, onChange);
 
   const finish = p.spec && catalog.catalog.finishes.find((f) => f.id === p.spec!.finish);
   const paint = p.spec && catalog.catalog.backgroundColors.find((f) => f.id === p.spec!.backgroundColor);
-
-  const makeProof = async (acknowledged = false) => {
-    setBusy('proof');
-    setError({ kind: null, message: '' });
-    try {
-      const r = await api.post<ProjectPayload>(`/projects/${p.id}/proof`, { conceptId: selected?.id, acknowledged });
-      setDiffs(null);
-      onChange(r);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        setDiffs((e.data.differences as { expected: string; seen: string }[]) ?? []);
-        setProofWarning(e.message);
-      }
-      else setError({ kind: 'proof', message: (e as Error).message });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const makeProduction = async () => {
-    setBusy('production');
-    setError({ kind: null, message: '' });
-    try {
-      const r = await api.post<ProjectPayload & { notes: string[] }>(`/projects/${p.id}/production`, { conceptId: selected?.id });
-      setNotes(r.notes);
-      onChange(r);
-    } catch (e) {
-      setError({ kind: 'production', message: (e as Error).message });
-    } finally {
-      setBusy(null);
-    }
-  };
 
   return (
     <div>
@@ -79,41 +42,20 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
             </div>
           </div>
         ) : (
-          <p className="text-[13px] text-muted">Choose “Use this one” under a concept to put it on the proof.</p>
+          <p className="text-[13px] text-muted">Choose “Use this one” under a concept, or press “Proof PDF” under any concept to proof it as it is.</p>
         )}
         <ProofSettings data={data} catalog={catalog} onChange={onChange} />
-        <Button className="mt-3 w-full" disabled={!selected} busy={busy === 'proof'} onClick={() => makeProof(false)}>
+        <Button className="mt-3 w-full" disabled={!selected} busy={busy === 'proof'} onClick={() => makeProof()}>
           <FileCheck2 className="h-4 w-4" /> Create proof PDF
         </Button>
-        {error.kind === 'proof' && <div className="mt-3"><Notice tone="error">{error.message}</Notice></div>}
-        {diffs && (
-          <div className="mt-3 space-y-2">
-            <Notice tone="warn">
-              <div className="font-semibold">{proofWarning}</div>
-              {diffs.map((d, i) => (
-                <div key={i} className="font-mono text-[12px]">
-                  expected “{d.expected}” · shows “{d.seen}”
-                </div>
-              ))}
-              <div className="mt-1">Fix it on the concept first, or confirm you have checked it yourself.</div>
-            </Notice>
-            <Button size="sm" variant="danger" onClick={() => makeProof(true)}>
-              I checked it: create proof anyway
-            </Button>
-          </div>
-        )}
-        {proofs.length > 0 && (
-          <ul className="mt-4 space-y-3">
-            {proofs.map((o, i) => (
-              <OutputItem key={o.id} o={o} latest={i === 0} />
-            ))}
-          </ul>
-        )}
+        {error?.kind === 'proof' && <div className="mt-3"><Notice tone="error">{error.message}</Notice></div>}
+        {check && <div className="mt-3"><WordingCheckWarning check={check} onConfirm={() => makeProof(true)} /></div>}
+        <OutputList outputs={proofs} concepts={data.concepts} catalog={catalog} />
       </Panel>
 
       <Panel step="06" title="Vector production PDF">
         <p className="text-[13px] text-muted">
-          One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of the selected concept{selected ? ` (${catalog.presets.find((x) => x.id === selected.preset)?.label})` : ''}.
+          One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of the selected concept{selected ? ` (${catalog.presets.find((x) => x.id === selected.preset)?.label})` : ''}. Every concept also has its own “Vector PDF” button.
         </p>
         <Button className="mt-3 w-full" variant="secondary" disabled={!p.spec || !p.wording?.blocks.length} busy={busy === 'production'} onClick={makeProduction}>
           <FileCog className="h-4 w-4" /> Create vector PDF
@@ -127,14 +69,8 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
             ))}
           </ul>
         )}
-        {productions.length > 0 && (
-          <ul className="mt-4 space-y-3">
-            {productions.map((o, i) => (
-              <OutputItem key={o.id} o={o} latest={i === 0} />
-            ))}
-          </ul>
-        )}
-        {error.kind === 'production' && <div className="mt-3"><Notice tone="error">{error.message}</Notice></div>}
+        <OutputList outputs={productions} concepts={data.concepts} catalog={catalog} />
+        {error?.kind === 'production' && <div className="mt-3"><Notice tone="error">{error.message}</Notice></div>}
       </Panel>
     </div>
   );
@@ -245,15 +181,34 @@ function ProofSettings({ data, catalog, onChange }: Props) {
   );
 }
 
-function OutputItem({ o, latest }: { o: OutputRecord; latest: boolean }) {
+/** Newest first; "Latest" marks the newest file of each layout, since each layout is its own option. */
+function OutputList({ outputs, concepts, catalog }: { outputs: OutputRecord[]; concepts: ConceptRecord[]; catalog: Catalog }) {
+  if (!outputs.length) return null;
+  const seen = new Set<string>();
+  return (
+    <ul className="mt-4 space-y-3">
+      {outputs.map((o, i) => {
+        const layout = o.preset ?? concepts.find((c) => c.id === o.conceptId)?.preset ?? '';
+        const latest = !seen.has(layout);
+        seen.add(layout);
+        return <OutputItem key={o.id} o={o} tag={outputTag(o, concepts, catalog)} latest={latest} open={i === 0} />;
+      })}
+    </ul>
+  );
+}
+
+function OutputItem({ o, tag, latest, open: openFirst }: { o: OutputRecord; tag: string; latest: boolean; open: boolean }) {
   const [previewOk, setPreviewOk] = useState(true);
-  const [open, setOpen] = useState(latest);
+  const [open, setOpen] = useState(openFirst);
   return (
     <li className="border border-line">
       <button className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left" onClick={() => setOpen(!open)}>
         <span className="min-w-0">
           <span className="block truncate text-[13px] font-medium">{o.fileName}</span>
-          <span className="font-mono text-[11px] text-muted">{new Date(o.createdAt).toLocaleString()}</span>
+          <span className="font-mono text-[11px] text-muted">
+            {tag && <span className="mr-1.5 font-display font-semibold uppercase tracking-wider text-graphite">From {tag}</span>}
+            {new Date(o.createdAt).toLocaleString()}
+          </span>
         </span>
         {latest && <span className="shrink-0 font-display text-[11px] font-semibold uppercase tracking-wider text-navy">Latest</span>}
       </button>

@@ -61,6 +61,24 @@ async function runExample(jobNumber, shot) {
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${out}/${shot}-b-proof.png` });
   await page.screenshot({ path: `${out}/${shot}-c-full.png`, fullPage: true });
+  if (jobNumber === '32249') await perConceptFiles();
+}
+
+// A proof and a vector file from the two layouts that are not selected, from their own columns.
+async function perConceptFiles() {
+  for (const name of ['Feature Image', 'Statement']) {
+    const column = page.locator('article').filter({ has: page.locator('h3', { hasText: name }) });
+    await column.getByRole('button', { name: 'Proof PDF' }).click();
+    await column.getByRole('link', { name: `Proof - 32249 - ${name}.pdf`, exact: true }).waitFor();
+    await column.getByRole('button', { name: 'Vector PDF' }).click();
+    await column.getByTitle(new RegExp(`_${name.replace(' ', '_')}_production\\.pdf$`)).waitFor();
+  }
+  // Selection stays on the first concept; the right panel lists every file by layout.
+  await page.locator('article').filter({ hasText: 'Selected for proof' }).filter({ has: page.locator('h3', { hasText: 'Classic' }) }).waitFor();
+  await page.getByText('Statement v1').first().waitFor();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${out}/15-per-concept-files.png` });
+  await page.screenshot({ path: `${out}/16-per-concept-files-full.png`, fullPage: true });
 }
 
 await runExample('32885', '03-raccoon-river');
