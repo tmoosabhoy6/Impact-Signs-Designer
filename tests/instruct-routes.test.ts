@@ -3,12 +3,14 @@ import path from 'node:path';
 import type { Server } from 'node:http';
 import express from 'express';
 import sharp from 'sharp';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api } from '../server/routes';
 import { config } from '../server/config';
 import { createExampleJob } from '../server/examples';
 import { getConcept, getProject, listConcepts, listOutputs, newId, saveConcept, saveProject, spentToday } from '../server/db';
 import { conceptFile, newConceptRecord } from '../server/ai/pipeline';
+import { imageAdapter } from '../server/ai/images';
+import { buildFixPrompt } from '../server/ai/prompts';
 import type { ConceptRecord, LayoutPresetId, OutputRecord, Project } from '../shared/types';
 
 let server: Server;
@@ -56,6 +58,34 @@ describe('instruction routes in demo mode', () => {
     expect(version).toMatchObject({ kind: 'fix', status: 'done', parentId: c.id, plan: { kind: 'visual' } });
     expect(version.prompt).toContain('use a purple anodized finish');
     expect(getProject(p.id)).toEqual(p);
+  });
+  it('sends an image-only edit as the designer\u2019s words and the current picture alone', async () => {
+    const { p, c } = await fixture();
+    const run = vi.spyOn(imageAdapter(), 'run');
+    try {
+      const words = 'Throw the plaque away and redo the whole thing as a rusty iron sign with a pink background, "Hello" in the middle';
+      await (await post(`/concepts/${c.id}/fix`, { instruction: words })).text();
+      expect(run).toHaveBeenCalledTimes(1);
+      const request = run.mock.calls[0][0];
+      // One reference image (the current picture): no layout drawing to pull it back to the old design.
+      expect(request.images.map((i) => i.name)).toEqual(['current.png']);
+      expect(request.prompt).toBe(buildFixPrompt(words));
+      expect(request.prompt).toContain(words);
+      // None of the rules that keep a new concept faithful to the order.
+      for (const rule of ['ZERO TOLERANCE', 'Reference 1', 'IMPACT SIGNS PLAQUE RENDERER', 'Never redraw', 'must read exactly']) expect(request.prompt).not.toContain(rule);
+      expect(getProject(p.id)).toEqual(p);
+    } finally { run.mockRestore(); }
+  });
+  it('still draws an order change to the updated layout, with the layout drawing and house rules', async () => {
+    const { c } = await fixture();
+    const run = vi.spyOn(imageAdapter(), 'run');
+    try {
+      await (await post(`/concepts/${c.id}/fix`, { instruction: 'move the text up' })).text();
+      const request = run.mock.calls[0][0];
+      expect(request.images.map((i) => i.name)).toEqual(['current.png', 'layout.png']);
+      expect(request.prompt).toContain('NEW LAYOUT');
+      expect(request.prompt).toContain('ZERO TOLERANCE');
+    } finally { run.mockRestore(); }
   });
   it('edits an older version from its own content when the order has moved on', async () => {
     const { p, c } = await fixture();

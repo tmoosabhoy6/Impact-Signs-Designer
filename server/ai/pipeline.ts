@@ -265,13 +265,16 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
       const parent = getConcept(rec.parentId);
       if (!parent?.hasImage) throw new Error('The image to fix is missing.');
       const parentPng = await sharp(conceptFile(parent, 'image.png')).resize(w, h, { fit: 'fill' }).png().toBuffer();
-      images = [
-        { role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' },
-        { role: 'layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' },
-      ];
-      prompt = rec.plan && changesOrder(rec.plan)
-        ? buildRelayoutPrompt(rec.note, designerChange(rec), layout)
-        : buildFixPrompt(designerChange(rec) ?? rec.note, layout, true);
+      const structural = !!rec.plan && changesOrder(rec.plan);
+      // An order change is drawn to the new layout. An image-only edit is the designer's words
+      // and the current picture alone: nothing about the layout or the house rules is sent.
+      images = structural
+        ? [
+            { role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' },
+            { role: 'layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' },
+          ]
+        : [{ role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' }];
+      prompt = structural ? buildRelayoutPrompt(rec.note, designerChange(rec), layout) : buildFixPrompt(designerChange(rec) ?? rec.note);
     } else {
       images = await buildReferences(project, layout, layoutPng);
       prompt = buildConceptPrompt(project.spec!, layout, images, { logoCount: layoutFiles(project, layout).logos.filter(Boolean).length, direction: designerChange(rec) });

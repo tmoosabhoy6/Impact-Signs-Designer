@@ -9,6 +9,7 @@ import { layoutTextPath } from '../server/render/flat';
 import { buildProductionPdf } from '../server/pdf/production';
 import { preflight } from '../server/pdf/preflight';
 import { compareWording } from '../server/ai/spellcheck';
+import { buildFixPrompt } from '../server/ai/prompts';
 import type { ConceptRecord, Project } from '../shared/types';
 
 async function heritage() {
@@ -17,6 +18,16 @@ async function heritage() {
     wording: parseWording(await docxToText(fs.readFileSync('references/32241-edwin-feulner/Edwin-J.docx'))),
   } as Project;
 }
+
+describe('image-only edit prompt', () => {
+  it('is the designer\u2019s words in a short, open instruction', () => {
+    const p = buildFixPrompt('  make the logo a UV print on a raised plate.  ');
+    expect(p).toContain('make the logo a UV print on a raised plate.');
+    expect(p).toMatch(/^Image 1 is the current photograph of a plaque\./);
+    expect(p).toMatch(/It may be one small detail or the whole image/);
+    expect(p.length).toBeLessThan(700);
+  });
+});
 
 describe('offline instruction planner', () => {
   it('changes double-line borders through the catalog', async () => {

@@ -39,7 +39,7 @@ The interface uses the current impactsigns.com palette: navy navigation and butt
    - **Use this one** to put it on the proof: the concept stands forward with a green check, and the right-hand panel switches to it (its picture, the description and the proof and vector buttons all work on that concept). Press **Use this one** under another concept to proof that one next; nothing you made for the first is lost. Three concepts, three proofs, three vector files, if you like. Every file in the right-hand panel says which concept it came from (*From Feature Image v2*).
    - **The full-size view** (click a picture): scroll to zoom, drag to move, double-click to fit, +/−/0/1 keys, Esc to close.
    - **Regenerate** (↻) the same layout for a fresh take.
-   - **Fix** with any instruction at all, small or large, and several changes at once if you like. Enter applies; Shift+Enter adds a line. The app shows how it read the request, and the result is saved as a new version (v2, v3…). Nothing is refused: whatever the catalog, the wording editor and the layout cannot express is sent to the image model word for word as an image-only change (the proof and vector file then keep the current order, and the note under the box says so).
+   - **Fix** with any instruction at all, small or large, and several changes at once if you like. Enter applies; Shift+Enter adds a line. The app shows how it read the request, and the result is saved as a new version (v2, v3…). Nothing is refused: whatever the catalog, the wording editor and the layout cannot express is sent to the image model word for word as an image-only change (the proof and vector file then keep the current order, and the note under the box says so). An image-only change is as open as it gets: the model receives only your words and the current picture (`server/prompts/fix.md`, five lines), with no house rules, no layout drawing and no wording list, so it can change the logo, the lettering, the background or redo the whole image. The result is still spell-checked against the order, and the proof asks before it uses a picture whose wording differs.
      - **Layout** changes (text size, spacing, photo or logo size, moving the content up or down, photo above or below the text, logo position) change that column's layout drawing, so the proof and the vector production file follow them. Each column keeps its own adjustments. With several photos or logos, "make the logos bigger" resizes the whole row together; a change to just one of them ("make the left logo bigger") is made on the image only.
      - Adding, removing or swapping photos and logos is done in **03 Customer files**, not with Fix.
      - **Catalog** options and **exact wording** changes update the order, as before.
@@ -155,6 +155,8 @@ The image API has no saved "system prompt": every request carries everything. Ea
 - **The job details**, built from the catalog's descriptions of each option.
 
 After generation, the app crops the image to the plaque's exact proportions (so the proof brackets line up) and spell-checks it.
+
+Edits are different. A change to the order (a catalog option, the wording, the layout) redraws the picture to the updated layout drawing under the house rules, so the picture still matches the proof and the vector file. A free-form image change sends only the current picture and your words.
 
 ---
 
