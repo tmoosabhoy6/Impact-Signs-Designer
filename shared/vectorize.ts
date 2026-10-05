@@ -4,7 +4,7 @@ export interface VectorOptions {
   widthIn: number;
 }
 
-export const VECTOR_DEFAULTS: VectorOptions = { widthIn: 10 };
+export const VECTOR_DEFAULTS: VectorOptions = { widthIn: 8.5 }; // normal (letter) page width
 export const VECTOR_WIDTH_LIMITS = { minIn: 0.5, maxIn: 96 };
 export const VECTOR_UPLOAD_MB = 40;
 
