@@ -7,6 +7,7 @@ import { getCatalog, type OptionGroup } from '../catalog.js';
 import { matchOption, parseSize } from '../parse/spec.js';
 import { openai } from './images.js';
 import { ADJUST_LIMITS, normalizeAdjust } from '../layout/engine.js';
+import { normalizeUploads } from '../../shared/uploads.js';
 import type { ConceptRecord, InstructionPlan, LayoutAdjust, LayoutPresetId, PlacementPatch, PlaqueSpec, Project, Wording, WordingEdit } from '../../shared/types.js';
 
 export const SPEC_GROUPS = {
@@ -108,7 +109,7 @@ function targetBlock(project: Project, description: string) {
 function planClause(project: Project, instruction: string, preset: LayoutPresetId): Plan {
   const s = instruction.trim().replace(/[.!]$/, '');
   const visual = /^(?:please )?(?:fix|correct) (?:the )?spelling\b/i.test(s)
-    || /^(?:please )?(?:make (?:the )?border thinner(?: in (?:this|the) image)?|(?:the )?border (?:looks|is|appears) too thick(?: in (?:this|the) image)?|(?:more|less|increase|decrease) contrast(?: in (?:the )?(?:photo|image))?|make (?:the )?(?:leatherette|stipple|pebble) texture (?:finer|coarser)|(?:reduce|increase) (?:the )?glare)$/i.test(s);
+    || /^(?:please )?(?:make (?:the )?border thinner(?: in (?:this|the) image)?|(?:the )?border (?:looks|is|appears) too thick(?: in (?:this|the) image)?|(?:more|less|increase|decrease) contrast(?: in (?:the )?(?:photos?|images?))?|make (?:the )?(?:leatherette|stipple|pebble) texture (?:finer|coarser)|(?:reduce|increase) (?:the )?glare)$/i.test(s);
   if (visual && !/\band\b|;/i.test(s)) return { kind: 'visual', restated: instruction.trim() };
 
   const change = instruction.trim().match(/^(?:please )?(?:change|replace)\s+(.+?)\s+(?:to|with)\s+(.+)$/i);
@@ -138,6 +139,14 @@ function planClause(project: Project, instruction: string, preset: LayoutPresetI
     const b = targetBlock(project, remove[1]);
     return b ? { kind: 'wording', restated: `Remove “${b.text}”`, wordingEdits: [{ op: 'delete_block', blockId: b.id }] } : softRefuse('Name one exact wording block to remove.', 'text');
   }
+  // Photos and logos are customer files: the image model must never add, drop or swap one,
+  // or the picture would disagree with the proof's file list and the vector production file.
+  const FILES = '(?:logos?|photos?|pictures?|portraits?|images?)';
+  if (new RegExp(`^(?:please )?(?:add|upload|insert|include|put in)\\s+(?:a |an |another |one more |more |extra |a second |a new |\\d+ )?(?:\\w+ )?${FILES}\\b`, 'i').test(s)
+    || new RegExp(`^(?:please )?(?:remove|delete|drop|take out|get rid of)\\s+(?:the |one of the |a )?(?:\\w+ )?${FILES}$`, 'i').test(s)
+    || new RegExp(`^(?:please )?(?:swap|switch|reorder|re-order|rearrange|reverse)\\s+(?:the |two |the two |both )*(?:order of (?:the )?)?${FILES}\\b`, 'i').test(s)) {
+    return refuse('Photos and logos come from the customer’s files. Add, remove or reorder them under 03 Customer files, then generate again.');
+  }
   const layout = layoutClause(project, s, preset);
   if (layout) return layout;
   const styling = s.match(/^(?:please )?make (.+?) (italic|bold|small caps|larger|bigger|smaller|headline|subhead|body|footer)$/i);
@@ -165,7 +174,7 @@ function planClause(project: Project, instruction: string, preset: LayoutPresetI
     ['border', /\bborder/i], ['font', /\bfont|typeface/i], ['mounting', /\bmount|screw|rosette|stake/i],
   ];
   // "Darker background color" or "warmer photo" is about appearance, not choosing an option.
-  const appearance = /\b(?:photo|image|picture|portrait|etching|darker|lighter|warmer|cooler|brighter|richer|deeper|shinier|duller|glossier|softer|stronger|subtler|finer|coarser|smoother|rougher|more|less)\b/i.test(s);
+  const appearance = /\b(?:photos?|images?|pictures?|portraits?|etchings?|darker|lighter|warmer|cooler|brighter|richer|deeper|shinier|duller|glossier|softer|stronger|subtler|finer|coarser|smoother|rougher|more|less)\b/i.test(s);
   for (const [field, re] of explicit) {
     if (!appearance && re.test(s) && !matchOption(SPEC_GROUPS[field], [s])) return refuse('That option is not in our plaque catalog. Choose an available option.', SPEC_GROUPS[field]);
   }
@@ -205,7 +214,7 @@ function planClause(project: Project, instruction: string, preset: LayoutPresetI
   return softRefuse('That does not describe a change to this plaque. Say what to change, for example "move the text up" or "make the photo larger".', 'vocab');
 }
 
-const PLAQUE_WORDS = /\b(?:text|names?|lines?|words?|wording|letters?|lettering|font|type|title|heading|headline|subhead|dates?|years?|logo|photo|picture|image|portrait|face|person|etch\w*|relief|engrav\w*|border|frame|edges?|corners?|spacing|spaces?|gaps?|margins?|padding|bigger|smaller|larger|move|shift|up|down|left|right|cent(?:er|re)\w*|top|bottom|middle|darker|lighter|brighter|dark|light|contrast|shadows?|depth|deeper|shallower|texture|finish|colou?r|background|plaque|size|layout|align\w*|sharp\w*|blur\w*|detail\w*|crisp\w*|bold|italic|thin\w*|thick\w*|wider|narrower|tall\w*|short\w*|screws?|rosettes?|glare|shin\w*|polish\w*|matte|patina|paint|spell\w*|typo|misspel\w*|bronze|metal|raised|recess\w*|emblem|seal|icon|graphic|art\w*|eagle|flag)\b/i;
+const PLAQUE_WORDS = /\b(?:text|names?|lines?|words?|wording|letters?|lettering|font|type|title|heading|headline|subhead|dates?|years?|logos?|photos?|pictures?|images?|portraits?|faces?|person|people|etch\w*|relief|engrav\w*|border|frame|edges?|corners?|spacing|spaces?|gaps?|margins?|padding|bigger|smaller|larger|move|shift|up|down|left|right|cent(?:er|re)\w*|top|bottom|middle|darker|lighter|brighter|dark|light|contrast|shadows?|depth|deeper|shallower|texture|finish|colou?r|background|plaque|size|layout|align\w*|sharp\w*|blur\w*|detail\w*|crisp\w*|bold|italic|thin\w*|thick\w*|wider|narrower|tall\w*|short\w*|screws?|rosettes?|glare|shin\w*|polish\w*|matte|patina|paint|spell\w*|typo|misspel\w*|bronze|metal|raised|recess\w*|emblem|seal|icon|graphic|art\w*|eagle|flag)\b/i;
 
 const clamp = (n: number, [lo, hi]: readonly [number, number]) => Math.min(hi, Math.max(lo, n));
 const pct = (m: number) => `${Math.round(Math.abs(m - 1) * 100)}%`;
@@ -216,8 +225,18 @@ function layoutClause(project: Project, s: string, preset: LayoutPresetId): Plan
   const amount = /\b(?:a lot|much|significantly|way|considerably|really)\b/.test(t) ? 'lot' : /\b(?:slightly|a bit|a little|a touch|a tad|little|marginally)\b/.test(t) ? 'bit' : 'normal';
   const step = amount === 'lot' ? 1.4 : amount === 'bit' ? 1.08 : 1.18;
   const text = /\b(?:text|wording|words|lettering|letters|type|font size|copy|everything|all of it|inscription)\b/.test(t);
-  const photo = /\b(?:photo|image|picture|portrait|etching|relief)\b/.test(t);
-  const logo = /\blogo\b/.test(t);
+  const photo = /\b(?:photos?|images?|pictures?|portraits?|etchings?|relief)\b/.test(t);
+  const logo = /\blogos?\b/.test(t);
+  const files = normalizeUploads(project.uploads);
+  const photoCount = files.photos.length;
+  const logoCount = files.logos.length;
+  // Several photos (or logos) are sized and placed as one group. A request about just one
+  // of them ("the left logo", "the second photo") is not a layout change: it becomes an
+  // image-only edit rather than resizing the whole group.
+  const singled = (noun: string) => new RegExp(`\\b(?:left|right|middle|cent(?:er|re)|first|second|third|fourth|fifth|sixth|last|other|one)\\s+(?:${noun})\\b|\\b(?:${noun}) (?:on the )?(?:left|right)\\b|\\b(?:one|1) of the`).test(t);
+  if ((photo && photoCount > 1 && singled('photo|image|picture|portrait')) || (logo && logoCount > 1 && singled('logo'))) return { kind: 'visual', restated: s };
+  const photoWord = photoCount > 1 ? `the ${photoCount} photos` : 'the image';
+  const logoWord = logoCount > 1 ? `the ${logoCount} logos` : 'the logo';
   const bigger = /\b(?:bigger|larger|enlarge|increase|grow|scale up|blow up)\b/.test(t);
   const smaller = /\b(?:smaller|shrink|reduce|decrease|scale down|tinier)\b/.test(t);
   const blocks = project.wording?.blocks ?? [];
@@ -239,8 +258,8 @@ function layoutClause(project: Project, s: string, preset: LayoutPresetId): Plan
   if (bigger !== smaller && (text || photo || logo) && !moreSpace && !lessSpace) {
     const m = bigger ? step : 1 / step;
     if (text) { layoutPatch.textScale = m; said.push(`make all text ${pct(m)} ${bigger ? 'larger' : 'smaller'}`); }
-    if (photo) { layoutPatch.imageScale = m; said.push(`make the image ${pct(m)} ${bigger ? 'larger' : 'smaller'}`); }
-    if (logo) { layoutPatch.logoScale = m; said.push(`make the logo ${pct(m)} ${bigger ? 'larger' : 'smaller'}`); }
+    if (photo) { layoutPatch.imageScale = m; said.push(`make ${photoWord} ${pct(m)} ${bigger ? 'larger' : 'smaller'}`); }
+    if (logo) { layoutPatch.logoScale = m; said.push(`make ${logoWord} ${pct(m)} ${bigger ? 'larger' : 'smaller'}`); }
   }
 
   // Moving things.
@@ -248,15 +267,15 @@ function layoutClause(project: Project, s: string, preset: LayoutPresetId): Plan
   const up = /\b(?:up|higher|upward|upwards|raise)\b|\bto the top\b/.test(t);
   const down = /\b(?:down|lower|downward|downwards|drop)\b|\bto the bottom\b/.test(t);
   const headline = Math.max(0, blocks.findIndex((b) => b.role === 'headline'));
-  if (logo && /\b(?:top|middle|bottom)\b/.test(t) && (moving || /\blogo (?:at|on|to) the\b/.test(t))) {
+  if (logo && /\b(?:top|middle|bottom)\b/.test(t) && (moving || /\blogos? (?:at|on|to) the\b/.test(t))) {
     placement.logoSlot = /\btop\b/.test(t) ? 'top' : /\bmiddle\b/.test(t) ? 'middle' : 'bottom';
-    said.push(`put the logo at the ${placement.logoSlot}`);
+    said.push(`put ${logoWord} at the ${placement.logoSlot}`);
   } else if (photo && moving && /\b(?:below|under|beneath|after)\b/.test(t) && blocks.length) {
     placement.imageAfterBlock = /\b(?:name|headline|title|first line)\b/.test(t) ? headline : blocks.length - 1;
-    said.push(placement.imageAfterBlock === blocks.length - 1 ? 'move the image below the text' : 'move the image below the name');
+    said.push(placement.imageAfterBlock === blocks.length - 1 ? `move ${photoWord} below the text` : `move ${photoWord} below the name`);
   } else if (photo && moving && (/\b(?:above|before|first)\b/.test(t) || (up && project.imageAfterBlock != null))) {
     placement.imageAfterBlock = null;
-    said.push('move the image above the text');
+    said.push(`move ${photoWord} above the text`);
   } else if (moving && up !== down && !logo) {
     const target = /\bto the (?:very )?top\b/.test(t) ? -1 : /\bto the (?:very )?bottom\b/.test(t) ? 1 : current.verticalOffset + (up ? -1 : 1) * (amount === 'lot' ? 0.8 : amount === 'bit' ? 0.25 : 0.5);
     layoutPatch.verticalOffset = clamp(target, ADJUST_LIMITS.verticalOffset);
@@ -494,6 +513,7 @@ Shape: {"kind":"edit","restated":"plain-English summary of everything that will 
 - wordingEdits: literal customer text changes or per-line styling. Ops (each has "op"): replace_text {blockId,from,to}; insert_block {afterId: block ID or null for the top, text, role}; delete_block {blockId}; set_role {blockId,role}; set_style {blockId,style:{italic?,bold?,smallCaps?,size?}}. Roles: headline/subhead/body/footer. style.size is that line's absolute size multiplier, 0.5..2 (its current value is in the wording style, 1 if missing). New and inserted text must appear literally in the request; "from" is the exact current text. Never paraphrase, correct or invent customer wording. "The name" means the headline block.
 - layoutPatch (this layout only, relative to now): textScale (all text, multiplier: 1.15 = 15% larger), spacing (space between lines and groups, multiplier), imageScale (photo frame, multiplier), logoScale (multiplier), verticalOffset (absolute target: -1 top, 0 centered, 1 bottom; the current value is given). Steps: slightly 1.08, normal 1.15 to 1.25, a lot 1.4; smaller is the inverse (0.85).
 - placement (whole order): imageAfterBlock (index of the wording block the photo goes after; null = photo first, at the top or left), logoSlot (top, middle or bottom).
+- Several photos sit together as one group of frames, and several logos as one row, in the order listed in layout.photos / layout.logos. imageScale, logoScale and placement always resize or move the whole group. A change to just one of them (for example "make the left logo bigger") cannot be made in the layout: use imageEdit for it and say in restated that it changes the image only. Adding, removing or reordering photos and logos is done in Customer files, not here: refuse with that reason.
 - imageEdit: anything else, as one clear direct instruction to the image model: how the photo, portrait or etching looks (detail, depth, contrast, tone, sharpness, crop inside its frame), how the chosen finish, paint or texture looks within the current catalog choice, moving or resizing one particular element in a way layoutPatch and placement cannot express, removing artifacts, re-rendering misspelled letters. It changes the image only. Never use it to change wording, add text, or switch to a finish, color, material, border or mounting other than the current catalog choice.
 Prefer specPatch, wordingEdits, layoutPatch and placement over imageEdit whenever they can express the change: they also update the proof and the vector production file. Use imageEdit together with them for the rest.
 Refuse only when the request is not about this plaque, is unsafe, or needs a material, finish, paint, border, mounting, thickness or construction that is not in the catalog: {"kind":"refuse","reason":"plain-English reason","nearestOptions":["catalog labels"]}.`;
@@ -505,7 +525,9 @@ export async function planInstruction(project: Project, concept: ConceptRecord, 
   const context = {
     catalog, sizeLimits: getCatalog().sizeLimits, thickness: getCatalog().thickness, spec: project.spec,
     wording: project.wording?.blocks.map(({ id, role, text, style }, index) => ({ index, id, role, text, style })),
-    layout: { preset, current: normalizeAdjust(project.layoutAdjust?.[preset]), imageAfterBlock: project.imageAfterBlock, logoSlot: project.logoSlot, hasPhoto: !!project.uploads.photo, hasLogo: !!project.uploads.logo },
+    layout: { preset, current: normalizeAdjust(project.layoutAdjust?.[preset]), imageAfterBlock: project.imageAfterBlock, logoSlot: project.logoSlot,
+      // File names only, in plaque order (left to right): enough to tell "the Rotary logo" apart.
+      photos: normalizeUploads(project.uploads).photos.map((f) => f.name), logos: normalizeUploads(project.uploads).logos.map((f) => f.name) },
     instruction,
   };
   // The stronger planner model first, then the vision model; each failure is fed back once.

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileText, ImagePlus, PenLine, Trash2, Type, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, ImagePlus, PenLine, Trash2, Type, Upload } from 'lucide-react';
 import { api, type ProjectPayload } from '../api';
 import { assetUrl, SPEC_FIELDS, type Catalog, type CatalogOption } from '../catalog';
 import { Button, Chip, Notice, Panel } from './ui';
-import type { PlaqueSpec, TextStyle, WordingBlock, WordingRole } from '../../../shared/types';
+import type { PlaqueSpec, TextStyle, UploadedFile, UploadedImage, WordingBlock, WordingRole } from '../../../shared/types';
+import { KIND_LABEL, LIST_KEY, UPLOAD_LIMITS, type MultiUploadKind } from '../../../shared/uploads';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void };
 
@@ -251,15 +252,16 @@ function SizeInput({ value, onCommit, label }: { value: number; onCommit: (v: nu
 }
 
 /** Where the photo sits among the lines; arrows move it up or down. */
-function ImageMarker({ index, count, onMove }: { index: number; count: number; onMove: (to: number | null) => void }) {
+function ImageMarker({ index, count, photos, onMove }: { index: number; count: number; photos: number; onMove: (to: number | null) => void }) {
+  const what = photos > 1 ? `the ${photos} photos` : 'the photo';
   return (
     <div className="my-1 flex items-center gap-2 rounded-[3px] border border-dashed border-bronze bg-bronze/10 px-2 py-1 text-[12px] text-[#7a5a32]">
       <ImagePlus className="h-3.5 w-3.5" />
-      <span className="flex-1">Photo goes here</span>
-      <button className="rounded px-1.5 hover:bg-bronze/20 disabled:opacity-30" disabled={index < 0} onClick={() => onMove(index - 1 < 0 ? null : index - 1)} aria-label="Move the photo up">
+      <span className="flex-1">{photos > 1 ? `${photos} photos go here, side by side` : 'Photo goes here'}</span>
+      <button className="rounded px-1.5 hover:bg-bronze/20 disabled:opacity-30" disabled={index < 0} onClick={() => onMove(index - 1 < 0 ? null : index - 1)} aria-label={`Move ${what} up`}>
         ↑
       </button>
-      <button className="rounded px-1.5 hover:bg-bronze/20 disabled:opacity-30" disabled={index >= count - 1} onClick={() => onMove(index + 1)} aria-label="Move the photo down">
+      <button className="rounded px-1.5 hover:bg-bronze/20 disabled:opacity-30" disabled={index >= count - 1} onClick={() => onMove(index + 1)} aria-label={`Move ${what} down`}>
         ↓
       </button>
     </div>
@@ -401,7 +403,7 @@ function WordingSection({ data, catalog, onChange }: Props) {
       {blocks.length > 0 && (
         <div className="mt-4 space-y-2">
           <div className="label">Lines on the plaque, top to bottom</div>
-          {hasImage && p.imageAfterBlock == null && <ImageMarker onMove={(to) => setImageAfter(to)} index={-1} count={blocks.length} />}
+          {hasImage && p.imageAfterBlock == null && <ImageMarker onMove={(to) => setImageAfter(to)} index={-1} count={blocks.length} photos={p.uploads.photos.length} />}
           {blocks.map((b, i) => (
             <div key={b.id}>
               <div className="flex gap-2">
@@ -431,7 +433,7 @@ function WordingSection({ data, catalog, onChange }: Props) {
                 catalog={catalog}
                 onChange={(style) => setBlocks(blocks.map((x, j) => (j === i ? { ...x, style } : x)))}
               />
-              {hasImage && p.imageAfterBlock === i && <ImageMarker onMove={(to) => setImageAfter(to)} index={i} count={blocks.length} />}
+              {hasImage && p.imageAfterBlock === i && <ImageMarker onMove={(to) => setImageAfter(to)} index={i} count={blocks.length} photos={p.uploads.photos.length} />}
             </div>
           ))}
           {dirty && (
@@ -458,33 +460,49 @@ function WordingSection({ data, catalog, onChange }: Props) {
 
 function FilesSection({ data, onChange }: Props) {
   const p = data.project;
-  const ppi = data.layouts?.[0]?.photoPpi ?? null;
+  const ppi = data.layouts?.[0]?.photoPpi ?? {};
+  const low = p.uploads.photos.filter((f) => ppi[f.id] != null && ppi[f.id] < 150);
   return (
     <Panel step="03" title="Customer files">
-      <div className="space-y-3">
-        <UploadSlot
+      <div className="space-y-4">
+        <FileList
           kind="photo"
-          label="Photo"
-          hint="Portrait or picture for the plaque. JPG, PNG, TIFF."
+          label="Photos"
+          hint="Portraits or pictures for the plaque. JPG, PNG, TIFF."
+          order="Several photos sit side by side, left to right in this order."
           accept="image/*,.tif,.tiff"
-          file={p.uploads.photo}
           data={data}
           onChange={onChange}
-          extra={
-            p.uploads.photo && (
-              <span className={`font-mono text-[11px] ${ppi != null && ppi < 150 ? 'text-amber' : 'text-muted'}`}>
-                {p.uploads.photo.width}×{p.uploads.photo.height}px{ppi != null && ` · ${ppi} ppi at size`}
+          detail={(f) => {
+            const img = f as UploadedImage;
+            const v = ppi[f.id];
+            return (
+              <span className={`font-mono text-[11px] whitespace-nowrap ${v != null && v < 150 ? 'text-amber' : 'text-muted'}`} title="Pixels per inch at its size on the plaque">
+                {img.width}×{img.height}px{v != null && ` · ${v} ppi`}
               </span>
-            )
-          }
+            );
+          }}
         />
-        {ppi != null && ppi < 150 && (
-          <Notice tone="warn">The photo is {ppi} pixels per inch at its size on the plaque. Fine for a concept; ask the customer for a larger original if fine detail matters.</Notice>
+        {low.length > 0 && (
+          <Notice tone="warn">
+            {p.uploads.photos.length === 1
+              ? `The photo is ${ppi[low[0].id]} pixels per inch at its size on the plaque.`
+              : `${low.length === 1 ? 'This photo is' : 'These photos are'} low resolution at ${low.length === 1 ? 'its' : 'their'} size on the plaque: ${low.map((f) => `${f.name} ${ppi[f.id]} ppi`).join(', ')}.`}{' '}
+            Fine for a concept; ask the customer for a larger original if fine detail matters.
+          </Notice>
         )}
-        <UploadSlot kind="logo" label="Logo" hint="SVG or PDF/AI preferred; PNG or JPG works." accept="image/*,.svg,.pdf,.ai,.eps" file={p.uploads.logo} data={data} onChange={onChange} />
-        {p.uploads.logo && (
+        <FileList
+          kind="logo"
+          label="Logos"
+          hint="SVG or PDF/AI preferred; PNG or JPG works."
+          order="Several logos sit in one row, left to right in this order."
+          accept="image/*,.svg,.pdf,.ai,.eps"
+          data={data}
+          onChange={onChange}
+        />
+        {p.uploads.logos.length > 0 && (
           <label className="flex items-center justify-between text-[13px]">
-            <span className="text-graphite">Logo position</span>
+            <span className="text-graphite">{p.uploads.logos.length > 1 ? 'Logo row position' : 'Logo position'}</span>
             <select
               className="h-8 rounded-[3px] border border-line bg-white px-1.5 text-[13px] outline-none focus:border-navy"
               value={p.logoSlot}
@@ -497,16 +515,201 @@ function FilesSection({ data, onChange }: Props) {
             </select>
           </label>
         )}
-        <UploadSlot kind="sketch" label="Sketch" hint="Customer's hand-drawn layout, if any. Image or PDF." accept="image/*,.pdf" file={p.uploads.sketch} data={data} onChange={onChange} />
+        <FileList
+          kind="sketch"
+          label="Sketches"
+          hint="Customer's hand-drawn layout, if any. Image or PDF. Guides the concepts only; never drawn on the plaque."
+          accept="image/*,.pdf"
+          data={data}
+          onChange={onChange}
+        />
       </div>
     </Panel>
+  );
+}
+
+/**
+ * Several files of one kind: add many at once (picker or drag and drop), remove one,
+ * and change their left-to-right order on the plaque.
+ */
+function FileList({
+  kind, label, hint, order, accept, data, onChange, detail,
+}: {
+  kind: MultiUploadKind;
+  label: string;
+  hint: string;
+  /** How the order shows on the plaque; files without an order (sketches) have no arrows. */
+  order?: string;
+  accept: string;
+  data: ProjectPayload;
+  onChange: (d: ProjectPayload) => void;
+  detail?: (f: UploadedFile) => React.ReactNode;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [drag, setDrag] = useState(false);
+  const p = data.project;
+  const items = p.uploads[LIST_KEY[kind]] as UploadedFile[];
+  const limit = UPLOAD_LIMITS[kind];
+  const words = KIND_LABEL[kind];
+  const full = items.length >= limit;
+  const busy = progress != null || busyId != null;
+
+  // One file per request, in the order chosen: each gets its own answer, and the list
+  // grows on screen as each one is read.
+  const send = async (files: File[]) => {
+    if (!files.length || busy) return;
+    const room = Math.max(0, limit - items.length);
+    const take = files.slice(0, room);
+    const problems: string[] = [];
+    if (files.length > room) {
+      const skipped = files.slice(room).map((f) => f.name).join(', ');
+      problems.push(`A job can have up to ${limit} ${words.many}. Not added: ${skipped}.`);
+    }
+    setErrors([]);
+    setProgress({ done: 0, total: take.length });
+    for (const [i, f] of take.entries()) {
+      try {
+        onChange(await api.upload<ProjectPayload>(`/projects/${p.id}/upload/${kind}`, f));
+      } catch (e) {
+        const msg = (e as Error).message;
+        problems.push(msg.includes(f.name) ? msg : `${f.name}: ${msg}`);
+      }
+      setProgress({ done: i + 1, total: take.length });
+    }
+    setProgress(null);
+    setErrors(problems);
+  };
+
+  const act = async (id: string, run: () => Promise<ProjectPayload>) => {
+    setBusyId(id);
+    setErrors([]);
+    try {
+      onChange(await run());
+    } catch (e) {
+      setErrors([(e as Error).message]);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const move = (i: number, by: -1 | 1) => {
+    const ids = items.map((f) => f.id);
+    [ids[i], ids[i + by]] = [ids[i + by], ids[i]];
+    return act(items[i].id, () => api.put<ProjectPayload>(`/projects/${p.id}/upload/${kind}/order`, { ids }));
+  };
+  const Icon = kind === 'sketch' ? PenLine : ImagePlus;
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDrag(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDrag(false);
+        send([...(e.dataTransfer.files ?? [])]);
+      }}
+      className={`rounded-[3px] border p-2 transition-colors ${drag ? 'border-navy bg-navy-50' : 'border-line'} ${items.length ? '' : 'border-dashed'}`}
+    >
+      <div className="flex items-center gap-3">
+        {!items.length && (
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-[2px] bg-paper">
+            <Icon className="h-5 w-5 text-muted" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-[14px] font-semibold uppercase tracking-wide">{label}</span>
+            {items.length > 0 && <span className="font-mono text-[11px] text-muted">{items.length} of {limit}</span>}
+          </div>
+          <div className="text-[12px] text-muted">
+            {progress ? `Adding ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : items.length ? (full ? `This job has the most ${words.many} it can take.` : `Drop more here, or add several at once.`) : `${hint} You can add several at once.`}
+          </div>
+        </div>
+        <input
+          ref={ref}
+          type="file"
+          multiple
+          accept={accept}
+          className="hidden"
+          aria-label={`Choose ${words.many}`}
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = '';
+            send(files);
+          }}
+        />
+        <Button size="sm" variant={items.length ? 'ghost' : 'secondary'} busy={progress != null} disabled={full || busy} onClick={() => ref.current?.click()} aria-label={`Add ${words.many}`}>
+          <Upload className="h-3.5 w-3.5" />
+          Add
+        </Button>
+      </div>
+      {items.length > 0 && (
+        <ul className="mt-2 space-y-1.5">
+          {items.map((f, i) => (
+            <li key={f.id} className="flex items-center gap-2 rounded-[2px] bg-paper/60 p-1">
+              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[2px] bg-white">
+                <img src={`/api/projects/${p.id}/files/${kind}/${f.id}`} alt={f.name} className="h-full w-full object-contain" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] text-ink" title={f.name}>
+                  {items.length > 1 && order && <span className="mr-1 font-mono text-[11px] text-navy">{i + 1}</span>}
+                  {f.name}
+                </div>
+                {detail?.(f)}
+              </div>
+              <div className="flex shrink-0 items-center">
+                {order && items.length > 1 && (
+                  <>
+                    <Button size="sm" variant="ghost" className="px-1.5!" disabled={busy || i === 0} onClick={() => move(i, -1)} aria-label={`Move ${f.name} left`} title="Move left">
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="px-1.5!" disabled={busy || i === items.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${f.name} right`} title="Move right">
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="px-1.5!"
+                  busy={busyId === f.id}
+                  disabled={busy}
+                  onClick={() => act(f.id, () => api.del<ProjectPayload>(`/projects/${p.id}/upload/${kind}/${f.id}`))}
+                  aria-label={`Remove ${f.name}`}
+                  title="Remove"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {items.length > 1 && order && <p className="mt-1.5 text-[11.5px] text-muted">{order}</p>}
+      {errors.length > 0 && (
+        <div className="mt-1.5 space-y-1">
+          {errors.map((m, i) => (
+            <Notice key={i} tone="error">
+              {m}
+            </Notice>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 function UploadSlot({
   kind, label, hint, accept, file, data, onChange, extra, noPreview,
 }: {
-  kind: 'photo' | 'logo' | 'sketch' | 'site' | 'font';
+  kind: 'site' | 'font';
   noPreview?: boolean;
   label: string;
   hint: string;
@@ -532,7 +735,7 @@ function UploadSlot({
       setBusy(false);
     }
   };
-  const Icon = kind === 'sketch' ? PenLine : kind === 'font' ? Type : ImagePlus;
+  const Icon = kind === 'font' ? Type : ImagePlus;
   return (
     <div>
       <div

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { fromRoot } from '../config.js';
 import { fontLabel, mustOption, paintLabel } from '../catalog.js';
-import type { PlaqueLayout, PlaqueSpec } from '../../shared/types.js';
+import type { PlaqueLayout, PlaqueSpec, Rect } from '../../shared/types.js';
 
 export const PROMPT_FILES = ['house_rules.md', 'concept.md', 'fix.md', 'relayout.md', 'spellcheck.md'] as const;
 export type PromptFile = (typeof PROMPT_FILES)[number];
@@ -42,9 +42,38 @@ export function layoutText(layout: PlaqueLayout): string {
     .join('\n');
 }
 
+const ORDINAL = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
+
+/**
+ * Where each picture of a group sits, in words the image model can match against the layout
+ * drawing: "left", "right", "top-left", "middle"… A single picture is just "the".
+ */
+export function placeNames(rects: Rect[]): string[] {
+  if (rects.length <= 1) return rects.map(() => 'only');
+  // Rows: pictures whose vertical centers are close share a row.
+  const cy = (r: Rect) => r.y + r.h / 2;
+  const rows: Rect[][] = [];
+  for (const r of [...rects].sort((a, b) => cy(a) - cy(b))) {
+    const row = rows.find((x) => Math.abs(cy(x[0]) - cy(r)) < Math.min(x[0].h, r.h) / 2);
+    if (row) row.push(r);
+    else rows.push([r]);
+  }
+  for (const row of rows) row.sort((a, b) => a.x - b.x);
+  const across = (i: number, n: number) => (n === 1 ? '' : n === 2 ? ['left', 'right'][i] : n === 3 ? ['left', 'middle', 'right'][i] : `${ORDINAL[i] ?? `${i + 1}th`} from the left`);
+  const down = (i: number, n: number) => (n === 1 ? '' : n === 2 ? ['top', 'bottom'][i] : n === 3 ? ['top', 'middle', 'bottom'][i] : `${ORDINAL[i] ?? `${i + 1}th`} from the top`);
+  return rects.map((r) => {
+    const ri = rows.findIndex((row) => row.includes(r));
+    const ci = rows[ri].indexOf(r);
+    const v = down(ri, rows.length);
+    const h = across(ci, rows[ri].length);
+    if (v && h) return h.includes(' ') ? `${v} row, ${h}` : `${v}-${h}`;
+    return v || h;
+  });
+}
+
 const fmtIn = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0+$/, ''));
 
-export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs: RefImage[], opts: { hasLogo: boolean; direction?: string }): string {
+export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs: RefImage[], opts: { logoCount: number; direction?: string }): string {
   const material = mustOption('materials', spec.material);
   const finish = mustOption('finishes', spec.finish);
   const paint = mustOption('backgroundColors', spec.backgroundColor);
@@ -56,10 +85,13 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
   const lettering = mustOption('lettering', spec.lettering);
   const image = mustOption('imageOptions', spec.imageOption);
   const orientation = spec.widthIn > spec.heightIn ? 'landscape' : spec.widthIn < spec.heightIn ? 'portrait' : 'square';
+  const frames = layout.imageFrames.length;
   const imageTreatment =
     spec.imageOption === 'none'
       ? 'none. This is a text-only plaque; do not add any picture.'
-      : `${image.prompt} The image sits inside a thin raised metal frame, filling the frame window exactly where Reference 1 shows it.`;
+      : frames > 1
+        ? `${image.prompt} There are ${frames} separate images, each inside its own thin raised metal frame, filling that frame's window exactly where Reference 1 shows it. Each frame shows only its own customer photo: never swap, merge, mirror or repeat the photos.`
+        : `${image.prompt} The image sits inside a thin raised metal frame, filling the frame window exactly where Reference 1 shows it.`;
   const extras: string[] = [];
   if (layout.rules.length) extras.push('Thin raised horizontal rules under section headings, exactly as in Reference 1.');
   if (layout.screws.length) extras.push(`${layout.screws.length} visible ${mustOption('mountings', spec.mounting).label.toLowerCase()} heads in the corners, exactly where Reference 1 shows them.`);
@@ -76,9 +108,11 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
     font: spec.font === 'custom' ? `${fontLabel(spec)} (copy the letterforms from Reference 1)` : font.prompt,
     mounting: mounting.prompt,
     imageTreatment,
-    logo: opts.hasLogo
-      ? 'the supplied customer logo, cast as raised metal in the plaque finish, in the logo position shown in Reference 1.'
-      : 'none.',
+    logo: opts.logoCount > 1
+      ? `${opts.logoCount} supplied customer logos, each cast as raised metal in the plaque finish, each in its own logo position shown in Reference 1, in that order. Keep them separate; never merge, swap, repeat or restyle them to match each other.`
+      : opts.logoCount === 1
+        ? 'the supplied customer logo, cast as raised metal in the plaque finish, in the logo position shown in Reference 1.'
+        : 'none.',
     presetLabel: layout.presetLabel,
     presetDescription: `${layout.presetDescription}${extras.length ? ' ' + extras.join(' ') : ''}`,
     text: layoutText(layout) || '(no text)',

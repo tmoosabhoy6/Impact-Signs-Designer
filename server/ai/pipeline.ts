@@ -7,10 +7,10 @@ import { config } from '../config.js';
 import { mustOption, paintHex, paintLabel } from '../catalog.js';
 import { findAsset } from '../assets.js';
 import { computeLayout } from '../layout/engine.js';
-import { preparePhoto, renderFlatPng } from '../render/flat.js';
+import { logoForDrawing, preparePhoto, renderFlatPng } from '../render/flat.js';
 import { getConcept, newId, now, projectDir, saveConcept, addSpend, spentToday, listConcepts } from '../db.js';
 import { uploadPath } from '../uploads.js';
-import { buildConceptPrompt, buildFixPrompt, buildRelayoutPrompt, promptVersion, type RefImage } from './prompts.js';
+import { buildConceptPrompt, buildFixPrompt, buildRelayoutPrompt, placeNames, promptVersion, type RefImage } from './prompts.js';
 import { changesOrder } from './instruct.js';
 import { canvasSize, costUsd, friendlyError, imageAdapter } from './images.js';
 import { fitToPlaque, smallPreview } from './postprocess.js';
@@ -24,14 +24,13 @@ export interface ConceptEvents {
 
 export function layoutFor(project: Project, preset: LayoutPresetId): PlaqueLayout {
   if (!project.spec) throw new Error('Confirm the plaque specification first.');
-  const photo = project.uploads.photo;
-  const logo = project.uploads.logo;
+  const aspect = (f: { id: string; width: number; height: number }) => ({ id: f.id, aspect: f.height ? f.width / f.height : 1 });
   return computeLayout(
     {
       spec: project.spec,
       wording: project.wording,
-      photoAspect: photo ? photo.width / photo.height : null,
-      logoAspect: logo ? logo.width / logo.height : null,
+      photos: project.uploads.photos.map(aspect),
+      logos: project.uploads.logos.map(aspect),
       logoSlot: project.logoSlot,
       imageAfterBlock: project.imageAfterBlock,
       customFontFile: uploadPath(project, 'font'),
@@ -53,28 +52,106 @@ async function solidSwatch(hex: string): Promise<Buffer> {
   return sharp({ create: { width: 256, height: 256, channels: 3, background: hex } }).png().toBuffer();
 }
 
+/** The stored file of each photo frame / logo box in a layout (null for a placeholder or a missing file). */
+export function layoutFiles(project: Project, layout: PlaqueLayout): { photos: (string | null)[]; logos: (string | null)[] } {
+  const file = (kind: 'photo' | 'logo', id?: string) => {
+    const f = id ? uploadPath(project, kind, id) : null;
+    return f && fs.existsSync(f) ? f : null;
+  };
+  return { photos: layout.imageFrames.map((f) => file('photo', f.photoId)), logos: layout.logos.map((l) => file('logo', l.logoId)) };
+}
+
 /** Flat layout drawing at the output canvas size (Reference 1). */
 export async function layoutDrawing(project: Project, layout: PlaqueLayout, w: number, h: number): Promise<Buffer> {
   const spec = project.spec!;
-  const photoFile = uploadPath(project, 'photo');
-  const logoFile = uploadPath(project, 'logo');
   const finish = mustOption('finishes', spec.finish);
-  const photoPng = photoFile && layout.imageFrame ? await preparePhoto(fs.readFileSync(photoFile), spec.imageOption, finish.hex ?? '#C49A6C') : null;
-  const logoPng = logoFile && layout.logo ? fs.readFileSync(logoFile) : null;
-  return renderFlatPng(layout, spec, { pxPerIn: w / layout.widthIn, widthPx: w, heightPx: h, photoPng, logoPng });
+  const files = layoutFiles(project, layout);
+  const photoPngs = await Promise.all(files.photos.map((f) => (f ? preparePhoto(fs.readFileSync(f), spec.imageOption, finish.hex ?? '#C49A6C') : null)));
+  const logoPngs = await Promise.all(files.logos.map((f) => (f ? logoForDrawing(fs.readFileSync(f)) : null)));
+  return renderFlatPng(layout, spec, { pxPerIn: w / layout.widthIn, widthPx: w, heightPx: h, photoPngs, logoPngs });
+}
+
+/** The image model takes at most this many reference pictures per request. */
+export const MAX_REFERENCES = 16;
+
+/**
+ * Several pictures on one white sheet, in reading order (left to right, then down), with a
+ * thin rule between cells. Used only when separate references would exceed MAX_REFERENCES.
+ */
+export async function contactSheet(files: string[], cell = 512): Promise<Buffer> {
+  const cols = Math.ceil(Math.sqrt(files.length));
+  const rows = Math.ceil(files.length / cols);
+  const gap = 12;
+  const tiles = await Promise.all(
+    files.map(async (f, i) => ({
+      input: await sharp(f).rotate().resize({ width: cell - 2 * gap, height: cell - 2 * gap, fit: 'inside' }).flatten({ background: '#ffffff' }).png().toBuffer(),
+      left: (i % cols) * cell + gap,
+      top: Math.floor(i / cols) * cell + gap,
+    })),
+  );
+  const rules = Array.from({ length: cols - 1 }, (_, c) => `<rect x="${(c + 1) * cell - 1}" y="0" width="2" height="${rows * cell}" fill="#bbbbbb"/>`)
+    .concat(Array.from({ length: rows - 1 }, (_, r) => `<rect x="0" y="${(r + 1) * cell - 1}" width="${cols * cell}" height="2" fill="#bbbbbb"/>`));
+  const grid = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${cols * cell}" height="${rows * cell}">${rules.join('')}</svg>`);
+  return sharp({ create: { width: cols * cell, height: rows * cell, channels: 3, background: '#ffffff' } })
+    .composite([{ input: grid, left: 0, top: 0 }, ...tiles])
+    .png()
+    .toBuffer();
+}
+
+/** A customer group (photos, logos, sketches): one reference each, or one sheet. */
+interface CustomerGroup {
+  files: string[];
+  /** Role of each picture when sent separately. */
+  one: (i: number) => string;
+  /** Role of the sheet, when the group has to share one reference. */
+  sheet: string;
+  name: string;
+  sheeted?: boolean;
+}
+
+async function groupRefs(g: CustomerGroup): Promise<RefImage[]> {
+  if (!g.files.length) return [];
+  if (g.sheeted) return [{ role: g.sheet, file: await contactSheet(g.files), name: `${g.name}-sheet.png`, mime: 'image/png' }];
+  return Promise.all(g.files.map(async (f, i) => ({ role: g.one(i), file: await asPng(f), name: g.files.length > 1 ? `${g.name}-${i + 1}.png` : `${g.name}.png`, mime: 'image/png' })));
 }
 
 export async function buildReferences(project: Project, layout: PlaqueLayout, layoutPng: Buffer): Promise<RefImage[]> {
   const spec = project.spec!;
-  const refs: RefImage[] = [
-    { role: 'the exact flat layout drawing of this plaque (positions, sizes and text to follow exactly)', file: layoutPng, name: 'layout.png', mime: 'image/png' },
-  ];
-  const add = async (role: string, file: string | null, name: string) => {
-    if (file) refs.push({ role, file: await asPng(file), name, mime: 'image/png' });
+  const files = layoutFiles(project, layout);
+  // Customer files: one reference each when they fit within the model's limit; otherwise the
+  // sketches, then the logos, then the photos share one numbered sheet per group.
+  const photoFiles = files.photos.filter((f): f is string => !!f);
+  const logoFiles = files.logos.filter((f): f is string => !!f);
+  const photoPlaces = placeNames(layout.imageFrames.filter((_, i) => files.photos[i]).map((f) => f.outer));
+  const logoPlaces = placeNames(layout.logos.filter((_, i) => files.logos[i]));
+  const sketchFiles = project.uploads.sketches.map((s) => uploadPath(project, 'sketch', s.id)).filter((f): f is string => !!f && fs.existsSync(f));
+  const photos: CustomerGroup = {
+    files: photoFiles, name: 'customer-photo',
+    one: (i) => (photoFiles.length === 1
+      ? 'the customer photo to reproduce (likeness, pose and crop)'
+      : `customer photo ${i + 1} of ${photoFiles.length}, for the ${photoPlaces[i]} image frame in Reference 1 only (reproduce its likeness, pose and crop)`),
+    sheet: `all ${photoFiles.length} customer photos on one sheet, in this order: ${photoPlaces.map((p, i) => `${i + 1} = the ${p} image frame`).join(', ')} (reading the sheet left to right, then down; reproduce each likeness, pose and crop in its own frame)`,
   };
-  const photo = uploadPath(project, 'photo');
-  if (layout.imageFrame && photo) await add('the customer photo to reproduce (likeness, pose and crop)', photo, 'customer-photo.png');
-  if (layout.imageFrame) {
+  const logos: CustomerGroup = {
+    files: logoFiles, name: 'customer-logo',
+    one: (i) => (logoFiles.length === 1
+      ? 'the customer logo (reproduce exactly as raised metal)'
+      : `customer logo ${i + 1} of ${logoFiles.length}, for the ${logoPlaces[i]} logo position in Reference 1 only (reproduce exactly as raised metal)`),
+    sheet: `all ${logoFiles.length} customer logos on one sheet, in this order: ${logoPlaces.map((p, i) => `${i + 1} = the ${p} logo`).join(', ')} (reading the sheet left to right, then down; reproduce each exactly as raised metal in its own position)`,
+  };
+  const sketches: CustomerGroup = {
+    files: sketchFiles, name: 'customer-sketch',
+    one: (i) => (sketchFiles.length === 1
+      ? "the customer's hand-drawn sketch (intent only; Reference 1 decides positions)"
+      : `customer sketch ${i + 1} of ${sketchFiles.length} (intent only; Reference 1 decides positions)`),
+    sheet: `the customer's ${sketchFiles.length} hand-drawn sketches on one sheet (intent only; Reference 1 decides positions)`,
+  };
+
+  const fixed: RefImage[] = [];
+  const add = async (role: string, file: string | null, name: string) => {
+    if (file) fixed.push({ role, file: await asPng(file), name, mime: 'image/png' });
+  };
+  if (layout.imageFrames.length) {
     const opt = mustOption('imageOptions', spec.imageOption);
     await add(`an example of the ${opt.label} treatment (style only, not the subject)`, findAsset(opt.asset), 'image-type-example.png');
   }
@@ -82,7 +159,7 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   await add(`the ${finish.label} finish swatch (color and sheen of all raised metal)`, findAsset(finish.asset), 'finish-swatch.png');
   const paint = mustOption('backgroundColors', spec.backgroundColor);
   const paintAsset = spec.backgroundColor === 'custom' ? null : findAsset(paint.asset);
-  refs.push({
+  fixed.push({
     role: `the ${paintLabel(spec)} paint color of the recessed background`,
     file: paintAsset ? await asPng(paintAsset) : await solidSwatch(paintHex(spec)),
     name: 'paint-swatch.png',
@@ -94,11 +171,20 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   await add(`an example of the ${border.label}`, findAsset(border.asset), 'border-example.png');
   const mounting = mustOption('mountings', spec.mounting);
   if (layout.screws.length && mounting.diagram) await add(`how the ${mounting.label} look`, findAsset(mounting.diagram as string), 'mounting-example.png');
-  const logo = uploadPath(project, 'logo');
-  if (layout.logo && logo) await add('the customer logo (reproduce exactly as raised metal)', logo, 'customer-logo.png');
-  const sketch = uploadPath(project, 'sketch');
-  if (sketch) await add("the customer's hand-drawn sketch (intent only; Reference 1 decides positions)", sketch, 'customer-sketch.png');
-  return refs.slice(0, 16);
+
+  const room = MAX_REFERENCES - 1 - fixed.length; // 1 = the layout drawing
+  const count = () => [photos, logos, sketches].reduce((n, g) => n + (g.sheeted ? Math.min(1, g.files.length) : g.files.length), 0);
+  for (const g of [sketches, logos, photos]) if (count() > room && g.files.length > 1) g.sheeted = true;
+  const refs: RefImage[] = [
+    { role: 'the exact flat layout drawing of this plaque (positions, sizes and text to follow exactly)', file: layoutPng, name: 'layout.png', mime: 'image/png' },
+    ...(await groupRefs(photos)),
+    ...fixed,
+    ...(await groupRefs(logos)),
+    ...(await groupRefs(sketches)),
+  ];
+  // The upload limits keep this within range; never send the model more than it accepts.
+  if (refs.length > MAX_REFERENCES) throw new Error(`Too many reference pictures (${refs.length}). Remove a sketch or a logo and try again.`);
+  return refs;
 }
 
 export function checkLimits(projectId: string, excludeId?: string) {
@@ -188,7 +274,7 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
         : buildFixPrompt(designerChange(rec) ?? rec.note, layout, true);
     } else {
       images = await buildReferences(project, layout, layoutPng);
-      prompt = buildConceptPrompt(project.spec!, layout, images, { hasLogo: !!(layout.logo && project.uploads.logo), direction: designerChange(rec) });
+      prompt = buildConceptPrompt(project.spec!, layout, images, { logoCount: layoutFiles(project, layout).logos.filter(Boolean).length, direction: designerChange(rec) });
     }
     update({ prompt });
 

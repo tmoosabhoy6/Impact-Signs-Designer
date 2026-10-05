@@ -49,7 +49,8 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Area | Files |
 |---|---|
 | Order parsing | `server/parse/spec.ts`, `server/parse/wording.ts` |
-| Layout + fonts | `server/layout/engine.ts`, `server/text/fonts.ts` (glyphs placed manually, no OpenType shaping) |
+| Layout + fonts | `server/layout/engine.ts` (photo frames and logos are groups: `arrangePictures`), `server/text/fonts.ts` (glyphs placed manually, no OpenType shaping) |
+| Customer files | `server/uploads.ts` (prepare / add / remove / reorder), `shared/uploads.ts` (limits, upgrade of single-file jobs). Photos, logos and sketches are lists; every route reads them through `loadProject`. |
 | Image model | `server/ai/images.ts` (OpenAI adapter + mock), `server/ai/pipeline.ts` (`runConcept`, `buildReferences`, `layoutFor`), `server/ai/prompts.ts`, prompt text in `server/prompts/*.md` |
 | Fix instructions | `server/ai/instruct.ts`: the planner model (`OPENAI_PLANNER_MODEL`) returns one checked plan (catalog `specPatch`, literal `wordingEdits`, per-column `layoutPatch`, `placement`, image-only `imageEdit`); offline reader `fallbackInstruction` splits multi-part requests. Layout adjustments live in `Project.layoutAdjust[preset]` and go through `computeLayout` (`adjust`), so proof and vector agree. Prompts: `fix.md` (image-only), `relayout.md` (new layout drawing). |
 | Spell check | `server/ai/spellcheck.ts` (vision model reads the text back; word diff) |
@@ -60,7 +61,7 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx`, `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx` |
 | AI Upscaler | `server/ai/upscale.ts` (prompt, sizing, fidelity check, tone lock), `server/upscale-routes.ts` (`/api/upscales`), `shared/upscale.ts`, `client/src/pages/Upscaler.tsx`; files in `DATA_DIR/upscales/<id>/`. Independent of jobs and the layout engine. |
 | Examples | `references/<job>/example.json` + `server/examples.ts` (tests, samples and scripts only; not shown in the app, never seeded) |
-| Tests | `tests/golden.test.ts` |
+| Tests | `tests/golden.test.ts`, `tests/uploads.test.ts` (several photos, logos and sketches) |
 
 ## How to work
 - Make small, verified steps. Before you finish any task, run all of these:

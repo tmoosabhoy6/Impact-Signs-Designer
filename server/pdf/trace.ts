@@ -25,7 +25,10 @@ export interface TracedLogo {
  * @param threshold pixels darker than this (0-255 luminance) become raised metal. Anything that is
  * not close to white counts, so colored logo parts are kept, not lost.
  */
-export async function traceLogo(png: Buffer, maxEdge = 1200, threshold = 215): Promise<TracedLogo> {
+/** Luminance (0-255) below which a logo pixel is raised metal; lighter is recessed field. */
+export const LOGO_RAISED_BELOW = 215;
+
+export async function traceLogo(png: Buffer, maxEdge = 1200, threshold = LOGO_RAISED_BELOW): Promise<TracedLogo> {
   const { data, info } = await sharp(png)
     .flatten({ background: '#ffffff' })
     .resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: false })

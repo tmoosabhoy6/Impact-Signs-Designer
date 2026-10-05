@@ -24,14 +24,14 @@ async function heritage() {
   return {
     spec: parseSpec(fs.readFileSync('references/32241-edwin-feulner/spec.txt', 'utf8')).spec,
     wording: parseWording(await docxToText(fs.readFileSync('references/32241-edwin-feulner/Edwin-J.docx'))),
-    uploads: {},
+    uploads: { photos: [], logos: [], sketches: [] },
     imageAfterBlock: null,
     logoSlot: 'auto',
   } as unknown as Project;
 }
 
 describe('layout adjustments', () => {
-  const input = async () => { const p = await heritage(); return { spec: p.spec!, wording: p.wording, photoAspect: 402 / 450 }; };
+  const input = async () => { const p = await heritage(); return { spec: p.spec!, wording: p.wording, photos: [{ aspect: 402 / 450 }] }; };
 
   it('changes nothing when there are no adjustments', async () => {
     const i = await input();
@@ -43,11 +43,11 @@ describe('layout adjustments', () => {
     const i = await input();
     const base = computeLayout(i, 'classic');
     const up = computeLayout({ ...i, adjust: { verticalOffset: -1 } }, 'classic');
-    expect(up.imageFrame!.outer.y).toBeLessThan(base.imageFrame!.outer.y);
+    expect(up.imageFrames[0].outer.y).toBeLessThan(base.imageFrames[0].outer.y);
     const small = computeLayout({ ...i, adjust: { textScale: 0.8 } }, 'classic');
     expect(small.lines[0].size).toBeLessThan(base.lines[0].size);
     const photo = computeLayout({ ...i, adjust: { imageScale: 1.2 } }, 'classic');
-    expect(photo.imageFrame!.outer.w).toBeGreaterThan(base.imageFrame!.outer.w);
+    expect(photo.imageFrames[0].outer.w).toBeGreaterThan(base.imageFrames[0].outer.w);
     const spaced = computeLayout({ ...i, adjust: { spacing: 1.3, textScale: 0.8 } }, 'classic');
     const span = (l: typeof base) => l.lines.at(-1)!.baseline - l.lines[0].baseline;
     expect(span(spaced)).toBeGreaterThan(span(small));
@@ -195,7 +195,7 @@ describe('fix route with larger edits (demo mode)', () => {
     const changed = getProject(p.id)!;
     expect(changed.layoutAdjust?.classic).toMatchObject({ verticalOffset: -0.5, spacing: 1.12 });
     expect(changed.layoutAdjust?.portrait).toBeUndefined();
-    expect(layoutFor(changed, 'classic').imageFrame!.outer.y).toBeLessThan(before.imageFrame!.outer.y);
+    expect(layoutFor(changed, 'classic').imageFrames[0].outer.y).toBeLessThan(before.imageFrames[0].outer.y);
     expect(layoutFor(changed, 'portrait')).toEqual(layoutFor(p, 'portrait'));
     expect((await post(`/concepts/${version.id}/undo`)).status).toBe(200);
     expect(getProject(p.id)!.layoutAdjust?.classic).toBeUndefined();

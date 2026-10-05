@@ -4,7 +4,8 @@ export interface ProjectPayload {
   project: Project;
   concepts: ConceptRecord[];
   outputs: OutputRecord[];
-  layouts: (PlaqueLayout & { photoPpi: number | null })[] | null;
+  /** photoPpi: each photo's resolution at its printed size in that layout, by photo id. */
+  layouts: (PlaqueLayout & { photoPpi: Record<string, number> })[] | null;
   /** The DESCRIPTION header the Description-sheet proof writes from the spec. */
   autoDescription: string | null;
 }
@@ -31,6 +32,8 @@ export const api = {
     fetch(`/api${url}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) }).then((r) => handle<T>(r)),
   patch: <T>(url: string, body: unknown) =>
     fetch(`/api${url}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => handle<T>(r)),
+  put: <T>(url: string, body: unknown) =>
+    fetch(`/api${url}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => handle<T>(r)),
   del: <T>(url: string) => fetch(`/api${url}`, { method: 'DELETE' }).then((r) => handle<T>(r)),
   upload: <T>(url: string, file: File, extra: Record<string, string> = {}) => {
     const fd = new FormData();

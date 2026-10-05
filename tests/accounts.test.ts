@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api } from '../server/routes';
 import { config } from '../server/config';
-import { blankProject, newId, saveConcept, saveProject } from '../server/db';
+import { blankProject, getProject, newId, saveConcept, saveProject } from '../server/db';
 import { createExampleJob } from '../server/examples';
 import { newConceptRecord } from '../server/ai/pipeline';
 
@@ -113,6 +113,18 @@ describe('each login has its own jobs and upscales', () => {
     expect((await get(`/concepts/${c.id}/layout.png`, bea)).status).toBe(404);
     expect((await post(`/concepts/${c.id}/regenerate`, bea)).status).toBe(400);
     expect((await post(`/concepts/${c.id}/fix`, bea, { instruction: 'move the text up' })).status).toBe(400);
+
+    // So do the customer files, one by one.
+    const photo = job.uploads.photos[0];
+    expect((await get(`/projects/${job.id}/files/photo/${photo.id}`, taher)).status).toBe(200);
+    expect((await get(`/projects/${job.id}/files/photo/${photo.id}`, bea)).status).toBe(400);
+    const send = (method: string, url: string, cookie: string, body?: BodyInit, headers: Record<string, string> = {}) => realFetch(base + url, { method, headers: { Cookie: cookie, ...headers }, body });
+    const fd = new FormData();
+    fd.append('file', new Blob([new Uint8Array(await sharp({ create: { width: 40, height: 40, channels: 3, background: '#123456' } }).png().toBuffer())]), 'x.png');
+    expect((await send('POST', `/projects/${job.id}/upload/logo`, bea, fd)).status).toBe(400);
+    expect((await send('DELETE', `/projects/${job.id}/upload/photo/${photo.id}`, bea)).status).toBe(400);
+    expect((await send('PUT', `/projects/${job.id}/upload/photo/order`, bea, JSON.stringify({ ids: [photo.id] }), { 'Content-Type': 'application/json' })).status).toBe(400);
+    expect(getProject(job.id)!.uploads).toEqual(job.uploads);
   });
 
   it('gives jobs from before sign-in accounts to the legacy owner only', async () => {

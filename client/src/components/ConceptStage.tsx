@@ -38,7 +38,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   const blockers: string[] = [];
   if (!p.spec) blockers.push('read the specification');
   if (!p.wording?.blocks.length) blockers.push('add the customer wording');
-  if (p.spec && p.spec.imageOption !== 'none' && !p.uploads.photo) blockers.push('upload the photo (or set Image option to No Image)');
+  if (p.spec && p.spec.imageOption !== 'none' && !p.uploads.photos.length) blockers.push('upload the photo (or set Image option to No Image)');
 
   const runStream = async (url: string, body: unknown, preset?: string) => {
     setRunning(true);

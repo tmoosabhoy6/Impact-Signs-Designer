@@ -20,9 +20,18 @@ export interface ProductionInput {
   name: string;
   spec: PlaqueSpec;
   layout: PlaqueLayout;
-  logoPng?: Buffer | null;
-  logoFromVector?: boolean;
+  /** One entry per `layout.logos` box, in the same order. */
+  logos?: ProductionLogo[];
   customFontFile?: string | null;
+}
+
+export interface ProductionLogo {
+  /** Working PNG of the logo; null when the file is missing. */
+  png: Buffer | null;
+  /** File name as uploaded, for the notes. */
+  name: string;
+  /** Supplied as SVG / PDF / AI / EPS. */
+  fromVector: boolean;
 }
 
 export interface ProductionResult {
@@ -76,30 +85,33 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
   }
   if (!layout.border.verified) notes.push(`${layout.border.id} border geometry is not yet verified against a real production file.`);
 
-  // Image frame: raised frame with an empty placeholder window (1.12 pt keyline as on the real file).
-  if (layout.imageFrame) {
-    rect(layout.imageFrame.outer, INK, 1.12);
-    rect(layout.imageFrame.inner, WHITE, 1.12);
+  // Image frames: each a raised frame with an empty placeholder window (1.12 pt keyline as on the real file).
+  for (const f of layout.imageFrames) {
+    rect(f.outer, INK, 1.12);
+    rect(f.inner, WHITE, 1.12);
   }
 
-  // Logo, traced to vector outlines.
-  if (layout.logo) {
-    if (input.logoPng) {
-      const traced = await traceLogo(input.logoPng);
-      const s = Math.min((layout.logo.w * PT) / traced.width, (layout.logo.h * PT) / traced.height);
-      const ox = layout.logo.x * PT + (layout.logo.w * PT - traced.width * s) / 2;
-      const oy = layout.logo.y * PT + (layout.logo.h * PT - traced.height * s) / 2;
-      for (const p of traced.paths.filter((p) => p.dark)) {
-        page.drawSvgPath(p.d, { x: ox, y: H - oy, scale: s, color: INK, borderWidth: 0 });
-      }
-      notes.push(
-        input.logoFromVector
-          ? 'Logo was traced from a high-resolution render of the vector file. Check it against the original.'
-          : 'Logo was traced from a raster image. Check its edges, or replace it with the vector original in Illustrator.',
-      );
-    } else {
-      notes.push('Logo position is reserved but no logo file was uploaded.');
+  // Logos, each traced to vector outlines and centered in its own box.
+  const many = layout.logos.length > 1;
+  for (const [i, box] of layout.logos.entries()) {
+    const logo = input.logos?.[i];
+    const which = many ? `Logo ${i + 1}${logo?.name ? ` (${logo.name})` : ''}` : 'Logo';
+    if (!logo?.png) {
+      notes.push(`${which} position is reserved but no logo file was uploaded.`);
+      continue;
     }
+    const traced = await traceLogo(logo.png);
+    const s = Math.min((box.w * PT) / traced.width, (box.h * PT) / traced.height);
+    const ox = box.x * PT + (box.w * PT - traced.width * s) / 2;
+    const oy = box.y * PT + (box.h * PT - traced.height * s) / 2;
+    for (const p of traced.paths.filter((p) => p.dark)) {
+      page.drawSvgPath(p.d, { x: ox, y: H - oy, scale: s, color: INK, borderWidth: 0 });
+    }
+    notes.push(
+      logo.fromVector
+        ? `${which} was traced from a high-resolution render of the vector file. Check it against the original.`
+        : `${which} was traced from a raster image. Check its edges, or replace it with the vector original in Illustrator.`,
+    );
   }
 
   // Section rules (raised).

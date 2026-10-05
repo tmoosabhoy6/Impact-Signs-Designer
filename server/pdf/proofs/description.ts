@@ -72,7 +72,7 @@ export async function buildDescriptionProof(input: ProofInput): Promise<Buffer> 
 
   // ---- Header ----
   // Three paragraphs at 17.9 pt; ORDER# sits at the right end of whichever of lines 2-3 is shorter.
-  const description = (input.description?.trim() || autoDescription(spec, input.wording, { fontStated: input.fontStated })).replace(/\r/g, '');
+  const description = (input.description?.trim() || autoDescription(spec, input.wording, { fontStated: input.fontStated, photoCount: input.layout?.imageFrames.length })).replace(/\r/g, '');
   const order = `ORDER# ${input.jobNumber}`;
   const version = input.version > 1 ? `VERSION ${input.version}` : '';
   const orderW = fonts.labelBold.widthOfTextAtSize(order, 20.5) + (version ? fonts.labelBold.widthOfTextAtSize(` ${version}`, 20.5) : 0);

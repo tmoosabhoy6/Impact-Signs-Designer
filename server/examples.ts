@@ -16,9 +16,10 @@ export interface ExampleManifest {
   description: string;
   spec: string;
   wording: string;
-  photo?: string;
-  logo?: string;
-  sketch?: string;
+  /** One file, or several in plaque order. */
+  photo?: string | string[];
+  logo?: string | string[];
+  sketch?: string | string[];
   proofStyle?: Project['proofStyle'];
   /** Optional per-line overrides (role / style) applied after parsing the wording. */
   lines?: Partial<Pick<WordingBlock, 'role' | 'style'>>[];
@@ -57,8 +58,7 @@ export async function createExampleJob(exampleId: string, createdBy: string, own
   p.siteMountHeightIn = ex.siteMountHeightIn ?? null;
   if (ex.sitePhoto) p = await storeUpload(p, 'site', ex.sitePhoto, fs.readFileSync(path.join(ex.dir, ex.sitePhoto)));
   for (const kind of ['photo', 'logo', 'sketch'] as const) {
-    const f = ex[kind];
-    if (f) p = await storeUpload(p, kind, f, fs.readFileSync(path.join(ex.dir, f)));
+    for (const f of [ex[kind] ?? []].flat()) p = await storeUpload(p, kind, f, fs.readFileSync(path.join(ex.dir, f)));
   }
   const wf = path.join(ex.dir, ex.wording);
   if (/\.json$/i.test(wf)) {
@@ -74,7 +74,7 @@ export async function createExampleJob(exampleId: string, createdBy: string, own
     const b = p.wording!.blocks[i];
     if (b) Object.assign(b, o);
   });
-  p.parse = parseSpec(p.specText, { hasPhoto: !!p.uploads.photo });
+  p.parse = parseSpec(p.specText, { hasPhoto: p.uploads.photos.length > 0 });
   p.spec = { ...p.parse.spec };
   const o = ex.specOverrides ?? {};
   if (o.widthIn) p.spec.widthIn = o.widthIn;

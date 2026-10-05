@@ -27,13 +27,20 @@ The interface uses the current impactsigns.com palette: navy navigation and butt
    - **Rule**: a raised line under a heading.
    - **Font**: a different font for that line only.
 
-   When there is a photo, a **Photo goes here** marker sets its position; use ↑ / ↓ to move it between lines.
-5. **03 Customer files:** add the photo, logo (SVG or PDF/AI preferred) and any hand-drawn sketch. The app warns if the photo is low resolution for its size on the plaque.
+   When there is a photo, a **Photo goes here** marker sets its position; use ↑ / ↓ to move it between lines. With several photos they move together.
+5. **03 Customer files:** add the photos, logos (SVG or PDF/AI preferred) and any hand-drawn sketches. You can add several of each: pick several files at once with **Add**, or drop them onto the box.
+   - **Photos** (up to 4) sit side by side, each in its own raised frame, left to right in the order listed (four may go in two rows of two). Two landscape photos on a landscape plaque stack at the left.
+   - **Logos** (up to 6) sit together in one row, left to right in the order listed (from four logos, two rows when that makes them clearly larger). **Logo position** (top, middle, bottom) moves the whole row.
+   - **Sketches** (up to 4) only guide the image model; they are never drawn on the plaque.
+   - Use **‹ / ›** to change the order and the trash icon to remove one file. Removing a file does not delete it from older versions: **Use this one** on an older version brings its files back.
+   - The same file added twice, a file that is not a picture, or one file too many is refused with its name; the other files are still added.
+   - The app warns about each photo that is low resolution for its size on the plaque.
 6. **04 Concepts:** click **Generate 3 concepts**. Images stream in as they render (about a minute). Under each image you can:
    - **Use this one** to pick it for the proof.
    - **Regenerate** (↻) the same layout for a fresh take.
    - **Fix** with an instruction, small or large, and several changes at once if you like (e.g. *"move the text up, make the photo bigger and spread the lines out"*, *"make the name larger and the etching deeper"*, *"use verde patina and change Founder to Chairman"*). Enter applies; Shift+Enter adds a line. The app shows how it read the request, and the result is saved as a new version (v2, v3…).
-     - **Layout** changes (text size, spacing, photo or logo size, moving the content up or down, photo above or below the text, logo position) change that column's layout drawing, so the proof and the vector production file follow them. Each column keeps its own adjustments.
+     - **Layout** changes (text size, spacing, photo or logo size, moving the content up or down, photo above or below the text, logo position) change that column's layout drawing, so the proof and the vector production file follow them. Each column keeps its own adjustments. With several photos or logos, "make the logos bigger" resizes the whole row together; a change to just one of them ("make the left logo bigger") is made on the image only.
+     - Adding, removing or swapping photos and logos is done in **03 Customer files**, not with Fix.
      - **Catalog** options and **exact wording** changes update the order, as before.
      - **Anything else** about how the image looks (etching depth, photo detail, finish appearance, moving one element in a way the layout can't) is made by the image model on the current picture. These change the image only; the vector file keeps the layout drawing.
      - Only requests that need something outside the catalog (e.g. *"purple anodized"*) or aren't about the plaque are refused. **Undo order change** reverses any layout, catalog or wording change.
@@ -131,7 +138,7 @@ Accounts (username + password) live in a Supabase project, in the `app_users` ta
 The image API has no saved "system prompt": every request carries everything. Each concept request sends:
 
 - **Reference 1, the exact layout drawing.** The app draws the plaque flat with code: true size and proportions, real typeface, every line of wording in place, the customer photo in its frame. The model is told to keep every position and letter and only make it look like real cast metal. This one drawing is what keeps the AI from inventing layouts or rewording text, and it is also why the vector PDF matches the chosen concept.
-- **Real reference photos from `assets/`:** the chosen image-type example (bas relief vs photo relief vs etched vs UV print), the finish swatch, paint swatch, texture, border example, plus the customer's photo, logo and sketch.
+- **Real reference photos from `assets/`:** the chosen image-type example (bas relief vs photo relief vs etched vs UV print), the finish swatch, paint swatch, texture, border example, plus the customer's photos, logos and sketches. Each photo and logo is named by its place in the layout drawing ("customer photo 2 of 2, for the right image frame"). The image model accepts at most 16 pictures per request; when a job has more files than fit, the sketches (then the logos) are sent together on one numbered sheet.
 - **The house rules** (`server/prompts/house_rules.md`): one real plaque, straight-on, filling the frame edge to edge, raised metal vs recessed painted field, nothing added.
 - **The job details**, built from the catalog's descriptions of each option.
 

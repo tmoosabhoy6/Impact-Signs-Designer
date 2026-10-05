@@ -5,6 +5,7 @@
 import sharp from 'sharp';
 import { mustOption, paintHex } from '../catalog.js';
 import { loadFontFile, measure, resolveFont, textPath } from '../text/fonts.js';
+import { LOGO_RAISED_BELOW } from '../pdf/trace.js';
 import type { PlaqueLayout, PlaqueSpec, TextLine } from '../../shared/types.js';
 
 /** One line of a layout as SVG path data (centered on cx, or from x when left-aligned). */
@@ -30,9 +31,10 @@ const shade = (hex: string, f: number) => {
 
 export interface FlatOptions {
   pxPerIn: number;
-  /** Prepared photo (already toned for the image option) as PNG. */
-  photoPng?: Buffer | null;
-  logoPng?: Buffer | null;
+  /** Prepared photos (already toned for the image option) as PNG, one per `layout.imageFrames` entry. */
+  photoPngs?: (Buffer | null)[];
+  /** Logo PNGs, one per `layout.logos` entry. */
+  logoPngs?: (Buffer | null)[];
 }
 
 export async function preparePhoto(photo: Buffer, imageOption: string, finishHex: string): Promise<Buffer> {
@@ -43,6 +45,22 @@ export async function preparePhoto(photo: Buffer, imageOption: string, finishHex
   const grey = await sharp(photo).flatten({ background: '#808080' }).greyscale().normalise().png().toBuffer();
   if (imageOption === 'etched-photo') return sharp(grey).toColourspace('srgb').tint({ r: 70, g: 55, b: 40 }).png().toBuffer();
   return sharp(grey).toColourspace('srgb').tint(tint).png().toBuffer();
+}
+
+/**
+ * A logo as it will be cast: near-white parts (its background, and white details) become
+ * see-through, so the recessed field shows there, exactly as the vector production file
+ * traces it. Without this a logo on a white background is drawn as a white box.
+ */
+export async function logoForDrawing(png: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < data.length; i += 4) {
+    const lum = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    // Transparent pixels read as white, as the tracer flattens onto white.
+    const a = data[i + 3] / 255;
+    if (lum * a + 255 * (1 - a) >= LOGO_RAISED_BELOW) data[i + 3] = 0;
+  }
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
 }
 
 export function layoutToSvg(layout: PlaqueLayout, spec: PlaqueSpec, opts: FlatOptions): string {
@@ -67,24 +85,23 @@ export function layoutToSvg(layout: PlaqueLayout, spec: PlaqueSpec, opts: FlatOp
     parts.push(`<path d="M0 0 L${W} 0 L${W - b} ${b} L${b} ${b} Z" fill="${shade(metal, 0.25)}"/>`);
     parts.push(`<path d="M0 ${H} L${W} ${H} L${W - b} ${H - b} L${b} ${H - b} Z" fill="${shade(metal, -0.2)}"/>`);
   }
-  if (layout.imageFrame) {
-    const f = layout.imageFrame;
+  layout.imageFrames.forEach((f, i) => {
+    const png = opts.photoPngs?.[i];
     parts.push(`<rect ${r(f.outer)} fill="${metal}"/>`);
-    if (opts.photoPng) {
-      parts.push(
-        `<image ${r(f.inner)} preserveAspectRatio="xMidYMid slice" href="data:image/png;base64,${opts.photoPng.toString('base64')}"/>`,
-      );
+    if (png) {
+      parts.push(`<image ${r(f.inner)} preserveAspectRatio="xMidYMid slice" href="data:image/png;base64,${png.toString('base64')}"/>`);
     } else {
       parts.push(`<rect ${r(f.inner)} fill="${shade(metal, -0.35)}"/>`);
     }
-  }
-  if (layout.logo) {
-    if (opts.logoPng) {
-      parts.push(`<image ${r(layout.logo)} preserveAspectRatio="xMidYMid meet" href="data:image/png;base64,${opts.logoPng.toString('base64')}"/>`);
+  });
+  layout.logos.forEach((logo, i) => {
+    const png = opts.logoPngs?.[i];
+    if (png) {
+      parts.push(`<image ${r(logo)} preserveAspectRatio="xMidYMid meet" href="data:image/png;base64,${png.toString('base64')}"/>`);
     } else {
-      parts.push(`<rect ${r(layout.logo)} fill="none" stroke="${metal}" stroke-dasharray="6 4" stroke-width="2"/>`);
+      parts.push(`<rect ${r(logo)} fill="none" stroke="${metal}" stroke-dasharray="6 4" stroke-width="2"/>`);
     }
-  }
+  });
   for (const r of layout.rules ?? []) parts.push(`<rect ${rr(r)} fill="${metal}"/>`);
   for (const sc of layout.screws ?? []) {
     parts.push(`<circle cx="${(sc.cx * k).toFixed(2)}" cy="${(sc.cy * k).toFixed(2)}" r="${((sc.d / 2) * k).toFixed(2)}" fill="${shade(metal, 0.15)}" stroke="${shade(metal, -0.45)}" stroke-width="${(0.02 * k).toFixed(2)}"/>`);

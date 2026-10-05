@@ -4,6 +4,9 @@
 //   BASE=http://localhost:8080 PW=yourpassword node scripts/screens.mjs
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import sharp from 'sharp';
 
 const base = process.env.BASE || 'http://localhost:8080';
 const out = process.env.OUT || 'docs/screens';
@@ -63,6 +66,58 @@ async function runExample(jobNumber, shot) {
 await runExample('32885', '03-raccoon-river');
 await runExample('32249', '04-structure-of-merit');
 await runExample('32582', '05-awe');
+
+// Several photos, logos and sketches on one job, through the file pickers.
+async function runMultiFiles() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pps-screens-'));
+  const logo = async (name, hue, shape) => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><rect width="600" height="300" fill="#fff"/>${shape(`hsl(${hue},55%,28%)`)}</svg>`;
+    await sharp(Buffer.from(svg)).png().toFile(path.join(tmp, name));
+    return path.join(tmp, name);
+  };
+  const logos = [
+    await logo('county-seal.png', 210, (c) => `<circle cx="300" cy="150" r="120" fill="${c}"/><circle cx="300" cy="150" r="70" fill="#fff"/>`),
+    await logo('rotary.png', 20, (c) => `<rect x="60" y="70" width="480" height="160" rx="30" fill="${c}"/><rect x="120" y="120" width="360" height="60" fill="#fff"/>`),
+    await logo('foundation.png', 140, (c) => `<polygon points="300,30 560,270 40,270" fill="${c}"/><polygon points="300,120 440,240 160,240" fill="#fff"/>`),
+  ];
+  const { examples } = await (await ctx.request.get(`${base}/api/examples`)).json();
+  const ex = examples.find((e) => e.jobNumber === '32241');
+  const { project } = await (await ctx.request.post(`${base}/api/examples/${ex.id}`, { data: {} })).json();
+  await page.goto(`${base}/jobs/${project.id}`);
+  await page.waitForSelector('text=Generate 3 concepts');
+  // Two more photos in one pick, then three logos and two sketches.
+  await page.getByLabel('Choose photos').setInputFiles(['references/31882-honeywell/photo.png', 'references/32717-camp-southern-ground/photo.png']);
+  await page.getByText('3 of 4').waitFor();
+  await page.getByLabel('Choose logos').setInputFiles(logos);
+  await page.getByText('3 of 6').waitFor();
+  await page.getByLabel('Choose sketches').setInputFiles(['references/sketch-examples/charlies-field-sketch.pdf', logos[0]]);
+  await page.locator('li', { hasText: 'county-seal.png' }).nth(1).waitFor();
+  // The same file again is refused with its name.
+  await page.getByLabel('Choose logos').setInputFiles([logos[1]]);
+  await page.getByText('rotary.png was not added').waitFor();
+  // Reorder and remove: the third photo goes, the last logo moves to the left.
+  await page.getByRole('button', { name: 'Remove photo.png' }).last().click();
+  await page.waitForFunction(() => document.querySelectorAll('button[aria-label="Remove photo.png"]').length === 1);
+  await page.getByRole('button', { name: 'Move foundation.png left' }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll('li')].map((l) => l.textContent).join('|').match(/county-seal\.png.*foundation\.png.*rotary\.png/));
+  await page.waitForTimeout(800);
+  await page.locator('section', { hasText: 'Customer files' }).screenshot({ path: `${out}/12-multi-files.png` });
+  await page.click('button:has-text("Generate 3 concepts")');
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].filter((b) => b.textContent?.includes('Use this one')).length >= 3);
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${out}/13-multi-concepts.png` });
+  await page.locator('button', { hasText: 'Use this one' }).first().click();
+  await page.waitForSelector('text=Selected for proof');
+  await page.click('button:has-text("Create proof PDF")');
+  await page.waitForSelector('text=Latest');
+  await page.click('button:has-text("Create vector PDF")');
+  await page.waitForSelector('text=One ink');
+  await page.getByText('All 3 traced to vector').waitFor();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${out}/14-multi-proof.png` });
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+await runMultiFiles();
 
 await page.goto(`${base}/admin?tab=assets`);
 await page.waitForTimeout(1500);

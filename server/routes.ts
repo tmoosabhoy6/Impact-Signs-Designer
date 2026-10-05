@@ -16,20 +16,21 @@ import {
 } from './db.js';
 import { parseSpec } from './parse/spec.js';
 import { docxToText, parseWording } from './parse/wording.js';
-import { storeUpload, uploadPath, photoPpi, type UploadKind } from './uploads.js';
+import { addUpload, checkCanAdd, fileHash, prepareUpload, removeUpload, reorderUploads, uploadPath, photoPpi } from './uploads.js';
+import { isMultiKind, type UploadKind } from '../shared/uploads.js';
 import { PRESETS } from './layout/engine.js';
 import { createExampleJob, listExamples } from './examples.js';
 import { upscaleRouter } from './upscale-routes.js';
-import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFor, matchesSnapshot, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
+import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFiles, layoutFor, matchesSnapshot, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
 import { applyPlan, changesOrder, planInstruction } from './ai/instruct.js';
 import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
 import { PROMPT_FILES, promptVersion, readPrompt } from './ai/prompts.js';
 import { buildProof } from './pdf/proofs/index.js';
 import { autoDescription } from './pdf/proofs/description-text.js';
-import { buildProductionPdf } from './pdf/production.js';
+import { buildProductionPdf, type ProductionLogo } from './pdf/production.js';
 import { preflight } from './pdf/preflight.js';
 import { resolveFont } from './text/fonts.js';
-import type { ConceptRecord, InstructionPlan, LayoutPresetId, OutputRecord, Project, TextStyle, WordingBlock, WordingRole } from '../shared/types.js';
+import type { ConceptRecord, InstructionPlan, LayoutPresetId, OutputRecord, PlaqueLayout, Project, TextStyle, WordingBlock, WordingRole } from '../shared/types.js';
 
 export const api = express.Router();
 const UPLOAD_LIMIT_MB = 60;
@@ -183,14 +184,21 @@ function projectPayload(p: Project) {
     try {
       layouts = PRESETS.map((pr) => {
         const l = layoutFor(p, pr.id);
-        return { ...l, photoPpi: l.imageFrame ? photoPpi(p, l.imageFrame.inner.w) : null };
+        // Resolution of each photo at its printed size in this layout, by photo id.
+        const ppi: Record<string, number> = {};
+        for (const f of l.imageFrames) {
+          const v = f.photoId ? photoPpi(p.uploads.photos.find((x) => x.id === f.photoId), f.inner.w) : null;
+          if (f.photoId && v != null) ppi[f.photoId] = v;
+        }
+        return { ...l, photoPpi: ppi };
       });
     } catch (e) {
       layouts = null;
       console.error(e);
     }
   }
-  return { project: p, concepts, outputs, layouts, autoDescription: p.spec ? autoDescription(p.spec, p.wording, { fontStated: !(p.parse?.assumed ?? []).includes('font') }) : null };
+  const photoCount = p.spec?.imageOption === 'none' ? 0 : Math.max(1, p.uploads.photos.length);
+  return { project: p, concepts, outputs, layouts, autoDescription: p.spec ? autoDescription(p.spec, p.wording, { fontStated: !(p.parse?.assumed ?? []).includes('font'), photoCount }) : null };
 }
 
 api.get('/projects/:id', ah((req, res) => res.json(projectPayload(loadProject(req)))));
@@ -267,7 +275,7 @@ api.patch('/projects/:id', express.json(), ah((req, res) => {
 api.post('/projects/:id/spec', express.json(), ah((req, res) => {
   const p = loadProject(req);
   p.specText = String(req.body?.specText ?? '');
-  p.parse = parseSpec(p.specText, { hasPhoto: !!p.uploads.photo });
+  p.parse = parseSpec(p.specText, { hasPhoto: p.uploads.photos.length > 0 });
   p.spec = p.parse.spec;
   saveProject(p);
   res.json(projectPayload(p));
@@ -286,38 +294,62 @@ api.post('/projects/:id/wording', upload.single('file'), ah(async (req, res) => 
   res.json(projectPayload(p));
 }));
 
-api.post('/projects/:id/upload/:kind', upload.single('file'), ah(async (req, res) => {
-  let p = loadProject(req);
+const uploadKind = (req: Request): UploadKind => {
   const kind = String(req.params.kind) as UploadKind;
   if (!UPLOAD_KINDS.includes(kind)) throw new Error('Unknown upload type.');
+  return kind;
+};
+
+// One file per request (the browser sends several one after another): each upload is held
+// in memory once, and every file gets its own answer.
+api.post('/projects/:id/upload/:kind', upload.single('file'), ah(async (req, res) => {
+  const kind = uploadKind(req);
   if (!req.file) throw new Error('No file received.');
-  if (/\.(pdf|ai|eps)$/i.test(req.file.originalname) && !hasPoppler) throw new Error('PDF/.ai files cannot be read on this computer. Upload a PNG, JPG or SVG.');
-  p = await storeUpload(p, kind, req.file.originalname, req.file.buffer);
+  const name = req.file.originalname;
+  if (/\.(pdf|ai|eps)$/i.test(name) && !hasPoppler) throw new Error(`${name}: PDF/.ai files cannot be read on this computer. Upload a PNG, JPG or SVG.`);
+  // Refuse a full list or a repeated file before the slow part.
+  checkCanAdd(loadProject(req), kind, name, fileHash(req.file.buffer));
+  const prepared = await prepareUpload(String(req.params.id), kind, name, req.file.buffer);
+  // Reading a big file takes a while; add it to the job as it is now, so files uploaded at
+  // the same time (or a change made meanwhile in another panel) are all kept.
+  let p = addUpload(loadProject(req), prepared);
   // A photo makes "no image" unlikely: re-read the spec with that hint.
   if (kind === 'photo' && p.specText && p.parse?.assumed.includes('imageOption')) {
     const fresh = parseSpec(p.specText, { hasPhoto: true });
-    p.parse = fresh;
-    p.spec = { ...(p.spec ?? fresh.spec), imageOption: fresh.spec.imageOption };
+    p = { ...p, parse: fresh, spec: { ...(p.spec ?? fresh.spec), imageOption: fresh.spec.imageOption } };
   }
   saveProject(p);
   res.json(projectPayload(p));
 }));
 
-api.delete('/projects/:id/upload/:kind', ah((req, res) => {
-  const p = loadProject(req);
-  const kind = String(req.params.kind) as UploadKind;
-  if (!UPLOAD_KINDS.includes(kind)) throw new Error('Unknown upload type.');
-  delete p.uploads[kind];
+// Removing a file takes it off the job; the stored file stays for older versions that used it.
+const removeHandler = ah((req, res) => {
+  const p = removeUpload(loadProject(req), uploadKind(req), req.params.fileId ? String(req.params.fileId) : undefined);
+  saveProject(p);
+  res.json(projectPayload(p));
+});
+api.delete('/projects/:id/upload/:kind', removeHandler);
+api.delete('/projects/:id/upload/:kind/:fileId', removeHandler);
+
+/** New left-to-right order of the photos, logos or sketches: { ids: [...] }. */
+api.put('/projects/:id/upload/:kind/order', express.json(), ah((req, res) => {
+  const kind = uploadKind(req);
+  if (!isMultiKind(kind)) throw new Error('Only photos, logos and sketches have an order.');
+  const p = reorderUploads(loadProject(req), kind, req.body?.ids);
   saveProject(p);
   res.json(projectPayload(p));
 }));
 
-api.get('/projects/:id/files/:kind', ah((req, res) => {
+const fileHandler = ah((req, res) => {
   const p = loadProject(req);
-  const f = uploadPath(p, String(req.params.kind) as UploadKind);
+  const f = uploadPath(p, uploadKind(req), req.params.fileId ? String(req.params.fileId) : undefined);
   if (!f || !fs.existsSync(f)) return res.status(404).end();
+  // Stored files never change (a new upload gets a new id), so the browser may keep them.
+  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
   res.sendFile(f);
-}));
+});
+api.get('/projects/:id/files/:kind', fileHandler);
+api.get('/projects/:id/files/:kind/:fileId', fileHandler);
 
 api.get('/projects/:id/layout/:preset', ah(async (req, res) => {
   const p = loadProject(req);
@@ -358,7 +390,7 @@ api.post('/projects/:id/generate', genLimiter, express.json(), ah(async (req, re
   const p = loadProject(req);
   if (!p.spec) throw new Error('Confirm the plaque specification first.');
   if (!p.wording?.blocks.length) throw new Error('Add the customer wording first.');
-  if (p.spec.imageOption !== 'none' && !p.uploads.photo) throw new Error(`The spec calls for ${mustOption('imageOptions', p.spec.imageOption).label}, but no photo is uploaded.`);
+  if (p.spec.imageOption !== 'none' && !p.uploads.photos.length) throw new Error(`The spec calls for ${mustOption('imageOptions', p.spec.imageOption).label}, but no photo is uploaded.`);
   const batchId = newId('b');
   const presets: LayoutPresetId[] = Array.isArray(req.body?.presets) && req.body.presets.length ? req.body.presets : PRESETS.map((x) => x.id);
   const records = presets.map((preset) => newConceptRecord(p, { preset, kind: 'concept', batchId }));
@@ -397,7 +429,7 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   }
   applyPlan(p, plan, c.preset);
   if (!p.wording?.blocks.length) throw new Error('Add the customer wording first.');
-  if (p.spec?.imageOption !== 'none' && !p.uploads.photo) throw new Error('Upload the photo before requesting this image treatment.');
+  if (p.spec?.imageOption !== 'none' && !p.uploads.photos.length) throw new Error('Upload the photo before requesting this image treatment.');
   // Validate the changed layout before saving any order change.
   layoutFor(p, c.preset);
   if (previous) p.selectedConceptId = null;
@@ -446,6 +478,15 @@ api.post('/projects/:id/select', express.json(), ah((req, res) => {
 }));
 
 // ---------- Outputs ----------
+/** Each logo box's file, name and source type, for tracing into the production file. */
+function productionLogos(p: Project, layout: PlaqueLayout): ProductionLogo[] {
+  const files = layoutFiles(p, layout).logos;
+  return layout.logos.map((box, i) => {
+    const u = p.uploads.logos.find((l) => l.id === box.logoId);
+    return { png: files[i] ? fs.readFileSync(files[i]!) : null, name: u?.name ?? '', fromVector: !!u?.vectorSource };
+  });
+}
+
 function outputFile(o: OutputRecord) {
   return path.join(projectDir(o.projectId, 'outputs'), `${o.id}.pdf`);
 }
@@ -477,11 +518,10 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
   const version = listOutputs(p.id).filter((x) => x.kind === 'proof').length + 1;
   let productionPdf: Buffer | null = null;
   if (p.proofStyle === 'etched') {
-    const logoFile = uploadPath(p, 'logo');
     productionPdf = (
       await buildProductionPdf({
         jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout,
-        logoPng: layout.logo && logoFile ? fs.readFileSync(logoFile) : null, customFontFile: uploadPath(p, 'font'),
+        logos: productionLogos(p, layout), customFontFile: uploadPath(p, 'font'),
       })
     ).pdf;
   }
@@ -515,13 +555,12 @@ api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
   if (c) p = projectForConcept(p, c);
   const preset = (c?.preset ?? req.body?.preset ?? 'classic') as LayoutPresetId;
   const layout = layoutFor(p, preset);
-  const logoFile = uploadPath(p, 'logo');
-  const logoPng = layout.logo && logoFile ? fs.readFileSync(logoFile) : null;
+  const logos = productionLogos(p, layout);
   const result = await buildProductionPdf({
-    jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout, logoPng, logoFromVector: p.uploads.logo?.vectorSource,
+    jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout, logos,
     customFontFile: uploadPath(p, 'font'),
   });
-  const checks = await preflight(result.pdf, layout, { logoTraced: !!logoPng, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed });
+  const checks = await preflight(result.pdf, layout, { logosTraced: logos.filter((l) => l.png).length, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed });
   const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'production', conceptId: c?.id ?? null, fileName: result.fileName, preflight: checks, createdAt: now() };
   fs.writeFileSync(outputFile(o), result.pdf);
   saveOutput(o);

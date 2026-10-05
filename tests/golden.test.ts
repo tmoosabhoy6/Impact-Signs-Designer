@@ -30,7 +30,7 @@ const wordingJson = (dir: string): Wording => ({
 async function heritage() {
   const s = spec('32241-edwin-feulner').spec;
   const wording = parseWording(await docxToText(fs.readFileSync(`${REF}/32241-edwin-feulner/Edwin-J.docx`)));
-  const layout = computeLayout({ spec: s, wording, photoAspect: 402 / 450 }, 'classic');
+  const layout = computeLayout({ spec: s, wording, photos: [{ aspect: 402 / 450 }] }, 'classic');
   return { spec: s, wording, layout };
 }
 
@@ -94,7 +94,7 @@ describe('layout matches production_32241.ai (within 2 pt)', () => {
   it('places the image frame and every baseline', async () => {
     const { layout } = await heritage();
     const pt = (v: number) => v * 72;
-    const f = layout.imageFrame!.outer;
+    const f = layout.imageFrames[0].outer;
     expect(Math.abs(pt(f.x) - 197.6)).toBeLessThan(2);
     expect(Math.abs(pt(f.y) - 101.4)).toBeLessThan(2);
     expect(Math.abs(pt(f.w) - 468.2)).toBeLessThan(2);
@@ -125,7 +125,7 @@ describe('layout matches production_32241.ai (within 2 pt)', () => {
 
   it('scales the double-line border like Camp Southern Ground (12x16)', () => {
     const s = spec('32717-camp-southern-ground').spec;
-    const layout = computeLayout({ spec: s, wording: wordingJson('32717-camp-southern-ground'), photoAspect: 1.1 }, 'classic');
+    const layout = computeLayout({ spec: s, wording: wordingJson('32717-camp-southern-ground'), photos: [{ aspect: 1.1 }] }, 'classic');
     expect(layout.border.widthIn).toBeCloseTo(0.276, 2);
     expect(layout.border.innerLineIn).toBeCloseTo(0.128, 2);
   });
@@ -140,8 +140,8 @@ describe('layout matches production_32241.ai (within 2 pt)', () => {
 
   it('puts the image between text blocks when asked (Raccoon River)', () => {
     const s = spec('32885-raccoon-river').spec;
-    const layout = computeLayout({ spec: s, wording: wordingJson('32885-raccoon-river'), photoAspect: 0.69, imageAfterBlock: 3 }, 'classic');
-    const frame = layout.imageFrame!.outer;
+    const layout = computeLayout({ spec: s, wording: wordingJson('32885-raccoon-river'), photos: [{ aspect: 0.69 }], imageAfterBlock: 3 }, 'classic');
+    const frame = layout.imageFrames[0].outer;
     const names = layout.lines.find((l) => l.text.startsWith('Dallas'))!;
     const founders = layout.lines.find((l) => l.text.startsWith('FOUNDERS'))!;
     expect(frame.y).toBeGreaterThan(names.baseline);
@@ -198,7 +198,7 @@ describe('proof styles', () => {
     it(`${style} proof builds for ${dir} (${pages} page${pages > 1 ? 's' : ''})`, async () => {
       const s = spec(dir).spec;
       const wording = dir === '32241-edwin-feulner' ? (await heritage()).wording : wordingJson(dir);
-      const layout = computeLayout({ spec: s, wording, photoAspect: 0.9 }, 'classic');
+      const layout = computeLayout({ spec: s, wording, photos: [{ aspect: 0.9 }] }, 'classic');
       const prod = await buildProductionPdf({ jobNumber: 'x', name: 'x', spec: s, layout });
       const pdf = await buildProof(style, {
         jobNumber: '12345', version: 2, spec: s, wording, layout, plaqueImage: await png(),
@@ -239,7 +239,7 @@ describe('vector production PDF', () => {
   it('every reference job passes preflight, including italic, bold, small caps, columns and screws', async () => {
     for (const dir of ['32582-awe', '32885-raccoon-river', '32240-sax-zim-bog', '31547-kane-county', '32249-structure-of-merit', '31882-honeywell']) {
       const s = spec(dir).spec;
-      const layout = computeLayout({ spec: s, wording: wordingJson(dir), photoAspect: 0.8 }, 'classic');
+      const layout = computeLayout({ spec: s, wording: wordingJson(dir), photos: [{ aspect: 0.8 }] }, 'classic');
       const r = await buildProductionPdf({ jobNumber: '1', name: dir, spec: s, layout });
       const checks = await preflight(r.pdf, layout, { fontLicensed: true });
       for (const c of checks.filter((c) => !c.warnOnly)) expect(c, `${dir}: ${c.label} ${c.detail}`).toMatchObject({ ok: true });
@@ -248,10 +248,10 @@ describe('vector production PDF', () => {
 
   it('traces a raster logo into vector paths', async () => {
     const { spec: s, wording } = await heritage();
-    const layout = computeLayout({ spec: s, wording, photoAspect: 0.9, logoAspect: 2, logoSlot: 'bottom' }, 'classic');
+    const layout = computeLayout({ spec: s, wording, photos: [{ aspect: 0.9 }], logos: [{ aspect: 2 }], logoSlot: 'bottom' }, 'classic');
     const logoPng = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#fff"/><circle cx="100" cy="100" r="80" fill="#1a3"/><circle cx="100" cy="100" r="40" fill="#fff"/></svg>')).png().toBuffer();
-    const r = await buildProductionPdf({ jobNumber: '1', name: 'logo', spec: s, layout, logoPng });
-    const checks = await preflight(r.pdf, layout, { fontLicensed: true, logoTraced: true });
+    const r = await buildProductionPdf({ jobNumber: '1', name: 'logo', spec: s, layout, logos: [{ png: logoPng, name: 'logo.png', fromVector: false }] });
+    const checks = await preflight(r.pdf, layout, { fontLicensed: true, logosTraced: 1 });
     for (const c of checks.filter((c) => !c.warnOnly)) expect(c, c.label).toMatchObject({ ok: true });
   });
 });

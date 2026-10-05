@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { config } from './config.js';
+import { normalizeUploads } from '../shared/uploads.js';
 import type { ConceptRecord, OutputRecord, Project } from '../shared/types.js';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
@@ -65,7 +66,8 @@ export function upgrade(p: Project): Project {
   p.proofNote ??= null;
   p.disclaimer ??= 'standard';
   p.logoSlot ??= 'auto';
-  p.uploads ??= {};
+  // One photo / logo / sketch per job became lists; old jobs read as one-item lists.
+  p.uploads = normalizeUploads(p.uploads);
   if (p.spec) {
     p.spec.process ??= 'cast';
     p.spec.thicknessIn ??= null;
@@ -86,7 +88,7 @@ export function blankProject(fields: Pick<Project, 'jobNumber' | 'name' | 'creat
     spec: null,
     wordingText: '',
     wording: null,
-    uploads: {},
+    uploads: normalizeUploads(null),
     selectedConceptId: null,
     createdAt: t,
     updatedAt: t,
@@ -99,7 +101,7 @@ export function getProject(id: string): Project | null {
   return row ? upgrade(JSON.parse(row.data) as Project) : null;
 }
 export function listProjects(): Project[] {
-  return (db.prepare('SELECT data FROM projects ORDER BY updated_at DESC LIMIT 5000').all() as { data: string }[]).map((r) => JSON.parse(r.data));
+  return (db.prepare('SELECT data FROM projects ORDER BY updated_at DESC LIMIT 5000').all() as { data: string }[]).map((r) => upgrade(JSON.parse(r.data)));
 }
 /** Removes a job with its concepts, outputs and stored files. */
 export function deleteProject(id: string) {
@@ -121,12 +123,20 @@ export function saveConcept(c: ConceptRecord) {
   );
   return c;
 }
+/**
+ * Versions freeze the job's files. Snapshots from before upload lists hold single files;
+ * upgrading them here keeps "Use this version", Undo and the snapshot comparison working.
+ */
+export function upgradeConcept(c: ConceptRecord): ConceptRecord {
+  for (const snap of [c.snapshot, c.previous]) if (snap?.uploads) snap.uploads = normalizeUploads(snap.uploads);
+  return c;
+}
 export function getConcept(id: string): ConceptRecord | null {
   const row = db.prepare('SELECT data FROM concepts WHERE id = ?').get(id) as { data: string } | undefined;
-  return row ? JSON.parse(row.data) : null;
+  return row ? upgradeConcept(JSON.parse(row.data)) : null;
 }
 export function listConcepts(projectId: string): ConceptRecord[] {
-  return (db.prepare('SELECT data FROM concepts WHERE project_id = ? ORDER BY created_at ASC').all(projectId) as { data: string }[]).map((r) => JSON.parse(r.data));
+  return (db.prepare('SELECT data FROM concepts WHERE project_id = ? ORDER BY created_at ASC').all(projectId) as { data: string }[]).map((r) => upgradeConcept(JSON.parse(r.data)));
 }
 
 // Outputs

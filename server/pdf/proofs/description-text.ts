@@ -50,16 +50,19 @@ export function mountingPhrase(spec: PlaqueSpec): string {
   }
 }
 
-export function imagePhrase(spec: PlaqueSpec): string {
+/** "Includes photo relief image." — or, with several frames, "Includes 2 photo relief images." */
+export function imagePhrase(spec: PlaqueSpec, count = 1): string {
+  const n = Math.max(1, count);
+  const many = n > 1;
   switch (spec.imageOption) {
     case 'full-color-uv':
-      return 'Includes Full Color UV printed photo.';
+      return many ? `Includes ${n} Full Color UV printed photos.` : 'Includes Full Color UV printed photo.';
     case 'photo-relief':
-      return 'Includes photo relief image.';
+      return many ? `Includes ${n} photo relief images.` : 'Includes photo relief image.';
     case 'bas-relief':
-      return 'Includes sculpted bas relief image.';
+      return many ? `Includes ${n} sculpted bas relief images.` : 'Includes sculpted bas relief image.';
     case 'etched-photo':
-      return 'Includes etched photo.';
+      return many ? `Includes ${n} etched photos.` : 'Includes etched photo.';
     default:
       return '';
   }
@@ -71,13 +74,13 @@ export function copyPhrase(wording: Wording | null): string {
   return all && all.length <= 60 ? `Copy: ${all}` : 'Copy: as per customer art file.';
 }
 
-export function autoDescription(spec: PlaqueSpec, wording: Wording | null, opts: { fontStated?: boolean } = {}): string {
+export function autoDescription(spec: PlaqueSpec, wording: Wording | null, opts: { fontStated?: boolean; photoCount?: number } = {}): string {
   const thick = spec.thicknessIn ? ` ${fractionText(spec.thicknessIn)}” thick` : '';
   const size = `${inch(spec.widthIn)}x${inch(spec.heightIn)}`;
   // The designers only list the font when the order names one.
   const font = spec.font === 'custom' || opts.fontStated ? `Font: ${fontLabel(spec)}.` : '';
   const l1 = `DESCRIPTION: Qty. 1 set ${size}${thick} ${materialPhrase(spec)}. ${finishPhrase(spec)}. ${borderPhrase(spec)}`;
   const l2 = backgroundPhrase(spec);
-  const l3 = [copyPhrase(wording), imagePhrase(spec), font, mountingPhrase(spec)].filter(Boolean).join('  ');
+  const l3 = [copyPhrase(wording), imagePhrase(spec, opts.photoCount), font, mountingPhrase(spec)].filter(Boolean).join('  ');
   return [l1, l2, l3].join('\n');
 }

@@ -15,7 +15,7 @@ function streamText(s: PDFRawStream): string {
   }
 }
 
-export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logoTraced?: boolean; fontLicensed: boolean }): Promise<PreflightItem[]> {
+export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logosTraced?: number; fontLicensed: boolean }): Promise<PreflightItem[]> {
   const doc = await PDFDocument.load(pdf);
   const items: PreflightItem[] = [];
   const page = doc.getPage(0);
@@ -61,11 +61,18 @@ export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logo
     detail: extra.fontLicensed ? 'Licensed font file used' : 'Open stand-in used. Add the licensed font to brand-assets/fonts/ for exact letterforms.',
     warnOnly: true,
   });
-  if (layout.logo) {
+  const logos = layout.logos.length;
+  if (logos) {
+    const traced = Math.min(logos, extra.logosTraced ?? 0);
     items.push({
-      label: 'Logo',
-      ok: !!extra.logoTraced,
-      detail: extra.logoTraced ? 'Traced to vector; check against the original' : 'No logo file uploaded',
+      label: logos > 1 ? 'Logos' : 'Logo',
+      ok: traced === logos,
+      detail:
+        logos === 1
+          ? traced ? 'Traced to vector; check against the original' : 'No logo file uploaded'
+          : traced === logos
+            ? `All ${logos} traced to vector; check each against its original`
+            : `${traced} of ${logos} traced to vector; ${logos - traced} position(s) have no logo file`,
       warnOnly: true,
     });
   }

@@ -88,11 +88,11 @@ describe('offline instruction planner', () => {
   });
   it('carries block styling into the shared drawing and vector outlines', async () => {
     const p = await heritage();
-    const before = computeLayout({ spec: p.spec!, wording: p.wording, photoAspect: 402 / 450 }, 'classic');
+    const before = computeLayout({ spec: p.spec!, wording: p.wording, photos: [{ aspect: 402 / 450 }] }, 'classic');
     const plan = fallbackInstruction(p, 'make the name line italic');
     if (plan.kind !== 'wording') throw new Error('Expected wording');
     const wording = applyWordingEdits(p.wording, plan.wordingEdits);
-    const after = computeLayout({ spec: p.spec!, wording, photoAspect: 402 / 450 }, 'classic');
+    const after = computeLayout({ spec: p.spec!, wording, photos: [{ aspect: 402 / 450 }] }, 'classic');
     expect(after.lines[0].style?.italic).toBe(true);
     expect(layoutTextPath(after, p.spec!.font, 72)).not.toEqual(layoutTextPath(before, p.spec!.font, 72));
     const production = await buildProductionPdf({ spec: p.spec!, layout: after, jobNumber: 'styled', name: 'Styled' });

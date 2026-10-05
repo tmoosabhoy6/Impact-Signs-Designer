@@ -85,9 +85,9 @@ export interface LayoutAdjust {
   textScale?: number;
   /** Space between lines and groups. */
   spacing?: number;
-  /** Image (photo) frame size. */
+  /** Image (photo) frame size; with several photos, the whole group. */
   imageScale?: number;
-  /** Logo size. */
+  /** Logo size; with several logos, the whole row. */
   logoScale?: number;
   /** Where the content sits in the free space: -1 top, 0 centered, 1 bottom. */
   verticalOffset?: number;
@@ -155,6 +155,20 @@ export interface TextLine {
   face?: string;
 }
 
+export interface ImageFrame {
+  /** The uploaded photo in this frame; missing for a placeholder. */
+  photoId?: string;
+  outer: Rect;
+  /** The photo window inside the raised frame. */
+  inner: Rect;
+  orientation: 'portrait' | 'landscape' | 'square';
+}
+
+export interface LogoBox extends Rect {
+  /** The uploaded logo drawn in this box. */
+  logoId?: string;
+}
+
 export interface PlaqueLayout {
   preset: LayoutPresetId;
   presetLabel: string;
@@ -163,8 +177,10 @@ export interface PlaqueLayout {
   heightIn: number;
   border: { id: string; widthIn: number; innerLine?: Rect; innerLineIn?: number; verified: boolean };
   field: Rect;
-  imageFrame: { outer: Rect; inner: Rect; orientation: 'portrait' | 'landscape' | 'square' } | null;
-  logo: Rect | null;
+  /** One raised frame per photo, in upload order (a placeholder frame when no photo is uploaded yet). */
+  imageFrames: ImageFrame[];
+  /** One box per logo, in upload order. */
+  logos: LogoBox[];
   lines: TextLine[];
   /** Raised horizontal rules (section headings). */
   rules: Rect[];
@@ -226,10 +242,34 @@ export interface OutputRecord {
   createdAt: string;
 }
 
+/** A stored customer file. `id` is unique within the job and never reused. */
+export interface UploadedFile {
+  id: string;
+  /** Working PNG (or the original, for fonts) in the job's uploads folder. */
+  file: string;
+  /** File name as the designer uploaded it. */
+  name: string;
+  /** SHA-256 of the original file, to catch the same file added twice (missing on older jobs). */
+  hash?: string;
+}
+
+export interface UploadedImage extends UploadedFile {
+  width: number;
+  height: number;
+}
+
+export interface UploadedLogo extends UploadedImage {
+  /** Supplied as SVG / PDF / AI / EPS (traced from a high-resolution render). */
+  vectorSource: boolean;
+}
+
 export interface Uploads {
-  photo?: { file: string; name: string; width: number; height: number };
-  logo?: { file: string; name: string; width: number; height: number; vectorSource: boolean };
-  sketch?: { file: string; name: string };
+  /** Photos on the plaque, in order: left to right, then top to bottom. */
+  photos: UploadedImage[];
+  /** Logos on the plaque, in order, left to right. */
+  logos: UploadedLogo[];
+  /** Customer sketches: direction for the image model only, never drawn on the plaque. */
+  sketches: UploadedFile[];
   /** Photo of the installation site for the Description sheet's scale panel. */
   site?: { file: string; name: string; width: number; height: number };
   /** A font file supplied for this job (custom font). */

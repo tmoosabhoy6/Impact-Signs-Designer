@@ -55,7 +55,7 @@ const index: string[] = ['# Sample outputs', '', 'Each example job from `referen
 
 for (const ex of listExamples()) {
   const specText = fs.readFileSync(path.join(ex.dir, ex.spec), 'utf8');
-  const parse = parseSpec(specText, { hasPhoto: !!ex.photo });
+  const parse = parseSpec(specText, { hasPhoto: [ex.photo ?? []].flat().length > 0 });
   const spec = { ...parse.spec, ...(ex.specOverrides?.widthIn ? { widthIn: ex.specOverrides.widthIn } : {}), ...(ex.specOverrides?.heightIn ? { heightIn: ex.specOverrides.heightIn } : {}) };
   if (ex.specOverrides?.customPaintHex && spec.customPaint) spec.customPaint = { ...spec.customPaint, hex: ex.specOverrides.customPaintHex };
   const wf = path.join(ex.dir, ex.wording);
@@ -65,13 +65,13 @@ for (const ex of listExamples()) {
   } else {
     wording = parseWording(wf.endsWith('.docx') ? await docxToText(fs.readFileSync(wf)) : fs.readFileSync(wf, 'utf8'));
   }
-  const photoFile = ex.photo ? path.join(ex.dir, ex.photo) : null;
-  const photo = photoFile ? await sharp(photoFile).png().toBuffer() : null;
-  const pm = photo ? await sharp(photo).metadata() : null;
-  const layout = computeLayout({ spec, wording, photoAspect: pm ? pm.width! / pm.height! : null, imageAfterBlock: ex.imageAfterBlock ?? null }, 'classic');
+  const photoFiles = [ex.photo ?? []].flat().map((f) => path.join(ex.dir, f));
+  const photos = await Promise.all(photoFiles.map((f) => sharp(f).png().toBuffer()));
+  const metas = await Promise.all(photos.map((b) => sharp(b).metadata()));
+  const layout = computeLayout({ spec, wording, photos: metas.map((m, i) => ({ id: `p${i}`, aspect: m.width! / m.height! })), imageAfterBlock: ex.imageAfterBlock ?? null }, 'classic');
   const k = Math.min(160, 2400 / Math.max(spec.widthIn, spec.heightIn));
-  const toned = photo ? await preparePhoto(photo, spec.imageOption, mustOption('finishes', spec.finish).hex ?? '#C49A6C') : null;
-  const plaque = await renderFlatPng(layout, spec, { pxPerIn: k, widthPx: Math.round(spec.widthIn * k), heightPx: Math.round(spec.heightIn * k), photoPng: toned });
+  const photoPngs = await Promise.all(photos.map((b) => preparePhoto(b, spec.imageOption, mustOption('finishes', spec.finish).hex ?? '#C49A6C')));
+  const plaque = await renderFlatPng(layout, spec, { pxPerIn: k, widthPx: Math.round(spec.widthIn * k), heightPx: Math.round(spec.heightIn * k), photoPngs });
   const prod = await buildProductionPdf({ jobNumber: ex.jobNumber, name: ex.name, spec, layout });
   const style = ex.proofStyle ?? 'standard';
   const proof = await buildProof(style, {
