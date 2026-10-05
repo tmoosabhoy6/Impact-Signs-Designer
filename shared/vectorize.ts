@@ -1,14 +1,10 @@
 // Shared by the Vectorizer page and its server code.
-export type VectorBackground = 'auto' | 'light' | 'dark';
-
 export interface VectorOptions {
-  /** Which tone is the page: read from the picture's edge, or told. */
-  background: VectorBackground;
   /** Width of the artwork on the PDF page, in inches (the height follows the picture). */
   widthIn: number;
 }
 
-export const VECTOR_DEFAULTS: VectorOptions = { background: 'auto', widthIn: 10 };
+export const VECTOR_DEFAULTS: VectorOptions = { widthIn: 10 };
 export const VECTOR_WIDTH_LIMITS = { minIn: 0.5, maxIn: 96 };
 export const VECTOR_UPLOAD_MB = 40;
 
