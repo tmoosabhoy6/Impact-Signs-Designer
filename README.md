@@ -11,7 +11,7 @@ Impact Signs' internal tool for cast bronze plaques. It takes an order and produ
 
 ![Workspace](docs/screens/03-raccoon-river-b-proof.png)
 
-The interface uses the current impactsigns.com palette: navy navigation and buttons, blue links, charcoal text, gold selection accents and light neutral backgrounds. Customer proof and production PDF colors stay locked to the measured originals.
+The interface uses the current impactsigns.com palette: navy navigation and buttons, blue links, charcoal text, gold selection accents and light neutral backgrounds, with Barlow for text and IBM Plex Mono for numbers. Cards sit on a faint drafting grid with soft navy-tinted shadows, lists and panels ease into place, and a thin navy bar sweeps across a panel while it works (it all switches off when the system asks for reduced motion). Customer proof and production PDF colors stay locked to the measured originals.
 
 ---
 

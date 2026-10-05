@@ -3,7 +3,7 @@ import { Download, FileUp, Trash2 } from 'lucide-react';
 import { api } from '../api';
 import type { Me } from '../App';
 import { TopBar } from '../components/TopBar';
-import { Button, Chip, Notice, Spinner } from '../components/ui';
+import { Button, Card, Chip, EmptyState, Notice, Spinner } from '../components/ui';
 import { VECTOR_UPLOAD_MB, type VectorRecord } from '../../../shared/vectorize';
 
 const fileUrl = (v: VectorRecord, file: 'result.pdf' | 'result.svg' | 'preview.png' | 'thumb.jpg' | 'source.png', download = false) =>
@@ -18,8 +18,8 @@ function ImageBox({ title, src, href, caption }: { title: string; src: string; h
         <span className="label">{title}</span>
         <span className="font-mono text-[12px] text-muted">{caption}</span>
       </figcaption>
-      <a href={href} target="_blank" rel="noreferrer" title="Open full size in a new tab" className="relative block aspect-[4/3] overflow-hidden border border-line bg-paper transition-colors hover:border-navy/40">
-        <img src={src} alt={title} className="fade-in absolute inset-0 h-full w-full object-contain" />
+      <a href={href} target="_blank" rel="noreferrer" title="Open full size in a new tab" className="group relative block aspect-[4/3] overflow-hidden rounded-[2px] border border-line bg-paper shadow-card transition-[border-color,box-shadow] hover:border-navy/40 hover:shadow-card-hover">
+        <img src={src} alt={title} className="fade-in absolute inset-0 h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]" />
       </a>
     </figure>
   );
@@ -83,19 +83,20 @@ export function Vectorizer({ me }: { me: Me }) {
   }
 
   return (
-    <div className="min-h-full">
+    <div className="blueprint min-h-full">
       <TopBar me={me} />
-      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-8 md:grid-cols-[340px_minmax(0,1fr)] md:px-6">
-        <div className="h-fit min-w-0 border border-line bg-white">
-          <div className="h-[3px] bg-navy" />
-          <div className="space-y-4 p-5">
+      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-8 md:grid-cols-[340px_minmax(0,1fr)] md:px-6 md:py-10">
+        <div className="h-fit min-w-0 md:sticky md:top-[76px]">
+        <Card className="rise">
+          {busy && <div className="progress" aria-hidden />}
+          <div className="space-y-4 p-5 sm:p-6">
             <div>
               <h1 className="font-display text-lg font-semibold uppercase tracking-[0.08em]">Vectorizer</h1>
-              <p className="mt-1 text-[13px] text-muted">Turns a picture or PDF into a clean one-ink vector PDF: outlines only, no pixels, ready for Illustrator.</p>
+              <p className="mt-1 text-[13.5px] leading-relaxed text-muted">Turns a picture or PDF into a clean one-ink vector PDF: outlines only, no pixels, ready for Illustrator.</p>
             </div>
 
             <label
-              className={`block cursor-pointer border border-dashed p-4 text-center transition-colors duration-150 ${dragging ? 'border-navy bg-navy-50' : 'border-line hover:border-navy/50'}`}
+              className={`block cursor-pointer rounded-[3px] border border-dashed p-4 text-center transition-[background-color,border-color,box-shadow] duration-150 ${dragging ? 'drop-active border-navy bg-navy-50' : 'border-line bg-paper/60 hover:border-navy/50 hover:bg-navy-50/60'}`}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDragging(true);
@@ -120,8 +121,8 @@ export function Vectorizer({ me }: { me: Me }) {
                 <img src={preview} alt="Selected picture" className="fade-in mx-auto max-h-40 object-contain" />
               ) : (
                 <div className="flex flex-col items-center gap-2 py-4 text-muted">
-                  <FileUp className="h-6 w-6" />
-                  <span className="text-[14px]">{file ? file.name : 'Drop a picture or PDF here, or click to choose'}</span>
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-navy-50 text-navy"><FileUp className="h-5 w-5" /></span>
+                  <span className="text-[14px] font-medium text-ink">{file ? file.name : 'Drop a picture or PDF here, or click to choose'}</span>
                   <span className="text-[12px]">PNG, JPG, WebP, TIFF, SVG, PDF or .ai, up to {VECTOR_UPLOAD_MB} MB</span>
                 </div>
               )}
@@ -133,13 +134,14 @@ export function Vectorizer({ me }: { me: Me }) {
             <Button className="w-full" onClick={run} busy={busy} disabled={!file}>
               Make vector PDF
             </Button>
-            {busy && <p className="text-[12px] text-muted">Tracing. This takes a few seconds.</p>}
+            {busy && <p className="fade-in text-[12.5px] text-muted">Tracing. This takes a few seconds.</p>}
           </div>
+        </Card>
         </div>
 
         <section className="min-w-0 space-y-8">
           {result ? (
-            <div className="fade-in border border-line bg-white">
+            <Card rule={false} className="rise">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
                 <div className="min-w-0">
                   <h2 className="truncate font-display text-[15px] font-semibold uppercase tracking-[0.08em]">{result.name}</h2>
@@ -158,34 +160,38 @@ export function Vectorizer({ me }: { me: Me }) {
                 </div>
                 {result.fromPlate && <Notice tone="warn">The picture shows the artwork on a plate or card, so the marks on it were traced. Check the result against the original artwork.</Notice>}
                 <div className="flex flex-wrap gap-2">
-                  <a href={fileUrl(result, 'result.pdf', true)} className={`${LINK_BUTTON} bg-navy text-white hover:bg-navy-700`}>
+                  <a href={fileUrl(result, 'result.pdf', true)} className={`${LINK_BUTTON} btn-primary bg-navy text-white hover:bg-navy-700`}>
                     <Download className="h-4 w-4" /> Download vector PDF
                   </a>
-                  <a href={fileUrl(result, 'result.svg', true)} className={`${LINK_BUTTON} border border-line bg-white text-ink hover:border-navy/50 hover:text-navy`}>
+                  <a href={fileUrl(result, 'result.svg', true)} className={`${LINK_BUTTON} btn-secondary border border-line bg-white text-ink hover:border-navy/50 hover:text-navy`}>
                     <Download className="h-4 w-4" /> SVG
                   </a>
                 </div>
-                <p className="text-[12px] text-muted">The PDF holds outlines in one ink (#231F20) and nothing else: no pixels, no fonts. Open it in Illustrator to edit the paths. Click a picture to open it full size.</p>
+                <p className="text-[12.5px] leading-relaxed text-muted">The PDF holds outlines in one ink (#231F20) and nothing else: no pixels, no fonts. Open it in Illustrator to edit the paths. Click a picture to open it full size.</p>
               </div>
-            </div>
+            </Card>
           ) : (
-            <div className="grid min-h-48 place-items-center border border-line bg-white p-8 text-center text-[14px] text-muted">Upload a picture or PDF to see the original and the vector version side by side.</div>
+            <Card rule={false} className="rise min-h-48">
+              <EmptyState icon={<FileUp className="h-5 w-5" />} title="Original and vector, side by side">
+                Choose a picture or PDF on the left. You will see the original next to the traced outlines, ready to download as PDF or SVG.
+              </EmptyState>
+            </Card>
           )}
 
           <div>
-            <h2 className="mb-3 font-display text-lg font-semibold uppercase tracking-[0.08em]">Your recent vector files</h2>
-            <div className="border border-line bg-white">
+            <h2 className="rise mb-3 font-display text-lg font-semibold uppercase tracking-[0.08em]">Your recent vector files</h2>
+            <Card rule={false} className="rise overflow-hidden" >
               {!recent && (
                 <div className="flex items-center gap-2 p-5 text-muted">
                   <Spinner /> Loading
                 </div>
               )}
-              {recent && !recent.length && <div className="p-8 text-center text-[14px] text-muted">No vector files yet.</div>}
-              <ul className="divide-y divide-line">
+              {recent && !recent.length && <EmptyState title="No vector files yet">Finished vector files are kept here for your sign-in.</EmptyState>}
+              <ul className="stagger divide-y divide-line">
                 {(recent ?? []).map((v) => (
-                  <li key={v.id} className={`flex items-center transition-colors hover:bg-navy-50/60 ${result?.id === v.id ? 'bg-navy-50/60' : ''}`}>
+                  <li key={v.id} className={`row-hover flex items-center hover:bg-navy-50/50 ${result?.id === v.id ? 'is-on bg-navy-50/60' : ''}`}>
                     <button type="button" onClick={() => setResult(v)} className="flex min-w-0 flex-1 items-center gap-4 py-3 pl-4 pr-2 text-left">
-                      <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden bg-paper">
+                      <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[2px] border border-line bg-paper">
                         <img src={fileUrl(v, 'thumb.jpg')} alt="" className="h-full w-full object-contain" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -199,7 +205,7 @@ export function Vectorizer({ me }: { me: Me }) {
                       type="button"
                       onClick={() => remove(v)}
                       disabled={deleting === v.id}
-                      className="mr-2 grid h-9 w-9 shrink-0 place-items-center rounded-[3px] text-muted transition-colors hover:bg-white hover:text-signal disabled:opacity-50"
+                      className="mr-2 grid h-9 w-9 shrink-0 place-items-center rounded-[3px] text-muted transition-colors hover:bg-white hover:text-signal hover:shadow-card disabled:opacity-50"
                       title="Delete vector file"
                       aria-label={`Delete vector file of ${v.name}`}
                     >
@@ -208,7 +214,7 @@ export function Vectorizer({ me }: { me: Me }) {
                   </li>
                 ))}
               </ul>
-            </div>
+            </Card>
           </div>
         </section>
       </main>
