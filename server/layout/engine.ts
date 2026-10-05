@@ -8,8 +8,9 @@
 //  - Structure of Merit outline art (7x5) and Camp Southern Ground (12x16): double-line border
 //    band / gap / inner line, growing with the plaque's shorter side.
 import { getCatalog, mustOption, type BorderOption } from '../catalog.js';
-import { loadFontFile, measure, missingGlyphs, resolveFont, SMALL_CAPS_SCALE, wrapText, type OTFont } from '../text/fonts.js';
-import type { ImageFrame, LayoutAdjust, LayoutPresetId, LogoBox, LogoPosition, PlaqueLayout, PlaqueSpec, Rect, TextLine, TextStyle, Wording, WordingRole } from '../../shared/types.js';
+import { capHeightRatio, loadFontFile, measure, missingGlyphs, resolveFont, SMALL_CAPS_SCALE, wrapText, type OTFont } from '../text/fonts.js';
+import { layoutProblems } from './check.js';
+import type { ImageFrame, LayoutAdjust, LayoutPresetId, LogoBox, LogoPosition, PlaqueLayout, PlaqueSpec, Rect, TextLine, TextStyle, Wording, WordingBlock, WordingRole } from '../../shared/types.js';
 
 /** One uploaded photo or logo: its id (carried onto the layout) and width / height. */
 export interface LayoutPicture {
@@ -246,10 +247,7 @@ interface Placed {
   maxLineWidth: number;
 }
 
-export function capHeightRatio(font: OTFont): number {
-  const os2 = (font.tables as { os2?: { sCapHeight?: number } }).os2;
-  return os2?.sCapHeight ? os2.sCapHeight / font.unitsPerEm : 0.66;
-}
+export { capHeightRatio };
 
 /** Letters are cast at least this tall; punctuation and digits have no minimum. */
 export const MIN_LETTER_IN = 0.25;
@@ -332,7 +330,17 @@ function roleMul(role: WordingRole, p: PresetDef) {
   return role === 'headline' ? p.headline : role === 'subhead' ? p.subhead : role === 'footer' ? 0.85 : p.body;
 }
 
-function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number, spacing = 1): { items: Item[]; raised: number } {
+/** What the text builder noticed, for the fit loop (reset on every pass). */
+interface TextStats {
+  /** Column entries that are wider than their column after the ¼" minimum was applied. */
+  wide: number;
+  /** Smallest type size (inches) among the lines of donor lists (see `listRuns`). */
+  listSize: number;
+  /** Ids of the wording blocks that belong to donor lists. */
+  members: Set<string>;
+}
+
+function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number, spacing = 1, stats?: TextStats): { items: Item[]; raised: number } {
   const items: Item[] = [];
   // Lines whose letters would be cast smaller than the minimum are set at the minimum instead.
   let raised = 0;
@@ -359,6 +367,11 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
       const longest = Math.max(...entries.map((e) => measure(face, e, size, style.smallCaps)));
       if (longest > colW * 0.94) size = Math.max(size * 0.4, (size * colW * 0.94) / longest);
       size = floor(size, face, b.text, style);
+      if (stats) {
+        // The ¼" minimum can lift the type back above what the column holds: entries would touch.
+        if (Math.max(...entries.map((e) => measure(face, e, size, style.smallCaps))) > colW * 0.97) stats.wide++;
+        if (stats.members.has(b.id)) stats.listSize = Math.min(stats.listSize, size);
+      }
       const lines: (StyledText & { row: number })[] = entries.map((text, i) => {
         const c = Math.floor(i / perCol);
         const row = i % perCol;
@@ -374,6 +387,7 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
       if (natural > maxWidth) size = Math.max(size * 0.75, (size * maxWidth) / natural);
     }
     size = floor(size, face, b.text, style);
+    if (stats?.members.has(b.id)) stats.listSize = Math.min(stats.listSize, size);
     const leading = (b.role === 'body' || b.role === 'footer' ? GAP.bodyLeading * size : 1.15 * size) * lead;
     const wrapped = wrapText(face, b.text, size, maxWidth, style.smallCaps);
     const width = Math.max(0, ...wrapped.map((t) => measure(face, t, size, style.smallCaps)));
@@ -383,7 +397,14 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
   return { items, raised };
 }
 
-function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverride?: Rect): PlaqueLayout {
+/** One fitting attempt: the layout, whether the type fit at a legal size, and the donor-list type size. */
+interface Fitted {
+  layout: PlaqueLayout;
+  fits: boolean;
+  listSize: number;
+}
+
+function fitLayout(input: LayoutInput, presetId: LayoutPresetId, contentOverride: Rect | undefined, plan: { dense: boolean; members: Set<string> }): Fitted {
   const { spec } = input;
   const preset = PRESETS.find((p) => p.id === presetId) ?? PRESETS[0];
   const W = spec.widthIn;
@@ -464,12 +485,14 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
   let raised = 0;
   const textOnly = !hasImage;
   // Text-only plaques set their type large (Kathleen Awe, Sax-Zim Bog, Hadar Family Hall).
-  const dense = (input.wording?.blocks.length ?? 0) >= 6;
+  const dense = plan.dense;
   // Text-only type is sized to fill the field, so "larger text" fills more of it.
   const fillLimit = textOnly ? Math.min(0.97, (dense ? 0.92 : 0.82) * adj.textScale) : 1;
   const textMul = textOnly ? 1 : adj.textScale;
+  let stats: TextStats = { wide: 0, listSize: Infinity, members: plan.members };
   for (scale = textOnly ? 3.2 : 1; scale >= 0.25; scale -= 0.02) {
     const B = B0 * scale * textMul;
+    stats = { wide: 0, listSize: Infinity, members: plan.members };
     if (splitTop) {
       const maxW = content.w - 2 * pad;
       const maxH = content.h - 2 * pad;
@@ -491,7 +514,7 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
           remaining.push(block);
           continue;
         }
-        const made = textItems({ ...input, wording: { blocks: [block], notes: [] } }, B, preset, headW, adj.spacing);
+        const made = textItems({ ...input, wording: { blocks: [block], notes: [] } }, B, preset, headW, adj.spacing, stats);
         openingRaised += made.raised;
         const item = made.items[0];
         if (!item || item.kind !== 'text') continue;
@@ -502,7 +525,7 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
         if (take < item.lines.length) remaining.push({ ...block, text: item.lines.slice(take).map((l) => l.text).join('\n') });
       }
       const head = stack(opening, B, gapMul, adj.spacing);
-      const bodyMade = textItems({ ...input, wording: { blocks: remaining, notes: [] } }, B, preset, maxW, adj.spacing);
+      const bodyMade = textItems({ ...input, wording: { blocks: remaining, notes: [] } }, B, preset, maxW, adj.spacing, stats);
       raised = openingRaised + bodyMade.raised;
       const bodyItems = bodyMade.items;
       if (hasLogo) {
@@ -527,7 +550,7 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
         height: Math.max(topH, bodyY + body.height),
         maxLineWidth: Math.max(body.maxLineWidth, head.maxLineWidth + group.w + gutter),
       };
-      if (best.height <= maxH && body.maxLineWidth <= maxW + 1e-6 && head.maxLineWidth <= headW + 1e-6) break;
+      if (best.height <= maxH && body.maxLineWidth <= maxW + 1e-6 && head.maxLineWidth <= headW + 1e-6 && !stats.wide) break;
     } else if (imageLeft) {
       const contentW = content.w - 2 * pad;
       const contentH = content.h - 2 * pad;
@@ -541,7 +564,7 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
       colW = contentW - fw - gutter;
       frameRect = { x: content.x + pad, y: content.y + (content.h - fh) / 2, w: fw, h: fh };
       frameCells = group.cells;
-      const texts = textItems(input, B, preset, colW, adj.spacing);
+      const texts = textItems(input, B, preset, colW, adj.spacing, stats);
       raised = texts.raised;
       const items = texts.items;
       if (hasLogo) {
@@ -552,12 +575,12 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
       }
       const placed = stack(items, B, gapMul, adj.spacing);
       best = placed;
-      if (placed.height <= contentH * fillLimit && placed.maxLineWidth <= colW + 1e-6) break;
+      if (placed.height <= contentH * fillLimit && placed.maxLineWidth <= colW + 1e-6 && !stats.wide) break;
     } else {
       colX = content.x;
       colW = content.w;
       const maxText = Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
-      const made = textItems(input, B, preset, maxText, adj.spacing);
+      const made = textItems(input, B, preset, maxText, adj.spacing, stats);
       raised = made.raised;
       const texts = made.items;
       const items: Item[] = [];
@@ -588,7 +611,7 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
       const placed = stack(items, B, gapMul, adj.spacing);
       best = placed;
       const avail = content.h - 2 * Math.max(0.3, 0.05 * content.h, screwD ? screwInset * 0.6 : 0);
-      if (placed.height <= avail * fillLimit && placed.maxLineWidth <= maxText + 1e-6) break;
+      if (placed.height <= avail * fillLimit && placed.maxLineWidth <= maxText + 1e-6 && !stats.wide) break;
     }
   }
   if (!best) throw new Error('Layout failed');
@@ -653,7 +676,7 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
       })
     : [];
   const innerLineCenter = geo.gap + geo.inner / 2;
-  return {
+  const layout: PlaqueLayout = {
     preset: preset.id,
     presetLabel: preset.label,
     presetDescription: preset.description,
@@ -677,6 +700,93 @@ function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverri
     minLetterIn: Number.isFinite(minLetterIn) ? +minLetterIn.toFixed(3) : null,
     warnings,
   };
+  // Say so when the drawing is not sound, instead of handing on text that hangs off the plaque.
+  layout.warnings.push(...layoutProblems(layout, spec.font));
+  return { layout, fits: scale >= 0.25 && !stats.wide, listSize: stats.listSize };
+}
+
+// ---------- Donor lists ----------
+
+/** A run of this many short, single-line paragraphs (or lines) is a list of names. */
+const MIN_LIST = 8;
+/** Most columns a list is set in. */
+const MAX_LIST_COLUMNS = 5;
+
+/** A list entry: a short line that is a name or a short phrase, not a sentence. */
+function isEntry(text: string): boolean {
+  const t = text.trim();
+  const words = t.split(/\s+/).length;
+  return t.length > 0 && t.length <= 48 && words <= 8 && (words <= 3 || !/[.!?]$/.test(t) || /\b(Jr|Sr|Dr|Mr|Mrs|Ms|Inc|Co|Ltd|St)\.$/.test(t));
+}
+
+/** A tier heading such as GOLD: capitals only, three letters or more. */
+const isCaps = (text: string) => /[A-Z]{3}/.test(text) && text === text.toUpperCase();
+
+const styleKey = (b: WordingBlock) => JSON.stringify(b.style ?? {});
+
+/**
+ * Donor lists in the wording: runs of body paragraphs that are each one short line (the way
+ * a customer pastes names, one per line), and single body blocks of many short lines. A block
+ * the designer already set in columns is theirs and is left alone.
+ */
+function listRuns(blocks: WordingBlock[]): WordingBlock[][] {
+  const runs: WordingBlock[][] = [];
+  // In a list of mixed-case names, a line in capitals is a heading for the names after it.
+  const singles = blocks.filter((b) => b.role === 'body' && !b.text.includes('\n') && isEntry(b.text));
+  const headings = singles.length > 0 && singles.filter((b) => isCaps(b.text)).length / singles.length < 0.5;
+  let run: WordingBlock[] = [];
+  const flush = () => {
+    if (run.length >= MIN_LIST) runs.push(run);
+    run = [];
+  };
+  for (const b of blocks) {
+    const lines = b.text.split('\n').map((l) => l.trim()).filter(Boolean);
+    const plain = b.role === 'body' && !(b.style?.columns && b.style.columns > 1);
+    if (plain && lines.length >= MIN_LIST && lines.every(isEntry)) {
+      flush();
+      runs.push([b]);
+    } else if (plain && lines.length === 1 && isEntry(lines[0]) && !(headings && isCaps(lines[0])) && (!run.length || styleKey(run[0]) === styleKey(b))) {
+      run.push(b);
+    } else flush();
+  }
+  flush();
+  return runs;
+}
+
+/** The wording with each donor list set in `columns` columns. Only display: the words stay as written. */
+function withListColumns(wording: Wording, runs: WordingBlock[][], columns: number): Wording {
+  const first = new Map(runs.map((r) => [r[0].id, r]));
+  const inRun = new Set(runs.flat().map((b) => b.id));
+  const blocks: WordingBlock[] = [];
+  for (const b of wording.blocks) {
+    const run = first.get(b.id);
+    if (run) blocks.push({ ...b, text: run.map((x) => x.text.trim()).join('\n'), style: { ...b.style, columns } });
+    else if (!inRun.has(b.id)) blocks.push(b);
+  }
+  return { ...wording, blocks };
+}
+
+/**
+ * Fits the plaque. Donor lists are tried in one column (as pasted) and in two to five, and
+ * the columns win only when the whole list fits at a clearly larger size: a list of fifty
+ * names in one column cannot be cast at ¼" letters, in four columns it can.
+ */
+function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverride?: Rect): PlaqueLayout {
+  const blocks = input.wording?.blocks ?? [];
+  const dense = blocks.length >= 6;
+  const runs = listRuns(blocks);
+  const members = new Set(runs.flat().map((b) => b.id));
+  const one = fitLayout(input, presetId, contentOverride, { dense, members });
+  if (!runs.length) return one.layout;
+  const tries = Array.from({ length: MAX_LIST_COLUMNS - 1 }, (_, i) => i + 2).map((n) => ({
+    n,
+    ...fitLayout({ ...input, wording: withListColumns(input.wording!, runs, n) }, presetId, contentOverride, { dense, members }),
+  }));
+  const fitting = tries.filter((t) => t.fits);
+  // Largest type first; fewer columns when the type is the same.
+  const best = (fitting.length ? fitting : tries).reduce((a, b) => (b.listSize > a.listSize * 1.001 ? b : a));
+  if (!one.fits) return (fitting.length || best.listSize > one.listSize ? best : one).layout;
+  return best.fits && best.listSize >= one.listSize * 1.15 ? best.layout : one.layout;
 }
 
 function resolveFontFace(file?: string): OTFont | null {

@@ -2,6 +2,7 @@
 import { mustOption } from '../catalog.js';
 import zlib from 'node:zlib';
 import { PDFDocument, PDFRawStream, PDFName, PDFDict } from 'pdf-lib';
+import { layoutProblems } from '../layout/check.js';
 import type { PlaqueLayout, PreflightItem } from '../../shared/types.js';
 
 const INK = [0x23 / 255, 0x1f / 255, 0x20 / 255];
@@ -16,7 +17,7 @@ function streamText(s: PDFRawStream): string {
   }
 }
 
-export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logosTraced?: number; fontLicensed: boolean; logoTreatment?: string }): Promise<PreflightItem[]> {
+export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logosTraced?: number; fontLicensed: boolean; logoTreatment?: string; fontId?: string }): Promise<PreflightItem[]> {
   const doc = await PDFDocument.load(pdf);
   const items: PreflightItem[] = [];
   const page = doc.getPage(0);
@@ -53,6 +54,14 @@ export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logo
     label: 'One ink (#231F20 + white)',
     ok: bad.length === 0,
     detail: bad.length ? `Unexpected colors: ${bad.join(' | ')}` : 'Only rich black #231F20 (raised) and white (recessed)',
+  });
+  // The file draws what the layout says, so text hanging off the plate or lines on top of each
+  // other would be cut that way. This is a hard failure, not a warning.
+  const problems = layoutProblems(layout, extra.fontId ?? 'times-new-roman');
+  items.push({
+    label: 'Everything fits on the plaque',
+    ok: problems.length === 0,
+    detail: problems.length ? `${problems.join(' ')} Shorten the wording, use fewer or shorter names per line, or use a larger plaque.` : 'All wording sits inside the border with no overlaps',
   });
   const small = layout.warnings.find((w) => /casting minimum/.test(w));
   const enlarged = layout.warnings.find((w) => /enlarged to the ¼" minimum/.test(w));
