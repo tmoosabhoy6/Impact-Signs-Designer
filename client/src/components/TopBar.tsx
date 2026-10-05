@@ -11,6 +11,7 @@ export function Logo({ className = 'h-6', light = false }: { className?: string;
 const TOOLS = [
   { href: '/upscaler', label: 'AI Upscaler' },
   { href: '/vectorizer', label: 'Vectorizer' },
+  { href: '/merger', label: 'Proof Merger' },
 ];
 
 /** True once the page has scrolled under the bar, which then casts a shadow. */
