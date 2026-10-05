@@ -238,7 +238,8 @@
 - Readability: body copy in panels moved from 12–13 px to 13.5–14 px, labels to 0.74 rem, placeholders lighter than text, and fields show a soft navy ring when active (white on the stage).
 - Verification: typecheck and build pass; every page was driven in demo mode in Chromium and inspected (sign-in, jobs empty and with jobs, order, generating, concepts, proof and vector outputs, Vectorizer, Upscaler, Admin, phone width). `scripts/screens.mjs` was rerun to refresh `docs/screens/`. No server, layout, proof or production code changed.
 
-## Sign-in page: plain blue
+## Sign-in page: navy, dot texture, floating card
 
-- The sign-in page is a plain Impact Signs blue (`#2E3092`, the brand navy in AGENTS.md) with the card centered. The left panel, the CSS plaque and the short-lived plaque montage (and its images) are gone.
-- Verification: typecheck and build pass; sign-in inspected in Chromium.
+- Background is the app's brand navy token (`--color-navy`, `#1F2640`, the impactsigns.com navy) with a very light two-layer white dot texture (7% / 4%). `#2E3092`, the blue inside the logo file, was tried first and rejected as "not the Impact Signs blue".
+- The card floats: stacked drop shadows, a top-edge highlight, and a 4 px lift on hover or when a field is focused (disabled under reduced motion). The lift is on a wrapper because the card's `rise` entrance animation ends with `transform: none`.
+- Verification: typecheck and build pass; sign-in inspected in Chromium, including the hovered state.
