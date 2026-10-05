@@ -87,6 +87,7 @@ const DEFAULTS: PlaqueSpec = {
   mounting: 'blind-studs',
   lettering: 'raised',
   process: 'cast',
+  logoTreatment: 'raised-cast',
   thicknessIn: null,
   stakeLengthIn: null,
   customFontName: null,
@@ -257,7 +258,8 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
 
   // Image
   const textOnly = lines.some((l) => /text[- ]only/i.test(l));
-  const imgLines = lines.map((l) => l.replace(/reverse[- ]etched[^,.;]*/gi, '').replace(/copy\s*:.*$/i, ''));
+  // "UV print logo" is about the logo, not a printed photo.
+  const imgLines = lines.filter((l) => !/\blogo/i.test(l) || /photo|image|picture/i.test(l)).map((l) => l.replace(/reverse[- ]etched[^,.;]*/gi, '').replace(/copy\s*:.*$/i, ''));
   const img = textOnly ? null : matchOption('imageOptions', imgLines);
   if (textOnly) {
     spec.imageOption = 'none';
@@ -314,6 +316,17 @@ export function parseSpec(specText: string, hints: { hasPhoto?: boolean } = {}):
   // Lettering is always raised for cast plaques.
   const let_ = matchOption('lettering', lines);
   if (let_) used.add(let_.line);
+
+  // Logo treatment: raised cast unless the order asks for a UV printed logo.
+  const logoLines = lines.filter((l) => /\blogo/i.test(l));
+  const lt = matchOption('logoTreatments', logoLines.length ? logoLines : lines.filter((l) => /\buv\b/i.test(l) && !/photo|image/i.test(l)));
+  if (lt) {
+    spec.logoTreatment = lt.option.id;
+    used.add(lt.line);
+  } else if (logoLines.length) {
+    logoLines.forEach((l) => used.add(l));
+    assume('logoTreatment', 'The order mentions a logo but not how it is made. Assumed Raised Cast.');
+  }
 
   const unrecognizedLines = lines.filter((l) => !used.has(l) && !KNOWN_PHRASES.some((re) => re.test(l)));
   for (const l of unrecognizedLines) {

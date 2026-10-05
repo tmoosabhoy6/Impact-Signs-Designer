@@ -40,20 +40,22 @@ async function runExample(jobNumber, shot) {
   await page.waitForFunction(() => document.querySelectorAll('button').length && [...document.querySelectorAll('button')].filter((b) => b.textContent?.includes('Use this one')).length >= 3);
   if (jobNumber === '32885') {
     const column = page.locator('article').filter({ has: page.locator('h3', { hasText: 'Classic' }) });
-    await column.getByLabel('Describe a fix for this image').fill('make the border double line');
+    await column.getByLabel('Describe a change for this image').fill('make the border double line');
     await column.getByRole('button', { name: 'Apply', exact: true }).click();
     await column.getByRole('status').filter({ hasText: 'Interpreted as:' }).waitFor();
     await page.waitForFunction(() => !document.querySelector('article button[title="Generate this layout again"]')?.disabled);
     await column.screenshot({ path: `${out}/09-fix-plan.png` });
-    await column.getByLabel('Describe a fix for this image').fill('use a purple anodized finish');
-    await column.getByRole('button', { name: 'Apply', exact: true }).click();
-    await column.getByLabel('Available alternatives').waitFor();
-    await column.screenshot({ path: `${out}/10-fix-refusal.png` });
     await column.getByRole('button', { name: 'Undo order change', exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('article button[title="Generate this layout again"]')?.disabled);
+    // Nothing is refused: a request the catalog cannot hold goes to the image model as written.
+    await column.getByLabel('Describe a change for this image').fill('use a purple anodized finish');
+    await column.getByRole('button', { name: 'Apply', exact: true }).click();
+    await column.getByRole('status').filter({ hasText: 'Sent to the image model as written' }).waitFor();
+    await page.waitForFunction(() => !document.querySelector('article button[title="Generate this layout again"]')?.disabled);
+    await column.screenshot({ path: `${out}/10-fix-image-edit.png` });
   }
   await page.locator('button', { hasText: 'Use this one' }).first().click();
-  await page.waitForSelector('text=Selected for proof');
+  await page.waitForSelector('article[aria-current="true"] button:has-text("On the proof")');
   await page.click('button:has-text("Create proof PDF")');
   await page.waitForSelector('text=Latest');
   await page.click('button:has-text("Create vector PDF")');
@@ -64,21 +66,51 @@ async function runExample(jobNumber, shot) {
   if (jobNumber === '32249') await perConceptFiles();
 }
 
-// A proof and a vector file from the two layouts that are not selected, from their own columns.
+// Three proofs of one job: "Use this one" under each concept in turn moves the proof panel to it.
 async function perConceptFiles() {
   for (const name of ['Feature Image', 'Statement']) {
     const column = page.locator('article').filter({ has: page.locator('h3', { hasText: name }) });
-    await column.getByRole('button', { name: 'Proof PDF' }).click();
-    await column.getByRole('link', { name: `Proof - 32249 - ${name}.pdf`, exact: true }).waitFor();
-    await column.getByRole('button', { name: 'Vector PDF' }).click();
-    await column.getByTitle(new RegExp(`_${name.replace(' ', '_')}_production\\.pdf$`)).waitFor();
+    await column.getByRole('button', { name: 'Use this one' }).click();
+    await column.getByRole('button', { name: 'On the proof' }).waitFor();
+    await page.locator('aside').last().getByText(`${name} v1`, { exact: true }).first().waitFor();
+    await page.click('button:has-text("Create proof PDF")');
+    await page.locator('aside').last().getByText(`Proof - 32249 - ${name}.pdf`).waitFor();
+    await page.click('button:has-text("Create vector PDF")');
+    await page.locator('aside').last().getByText(new RegExp(`_${name.replace(' ', '_')}_production\\.pdf$`)).waitFor();
   }
-  // Selection stays on the first concept; the right panel lists every file by layout.
-  await page.locator('article').filter({ hasText: 'Selected for proof' }).filter({ has: page.locator('h3', { hasText: 'Classic' }) }).waitFor();
-  await page.getByText('Statement v1').first().waitFor();
+  // Only one concept is on the proof at a time; every file is listed by the concept it came from.
+  await page.waitForFunction(() => document.querySelectorAll('article[aria-current="true"]').length === 1);
+  await page.getByText('From Statement v1').first().waitFor();
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${out}/15-per-concept-files.png` });
   await page.screenshot({ path: `${out}/16-per-concept-files-full.png`, fullPage: true });
+  // The full-size viewer: zoom in with the wheel and drag.
+  await page.locator('article').filter({ has: page.locator('h3', { hasText: 'Classic' }) }).getByRole('button', { name: 'View full size' }).click();
+  const viewer = page.getByRole('dialog');
+  await viewer.getByText('100%').first().waitFor();
+  await page.mouse.move(800, 500);
+  await page.mouse.wheel(0, -600);
+  await page.waitForTimeout(300);
+  await page.mouse.down();
+  await page.mouse.move(650, 380, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${out}/17-viewer-zoom.png` });
+  await page.keyboard.press('Escape');
+  await viewer.waitFor({ state: 'hidden' });
+  // The panels resize by dragging their handles; a double-click lets them follow the work again.
+  const handle = page.getByRole('separator', { name: 'Resize the order panel' });
+  const box = await handle.boundingBox();
+  await page.mouse.move(box.x + 3, box.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 160, box.y + 300, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const asideWidth = await page.locator('aside').first().evaluate((el) => el.getBoundingClientRect().width);
+  if (asideWidth < box.x + 120) throw new Error(`Order panel did not widen: ${asideWidth}`);
+  await page.screenshot({ path: `${out}/18-panels-resized.png` });
+  await handle.dblclick();
+  await page.waitForTimeout(600);
 }
 
 await runExample('32885', '03-raccoon-river');
@@ -125,7 +157,7 @@ async function runMultiFiles() {
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${out}/13-multi-concepts.png` });
   await page.locator('button', { hasText: 'Use this one' }).first().click();
-  await page.waitForSelector('text=Selected for proof');
+  await page.waitForSelector('article[aria-current="true"] button:has-text("On the proof")');
   await page.click('button:has-text("Create proof PDF")');
   await page.waitForSelector('text=Latest');
   await page.click('button:has-text("Create vector PDF")');
@@ -136,6 +168,15 @@ async function runMultiFiles() {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 await runMultiFiles();
+
+// The Vectorizer: a photo of a finished plaque becomes a one-ink vector PDF of its logo.
+await page.goto(`${base}/vectorizer`);
+await page.waitForSelector('text=Make vector PDF');
+await page.setInputFiles('input[type=file]', 'assets/logo-treatments/uv-print.png');
+await page.click('button:has-text("Make vector PDF")');
+await page.getByText('Download vector PDF').waitFor();
+await page.waitForTimeout(1200);
+await page.screenshot({ path: `${out}/19-vectorizer.png` });
 
 await page.goto(`${base}/admin?tab=assets`);
 await page.waitForTimeout(1500);

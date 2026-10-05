@@ -5,7 +5,7 @@ Read this before changing anything. Then read `README.md` and `docs/DECISIONS.md
 ## What this is
 Impact Signs' internal tool for cast bronze (and aluminum) plaques. A designer enters an order. The app then:
 1. Generates 3 concept images with OpenAI's image model.
-2. Builds the customer **proof PDF** in one of three locked proof styles.
+2. Builds the customer **proof PDF** (the Description sheet; the two other measured templates stay for the samples and tests).
 3. Builds the one-ink **vector production PDF**.
 
 The users are designers, not developers. All UI text and error messages are plain English.
@@ -36,14 +36,14 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 3. **Customer wording is reproduced character for character.** Never autocorrect, change quotes, or "improve" it.
 4. **Nothing is overwritten.** Every image, fix, proof and production file is a new record (`server/db.ts`) with a parent id.
 5. **Secrets only in environment variables** (`OPENAI_API_KEY`, `APP_PASSWORD`, `SESSION_SECRET`, `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`, and account passwords). Never put them in code, git (this repository is public), logs, test fixtures or the browser. `.env` is git-ignored.
-6. **The measured proof templates stay exact.** `server/pdf/proofs/{standard,description,etched}.ts` use positions and sizes measured from the real Impact Signs proofs in `references/`. The fixed parts are lifted as vector art from those PDFs (`server/templates/`). Do not "tidy" these numbers. If you change one, re-measure and prove it with `npm run samples`.
-7. **The production PDF is one ink:** `#231F20` means raised metal and white means the recessed field. All text is outlined and the file contains no images or fonts. `server/pdf/preflight.ts` must pass.
+6. **The measured proof templates stay exact.** `server/pdf/proofs/{standard,description,etched}.ts` use positions and sizes measured from the real Impact Signs proofs in `references/`. The fixed parts are lifted as vector art from those PDFs (`server/templates/`). Do not "tidy" these numbers. If you change one, re-measure and prove it with `npm run samples`. The app makes only the Description sheet (without the real proofs' Visual Scale figure); the plaque box and the header are the measured ones.
+7. **The production PDF is one ink:** `#231F20` means raised metal and white means the recessed field. All text is outlined and the file contains no images or fonts. `server/pdf/preflight.ts` must pass. Letters are at least ¼" tall (`MIN_LETTER_IN` in the layout engine; digits and punctuation exempt): the floor lives in the layout so the image, proof and vector file agree.
 8. **Static icons are never AI-generated.** Proof icons come from `assets/` as named in the catalog.
 9. **Brand look:**
    - colors: navy `#2E3092`, red `#ED1C24`, ink `#231F20`, bronze `#C49A6C` for plaques;
    - type: Barlow / Barlow Semi Condensed, with IBM Plex Mono for numbers;
    - no gradients-as-decoration, no emoji, no sparkle icons.
-10. **Each login sees only its own work.** Every route that reads a job, concept, output or upscale goes through `loadProject` / `loadConcept` / `loadOutput` / `loadUpscale`, which check `owns()` in `server/auth.ts`. A new route must do the same.
+10. **Each login sees only its own work.** Every route that reads a job, concept, output, upscale or vector file goes through `loadProject` / `loadConcept` / `loadOutput` / `loadUpscale` / `loadVector`, which check `owns()` in `server/auth.ts`. A new route must do the same.
 
 ## Where things are
 | Area | Files |
@@ -52,16 +52,18 @@ Tests and samples must run offline (`MOCK_AI=1`, no network).
 | Layout + fonts | `server/layout/engine.ts` (photo frames and logos are groups: `arrangePictures`), `server/text/fonts.ts` (glyphs placed manually, no OpenType shaping) |
 | Customer files | `server/uploads.ts` (prepare / add / remove / reorder), `shared/uploads.ts` (limits, upgrade of single-file jobs). Photos, logos and sketches are lists; every route reads them through `loadProject`. |
 | Image model | `server/ai/images.ts` (OpenAI adapter + mock), `server/ai/pipeline.ts` (`runConcept`, `buildReferences`, `layoutFor`), `server/ai/prompts.ts`, prompt text in `server/prompts/*.md` |
-| Fix instructions | `server/ai/instruct.ts`: the planner model (`OPENAI_PLANNER_MODEL`) returns one checked plan (catalog `specPatch`, literal `wordingEdits`, per-column `layoutPatch`, `placement`, image-only `imageEdit`); offline reader `fallbackInstruction` splits multi-part requests. Layout adjustments live in `Project.layoutAdjust[preset]` and go through `computeLayout` (`adjust`), so proof and vector agree. Prompts: `fix.md` (image-only), `relayout.md` (new layout drawing). |
+| Fix instructions | `server/ai/instruct.ts`: the planner model (`OPENAI_PLANNER_MODEL`) returns one checked plan (catalog `specPatch`, literal `wordingEdits`, per-column `layoutPatch`, `placement`, image-only `imageEdit`); offline reader `fallbackInstruction` splits multi-part requests. **Nothing is refused:** what the order cannot hold becomes an `imageEdit` in the designer's words (`asImage`). Layout adjustments live in `Project.layoutAdjust[preset]` and go through `computeLayout` (`adjust`), so proof and vector agree. Prompts: `fix.md` (image-only), `relayout.md` (new layout drawing). |
 | Spell check | `server/ai/spellcheck.ts` (vision model reads the text back; word diff) |
 | Proofs | `server/pdf/proofs/index.ts` → `standard.ts`, `description.ts`, `etched.ts`, shared `common.ts`, header text `description-text.ts` |
-| Production PDF | `server/pdf/production.ts`, `server/pdf/trace.ts` (logo → vector), `server/pdf/preflight.ts` |
+| Production PDF | `server/pdf/production.ts` (raised-cast logos traced; UV-print logos as a raised plate, `uvPlateRect`), `server/pdf/trace.ts` (the logo reader: background from the picture's edge, Otsu split, plate detection for photos, speck removal; `inkMask` feeds both the trace and the layout drawing), `server/pdf/preflight.ts` |
 | API | `server/routes.ts` (generation streams as Server-Sent Events) |
 | Sign-in | `server/auth.ts`: Supabase accounts (`app_login` RPC, `supabase/migrations/`), else shared `APP_PASSWORD`, else open (development only); signed cookie; `owns()` for per-login jobs and upscales (`ownerId`). |
-| Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx`, `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx`; `components/outputs.tsx` makes a proof / vector PDF from any concept (column buttons and the right panel share it) |
+| Web app | `client/src/` (React + Tailwind): `pages/Workspace.tsx` (resizable sections, `useWorkspaceWidths`), `components/{OrderPanel,ConceptStage,OutputsPanel}.tsx`, `components/Lightbox.tsx` (zoom/pan viewer), `components/outputs.tsx` (proof / vector requests and the "From Classic v2" tags) |
 | AI Upscaler | `server/ai/upscale.ts` (prompt, sizing, fidelity check, tone lock), `server/upscale-routes.ts` (`/api/upscales`), `shared/upscale.ts`, `client/src/pages/Upscaler.tsx`; files in `DATA_DIR/upscales/<id>/`. Independent of jobs and the layout engine. |
+| Vectorizer | `server/vectorize.ts` (reads image/SVG/PDF, `inkMask` + `traceMask`, one-ink PDF + SVG), `server/vector-routes.ts` (`/api/vectors`, `loadVector` ownership), `shared/vectorize.ts`, `client/src/pages/Vectorizer.tsx`; files in `DATA_DIR/vectors/<id>/`. |
+| Logo treatment | catalog group `logoTreatments` (`raised-cast`, `uv-print`), `PlaqueSpec.logoTreatment`; read by the parser, the planner, `render/flat.ts` (`logoForDrawing`), `ai/prompts.ts`, `proofs/description-text.ts` (`logoPhrase`) and `pdf/production.ts`. |
 | Examples | `references/<job>/example.json` + `server/examples.ts` (tests, samples and scripts only; not shown in the app, never seeded) |
-| Tests | `tests/golden.test.ts`, `tests/uploads.test.ts` (several photos, logos and sketches) |
+| Tests | `tests/golden.test.ts`, `tests/uploads.test.ts` (several photos, logos and sketches), `tests/trace.test.ts` (logo reader, logo treatment), `tests/letters.test.ts` (¼" floor), `tests/vectorize.test.ts` |
 
 ## How to work
 - Make small, verified steps. Before you finish any task, run all of these:

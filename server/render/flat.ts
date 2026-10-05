@@ -5,7 +5,7 @@
 import sharp from 'sharp';
 import { mustOption, paintHex } from '../catalog.js';
 import { loadFontFile, measure, resolveFont, textPath } from '../text/fonts.js';
-import { LOGO_RAISED_BELOW } from '../pdf/trace.js';
+import { inkMask, TRACE_EDGE } from '../pdf/trace.js';
 import type { PlaqueLayout, PlaqueSpec, TextLine } from '../../shared/types.js';
 
 /** One line of a layout as SVG path data (centered on cx, or from x when left-aligned). */
@@ -47,20 +47,60 @@ export async function preparePhoto(photo: Buffer, imageOption: string, finishHex
   return sharp(grey).toColourspace('srgb').tint(tint).png().toBuffer();
 }
 
+/** Padding of the raised plate around a UV printed logo, as a share of the logo's size. */
+export const UV_PLATE_PAD = 0.08;
+
 /**
- * A logo as it will be cast: near-white parts (its background, and white details) become
- * see-through, so the recessed field shows there, exactly as the vector production file
- * traces it. Without this a logo on a white background is drawn as a white box.
+ * A logo as it will be made, read with the same tracer the vector production file uses, so
+ * Reference 1 and the production file agree:
+ *  - raised cast: the logo's ink becomes raised metal in the plaque finish and everything
+ *    else is see-through, so the recessed field shows there;
+ *  - UV print: a raised metal plate with the logo printed on it in its own colors.
  */
-export async function logoForDrawing(png: Buffer): Promise<Buffer> {
-  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < data.length; i += 4) {
-    const lum = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-    // Transparent pixels read as white, as the tracer flattens onto white.
-    const a = data[i + 3] / 255;
-    if (lum * a + 255 * (1 - a) >= LOGO_RAISED_BELOW) data[i + 3] = 0;
+export async function logoForDrawing(png: Buffer, treatment = 'raised-cast', metalHex = '#C49A6C'): Promise<Buffer> {
+  const mask = await inkMask(png);
+  const n = parseInt(metalHex.slice(1), 16);
+  const metal = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  if (treatment !== 'uv-print') {
+    const out = Buffer.alloc(mask.width * mask.height * 4);
+    for (let i = 0; i < mask.data.length; i++) {
+      if (!mask.data[i]) continue;
+      out[i * 4] = metal[0];
+      out[i * 4 + 1] = metal[1];
+      out[i * 4 + 2] = metal[2];
+      out[i * 4 + 3] = 255;
+    }
+    return sharp(out, { raw: { width: mask.width, height: mask.height, channels: 4 } }).png().toBuffer();
   }
-  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
+  // The logo in color, at the tracer's working size, cut to the same crop as the mask.
+  const { data: color, info } = await sharp(png)
+    .flatten({ background: '#ffffff' })
+    .resize({ width: TRACE_EDGE, height: TRACE_EDGE, fit: 'inside', withoutEnlargement: false, kernel: 'lanczos3' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const padX = Math.max(2, Math.round(mask.width * UV_PLATE_PAD));
+  const padY = Math.max(2, Math.round(mask.height * UV_PLATE_PAD));
+  const W = mask.width + 2 * padX;
+  const H = mask.height + 2 * padY;
+  const out = Buffer.alloc(W * H * 4);
+  for (let i = 0; i < W * H; i++) {
+    out[i * 4] = metal[0];
+    out[i * 4 + 1] = metal[1];
+    out[i * 4 + 2] = metal[2];
+    out[i * 4 + 3] = 255;
+  }
+  for (let y = 0; y < mask.height; y++) {
+    for (let x = 0; x < mask.width; x++) {
+      if (!mask.data[y * mask.width + x]) continue;
+      const src = ((mask.crop.y + y) * info.width + mask.crop.x + x) * info.channels;
+      const dst = ((y + padY) * W + x + padX) * 4;
+      out[dst] = color[src];
+      out[dst + 1] = color[src + 1];
+      out[dst + 2] = color[src + 2];
+    }
+  }
+  return sharp(out, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
 }
 
 export function layoutToSvg(layout: PlaqueLayout, spec: PlaqueSpec, opts: FlatOptions): string {

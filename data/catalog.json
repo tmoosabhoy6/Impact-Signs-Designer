@@ -603,6 +603,45 @@
       "prompt": "raised lettering in the same metal and finish as the plate, with crisp vertical sides"
     }
   ],
+  "logoTreatments": [
+    {
+      "id": "raised-cast",
+      "label": "Raised Cast",
+      "asset": "assets/logo-treatments/raised-cast.png",
+      "aliases": [
+        "raised cast logo",
+        "raised cast",
+        "cast logo",
+        "raised logo",
+        "logo cast",
+        "cast raised logo",
+        "raised-cast"
+      ],
+      "prompt": "the logo is cast into the plaque itself: every line and shape of the logo is raised metal in the plaque finish, standing proud of the recessed painted field exactly like the lettering, with crisp vertical sides and no plate or panel behind it",
+      "proofLabel": "Raised cast logo",
+      "description": "The logo's lines and shapes are cast as raised metal, like the letters."
+    },
+    {
+      "id": "uv-print",
+      "label": "UV Print",
+      "asset": "assets/logo-treatments/uv-print.png",
+      "aliases": [
+        "uv print logo",
+        "uv printed logo",
+        "uv print",
+        "uv printed",
+        "uv-print",
+        "uv-printed",
+        "printed logo",
+        "logo printed",
+        "uv logo",
+        "full color logo"
+      ],
+      "prompt": "the logo is UV-printed in full detail onto a smooth raised rectangular metal plate in the plaque finish: the plate stands proud of the recessed field with crisp edges like the lettering, and the printed logo lies flat on the plate's brushed surface as ink (its own colors, or dark on the metal), not raised",
+      "proofLabel": "UV printed logo on raised plate",
+      "description": "The logo is UV printed onto a raised rectangular metal plate."
+    }
+  ],
   "coating": "Protective clear polyurethane coating for outdoor durability.",
   "proof": {
     "disclaimer": "Simulated appearance, actual product finish may vary. Effects for illustrative purposes only"
@@ -651,17 +690,17 @@
     {
       "id": "standard",
       "label": "Standard proof",
-      "description": "The Liquid Mercury layout: plaque with red dimension brackets, mounting diagram, finish and paint-fill swatches."
+      "description": "The Liquid Mercury layout, kept for the measured samples and tests only: plaque with red dimension brackets, mounting diagram, finish and paint-fill swatches."
     },
     {
       "id": "description",
       "label": "Description sheet",
-      "description": "Order description header, blue dimension arrows, captioned option tiles and a Visual Scale figure (like the Awe and Raccoon River proofs)."
+      "description": "The proof the studio makes: order description, blue dimension arrows and captioned option tiles (like the Awe and Raccoon River proofs, without their Visual Scale figure)."
     },
     {
       "id": "etched",
       "label": "Order version + outline art",
-      "description": "\"ORDER # – VERSION\" header, side-view mounting, process captions, plus a second page with the outline art for production (like Structure of Merit)."
+      "description": "\"ORDER # – VERSION\" header with a second outline-art page, kept for the measured samples and tests only (like Structure of Merit)."
     }
   ]
 }

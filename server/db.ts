@@ -58,13 +58,9 @@ export function saveProject(p: Project) {
 }
 /** Fills fields added in later versions, so jobs saved earlier keep working. */
 export function upgrade(p: Project): Project {
-  p.proofStyle ??= 'standard';
   p.proofDescription ??= null;
   p.imageAfterBlock ??= null;
-  p.visualScale ??= 'person';
-  p.siteMountHeightIn ??= null;
   p.proofNote ??= null;
-  p.disclaimer ??= 'standard';
   p.logoSlot ??= 'auto';
   // One photo / logo / sketch per job became lists; old jobs read as one-item lists.
   p.uploads = normalizeUploads(p.uploads);
@@ -74,6 +70,7 @@ export function upgrade(p: Project): Project {
     p.spec.stakeLengthIn ??= null;
     p.spec.customFontName ??= null;
     p.spec.customPaint ??= null;
+    p.spec.logoTreatment ??= 'raised-cast';
   }
   return p;
 }
@@ -137,6 +134,24 @@ export function getConcept(id: string): ConceptRecord | null {
 }
 export function listConcepts(projectId: string): ConceptRecord[] {
   return (db.prepare('SELECT data FROM concepts WHERE project_id = ? ORDER BY created_at ASC').all(projectId) as { data: string }[]).map((r) => upgradeConcept(JSON.parse(r.data)));
+}
+
+/**
+ * Versions still "queued" or "running" when the server starts were cut off by a restart: no
+ * image is coming. They are marked as failed so the job is not blocked for ever.
+ */
+export function failAbandonedConcepts(): number {
+  const rows = db.prepare('SELECT data FROM concepts').all() as { data: string }[];
+  let n = 0;
+  for (const r of rows) {
+    const c = upgradeConcept(JSON.parse(r.data) as ConceptRecord);
+    if (c.status !== 'queued' && c.status !== 'running') continue;
+    c.status = 'error';
+    c.error = 'The server restarted while this image was rendering. Generate it again.';
+    saveConcept(c);
+    n++;
+  }
+  return n;
 }
 
 // Outputs

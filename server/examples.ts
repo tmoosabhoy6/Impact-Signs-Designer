@@ -7,7 +7,7 @@ import { blankProject, saveProject } from './db.js';
 import { parseSpec } from './parse/spec.js';
 import { docxToText, parseWording } from './parse/wording.js';
 import { storeUpload } from './uploads.js';
-import type { Project, WordingBlock } from '../shared/types.js';
+import type { Project, ProofStyle, WordingBlock } from '../shared/types.js';
 
 export interface ExampleManifest {
   id: string;
@@ -20,14 +20,15 @@ export interface ExampleManifest {
   photo?: string | string[];
   logo?: string | string[];
   sketch?: string | string[];
-  proofStyle?: Project['proofStyle'];
+  /** Which real proof the sample is compared with (samples and tests only; the app makes Description sheets). */
+  proofStyle?: ProofStyle;
   /** Optional per-line overrides (role / style) applied after parsing the wording. */
   lines?: Partial<Pick<WordingBlock, 'role' | 'style'>>[];
   logoSlot?: Project['logoSlot'];
-  visualScale?: Project['visualScale'];
+  visualScale?: 'person' | 'site' | 'none';
   imageAfterBlock?: number;
   proofNote?: string;
-  disclaimer?: Project['disclaimer'];
+  disclaimer?: 'standard' | 'photo';
   sitePhoto?: string;
   siteMountHeightIn?: number;
   specOverrides?: { widthIn?: number; heightIn?: number; customPaintHex?: string };
@@ -50,13 +51,8 @@ export async function createExampleJob(exampleId: string, createdBy: string, own
   let p: Project = blankProject({ jobNumber: ex.jobNumber, name: ex.name, createdBy, ownerId });
   p.specText = fs.readFileSync(path.join(ex.dir, ex.spec), 'utf8');
   p.logoSlot = ex.logoSlot ?? 'auto';
-  p.proofStyle = ex.proofStyle ?? 'standard';
-  p.visualScale = ex.visualScale ?? 'person';
   p.imageAfterBlock = ex.imageAfterBlock ?? null;
   p.proofNote = ex.proofNote ?? null;
-  p.disclaimer = ex.disclaimer ?? 'standard';
-  p.siteMountHeightIn = ex.siteMountHeightIn ?? null;
-  if (ex.sitePhoto) p = await storeUpload(p, 'site', ex.sitePhoto, fs.readFileSync(path.join(ex.dir, ex.sitePhoto)));
   for (const kind of ['photo', 'logo', 'sketch'] as const) {
     for (const f of [ex[kind] ?? []].flat()) p = await storeUpload(p, kind, f, fs.readFileSync(path.join(ex.dir, f)));
   }

@@ -15,7 +15,7 @@ function streamText(s: PDFRawStream): string {
   }
 }
 
-export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logosTraced?: number; fontLicensed: boolean }): Promise<PreflightItem[]> {
+export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logosTraced?: number; fontLicensed: boolean; logoTreatment?: string }): Promise<PreflightItem[]> {
   const doc = await PDFDocument.load(pdf);
   const items: PreflightItem[] = [];
   const page = doc.getPage(0);
@@ -54,7 +54,13 @@ export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logo
     detail: bad.length ? `Unexpected colors: ${bad.join(' | ')}` : 'Only rich black #231F20 (raised) and white (recessed)',
   });
   const small = layout.warnings.find((w) => /casting minimum/.test(w));
-  items.push({ label: 'Letter heights', ok: !small, detail: small ?? 'All lines meet the 3/8" (mixed case) / 1/4" (all caps) minimum', warnOnly: true });
+  const enlarged = layout.warnings.find((w) => /enlarged to the ¼" minimum/.test(w));
+  items.push({
+    label: 'Letter heights',
+    ok: !small,
+    detail: small ?? `All letters are at least ¼" tall${layout.minLetterIn != null ? ` (smallest ${layout.minLetterIn.toFixed(2)}")` : ''}${enlarged ? `; ${enlarged.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}` : ''}`,
+    warnOnly: true,
+  });
   items.push({
     label: 'Font',
     ok: extra.fontLicensed,
@@ -64,15 +70,17 @@ export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logo
   const logos = layout.logos.length;
   if (logos) {
     const traced = Math.min(logos, extra.logosTraced ?? 0);
+    const uv = extra.logoTreatment === 'uv-print';
+    const made = uv ? 'drawn as a raised UV print plate; the artwork is printed after casting' : 'traced to vector; check against the original';
     items.push({
       label: logos > 1 ? 'Logos' : 'Logo',
       ok: traced === logos,
       detail:
         logos === 1
-          ? traced ? 'Traced to vector; check against the original' : 'No logo file uploaded'
+          ? traced ? made.replace(/^./, (c) => c.toUpperCase()) : 'No logo file uploaded'
           : traced === logos
-            ? `All ${logos} traced to vector; check each against its original`
-            : `${traced} of ${logos} traced to vector; ${logos - traced} position(s) have no logo file`,
+            ? `All ${logos} ${uv ? 'drawn as raised UV print plates; the artwork is printed after casting' : 'traced to vector; check each against its original'}`
+            : `${traced} of ${logos} ${uv ? 'drawn as plates' : 'traced to vector'}; ${logos - traced} position(s) have no logo file`,
       warnOnly: true,
     });
   }

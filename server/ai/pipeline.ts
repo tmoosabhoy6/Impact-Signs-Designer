@@ -67,7 +67,7 @@ export async function layoutDrawing(project: Project, layout: PlaqueLayout, w: n
   const finish = mustOption('finishes', spec.finish);
   const files = layoutFiles(project, layout);
   const photoPngs = await Promise.all(files.photos.map((f) => (f ? preparePhoto(fs.readFileSync(f), spec.imageOption, finish.hex ?? '#C49A6C') : null)));
-  const logoPngs = await Promise.all(files.logos.map((f) => (f ? logoForDrawing(fs.readFileSync(f)) : null)));
+  const logoPngs = await Promise.all(files.logos.map((f) => (f ? logoForDrawing(fs.readFileSync(f), spec.logoTreatment, finish.hex ?? '#C49A6C') : null)));
   return renderFlatPng(layout, spec, { pxPerIn: w / layout.widthIn, widthPx: w, heightPx: h, photoPngs, logoPngs });
 }
 
@@ -135,9 +135,9 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   const logos: CustomerGroup = {
     files: logoFiles, name: 'customer-logo',
     one: (i) => (logoFiles.length === 1
-      ? 'the customer logo (reproduce exactly as raised metal)'
-      : `customer logo ${i + 1} of ${logoFiles.length}, for the ${logoPlaces[i]} logo position in Reference 1 only (reproduce exactly as raised metal)`),
-    sheet: `all ${logoFiles.length} customer logos on one sheet, in this order: ${logoPlaces.map((p, i) => `${i + 1} = the ${p} logo`).join(', ')} (reading the sheet left to right, then down; reproduce each exactly as raised metal in its own position)`,
+      ? 'the customer logo (reproduce exactly, made as LOGO TREATMENT says)'
+      : `customer logo ${i + 1} of ${logoFiles.length}, for the ${logoPlaces[i]} logo position in Reference 1 only (reproduce exactly, made as LOGO TREATMENT says)`),
+    sheet: `all ${logoFiles.length} customer logos on one sheet, in this order: ${logoPlaces.map((p, i) => `${i + 1} = the ${p} logo`).join(', ')} (reading the sheet left to right, then down; reproduce each exactly in its own position, made as LOGO TREATMENT says)`,
   };
   const sketches: CustomerGroup = {
     files: sketchFiles, name: 'customer-sketch',

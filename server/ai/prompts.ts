@@ -84,6 +84,7 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
   const mounting = mustOption('mountings', spec.mounting);
   const lettering = mustOption('lettering', spec.lettering);
   const image = mustOption('imageOptions', spec.imageOption);
+  const logoTreatment = mustOption('logoTreatments', spec.logoTreatment ?? 'raised-cast');
   const orientation = spec.widthIn > spec.heightIn ? 'landscape' : spec.widthIn < spec.heightIn ? 'portrait' : 'square';
   const frames = layout.imageFrames.length;
   const imageTreatment =
@@ -109,9 +110,9 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
     mounting: mounting.prompt,
     imageTreatment,
     logo: opts.logoCount > 1
-      ? `${opts.logoCount} supplied customer logos, each cast as raised metal in the plaque finish, each in its own logo position shown in Reference 1, in that order. Keep them separate; never merge, swap, repeat or restyle them to match each other.`
+      ? `${opts.logoCount} supplied customer logos, each in its own logo position shown in Reference 1, in that order. LOGO TREATMENT: ${logoTreatment.prompt}. Keep them separate; never merge, swap, repeat or restyle them to match each other.`
       : opts.logoCount === 1
-        ? 'the supplied customer logo, cast as raised metal in the plaque finish, in the logo position shown in Reference 1.'
+        ? `the supplied customer logo, in the logo position shown in Reference 1. LOGO TREATMENT: ${logoTreatment.prompt}.`
         : 'none.',
     presetLabel: layout.presetLabel,
     presetDescription: `${layout.presetDescription}${extras.length ? ' ' + extras.join(' ') : ''}`,

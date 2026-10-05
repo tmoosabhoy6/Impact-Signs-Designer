@@ -84,9 +84,6 @@ for (const ex of listExamples()) {
     proofNote: ex.proofNote ?? null,
     fontStated: !parse.assumed.includes('font'),
     disclaimer: ex.disclaimer ?? 'standard',
-    visualScale: ex.visualScale ?? 'person',
-    sitePhoto: ex.sitePhoto ? path.join(ex.dir, ex.sitePhoto) : null,
-    siteMountHeightIn: ex.siteMountHeightIn ?? null,
     productionPdf: prod.pdf,
   });
   const base = `${ex.jobNumber}-${style}`;

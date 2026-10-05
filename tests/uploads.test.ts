@@ -334,13 +334,31 @@ describe('image model references', () => {
 });
 
 describe('logos in the layout drawing', () => {
-  it('shows near-white parts as recessed field, as the vector file traces them', async () => {
-    const png = await logoForDrawing(await logoPng(200));
+  it('raised cast: the logo ink is the metal color and everything else is see-through, as the vector file traces it', async () => {
+    const png = await logoForDrawing(await logoPng(200), 'raised-cast', '#C49A6C');
     const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
-    const alpha = (x: number, y: number) => data[(y * info.width + x) * 4 + 3];
-    expect(alpha(5, 5)).toBe(0); // white background
-    expect(alpha(200, 100)).toBe(0); // white detail inside the mark
-    expect(alpha(60, 60)).toBe(255); // the colored mark itself
+    // The drawing is cut to the logo (the 320 x 120 mark plus a small margin), so sample by position within it.
+    const at = (fx: number, fy: number) => {
+      const i = (Math.round(fy * (info.height - 1)) * info.width + Math.round(fx * (info.width - 1))) * 4;
+      return { r: data[i], g: data[i + 1], b: data[i + 2], a: data[i + 3] };
+    };
+    expect(at(0.5, 0.5).a).toBe(0); // the white circle inside the mark shows the field
+    expect(at(0.1, 0.1)).toMatchObject({ r: 0xc4, g: 0x9a, b: 0x6c, a: 255 }); // the mark is raised metal
+    expect(info.width / info.height).toBeGreaterThan(2.3); // the 320 x 120 mark plus its margin
+    expect(info.width / info.height).toBeLessThan(2.8);
+  });
+  it('UV print: a metal plate with the logo printed on it in its own colors', async () => {
+    const png = await logoForDrawing(await logoPng(200), 'uv-print', '#C49A6C');
+    const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+    const at = (fx: number, fy: number) => {
+      const i = (Math.round(fy * (info.height - 1)) * info.width + Math.round(fx * (info.width - 1))) * 4;
+      return { r: data[i], g: data[i + 1], b: data[i + 2], a: data[i + 3] };
+    };
+    expect(at(0.01, 0.01)).toMatchObject({ r: 0xc4, g: 0x9a, b: 0x6c, a: 255 }); // the plate's padding
+    expect(at(0.5, 0.5)).toMatchObject({ r: 0xc4, g: 0x9a, b: 0x6c, a: 255 }); // the white hole shows the plate
+    const mark = at(0.15, 0.15); // hsl(200,70%,30%): a blue, printed as is
+    expect(mark.a).toBe(255);
+    expect(mark.b).toBeGreaterThan(mark.r + 40);
   });
 });
 
@@ -393,11 +411,9 @@ describe('Fix requests about several photos or logos', () => {
     expect(fallbackInstruction(withFiles(1, 1), 'make the logo bigger')).toMatchObject({ kind: 'edit', layoutPatch: { logoScale: 1.18 } });
   });
 
-  it('sends adding, removing or swapping files to Customer files', () => {
+  it('passes requests about adding, removing or swapping files to the image model as written', () => {
     for (const s of ['add another logo', 'add a second photo', 'remove the Rotary logo', 'swap the two photos', 'reorder the logos']) {
-      const plan = fallbackInstruction(withFiles(2, 2), s);
-      expect(plan.kind, s).toBe('refuse');
-      expect(plan.kind === 'refuse' && plan.reason).toMatch(/03 Customer files/);
+      expect(fallbackInstruction(withFiles(2, 2), s), s).toEqual({ kind: 'visual', restated: s });
     }
     // Appearance requests that mention a photo are still image edits.
     expect(fallbackInstruction(withFiles(2, 2), 'add more contrast to the photos').kind).toBe('visual');

@@ -35,6 +35,9 @@ async function post(url: string, body = {}) {
 async function fixture() {
   const p = await createExampleJob('32241-edwin-feulner', 'Test', ownerId);
   const c = newConceptRecord(p, { preset: 'classic', kind: 'concept', batchId: newId('b'), status: 'done', hasImage: true });
+  // A finished concept has its picture on disk (an image-only edit starts from it).
+  fs.mkdirSync(path.dirname(conceptFile(c, 'image.png')), { recursive: true });
+  await sharp({ create: { width: 400, height: 600, channels: 3, background: '#8a6a43' } }).png().toFile(conceptFile(c, 'image.png'));
   saveConcept(c);
   return { p, c };
 }
@@ -43,16 +46,28 @@ function streamEvents(text: string) {
 }
 
 describe('instruction routes in demo mode', () => {
-  it('returns 422 on refusal without making a record, changing the job or spending', async () => {
+  it('makes any request an image edit instead of refusing, without changing the order', async () => {
     const { p, c } = await fixture();
-    const before = listConcepts(p.id);
-    const spend = spentToday();
     const response = await post(`/concepts/${c.id}/fix`, { instruction: 'use a purple anodized finish' });
-    expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ nearestOptions: expect.arrayContaining(['Verde Patina']) });
-    expect(listConcepts(p.id)).toEqual(before);
+    expect(response.status).toBe(200);
+    const events = streamEvents(await response.text());
+    expect(events[0]).toMatchObject({ type: 'plan', plan: { kind: 'visual', restated: 'use a purple anodized finish' } });
+    const version = listConcepts(p.id).at(-1)!;
+    expect(version).toMatchObject({ kind: 'fix', status: 'done', parentId: c.id, plan: { kind: 'visual' } });
+    expect(version.prompt).toContain('use a purple anodized finish');
     expect(getProject(p.id)).toEqual(p);
-    expect(spentToday()).toBe(spend);
+  });
+  it('edits an older version from its own content when the order has moved on', async () => {
+    const { p, c } = await fixture();
+    // The order changes after the concept was made (a double line border).
+    await (await post(`/concepts/${c.id}/fix`, { instruction: 'make the border double line' })).text();
+    expect(getProject(p.id)?.spec?.border).toBe('double-line');
+    const response = await post(`/concepts/${c.id}/fix`, { instruction: 'make the etching deeper' });
+    expect(response.status).toBe(200);
+    await response.text();
+    const version = listConcepts(p.id).at(-1)!;
+    expect(version).toMatchObject({ kind: 'fix', status: 'done', parentId: c.id, snapshot: { spec: { border: 'single-line' } } });
+    expect(getProject(p.id)?.spec?.border).toBe('double-line');
   });
   it('streams the plan first, regenerates from changed spec, and undoes without removing versions', async () => {
     const { p, c } = await fixture();

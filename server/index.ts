@@ -1,7 +1,10 @@
 import { config } from './config.js';
 import { authMode } from './auth.js';
 import { createApp } from './app.js';
+import { failAbandonedConcepts } from './db.js';
 
+const abandoned = failAbandonedConcepts();
+if (abandoned) console.warn(`${abandoned} image(s) were still rendering when the server last stopped; they are marked as failed.`);
 createApp().listen(config.port, () => {
   console.log(`Plaque Proof Studio on http://localhost:${config.port} (${config.mockAI ? 'demo mode' : 'live OpenAI'})`);
   if (!config.openaiKey && !config.mockAI) console.warn('OPENAI_API_KEY is not set: generation will fail until it is added.');

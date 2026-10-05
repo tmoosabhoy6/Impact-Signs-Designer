@@ -21,6 +21,7 @@ import { isMultiKind, type UploadKind } from '../shared/uploads.js';
 import { PRESETS } from './layout/engine.js';
 import { createExampleJob, listExamples } from './examples.js';
 import { upscaleRouter } from './upscale-routes.js';
+import { vectorRouter } from './vector-routes.js';
 import { checkLimits, conceptFile, contentSnapshot, layoutDrawing, layoutFiles, layoutFor, matchesSnapshot, newConceptRecord, projectForConcept, runConcept, type ConceptEvents } from './ai/pipeline.js';
 import { applyPlan, changesOrder, planInstruction } from './ai/instruct.js';
 import { canvasSize, friendlyError, openai, testImage } from './ai/images.js';
@@ -35,7 +36,7 @@ import type { ConceptRecord, InstructionPlan, LayoutPresetId, OutputRecord, Plaq
 export const api = express.Router();
 const UPLOAD_LIMIT_MB = 60;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: UPLOAD_LIMIT_MB * 1024 * 1024 } });
-const UPLOAD_KINDS: UploadKind[] = ['photo', 'logo', 'sketch', 'site', 'font'];
+const UPLOAD_KINDS: UploadKind[] = ['photo', 'logo', 'sketch', 'font'];
 const ROLES: WordingRole[] = ['headline', 'subhead', 'body', 'footer'];
 const genLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many generations in a minute. Please wait a moment.' } });
 
@@ -141,8 +142,9 @@ api.get('/catalog', (_req, res) => res.json({ catalog: getCatalog(), presets: PR
 api.get('/admin/assets', (_req, res) => res.json({ assets: assetLibraryStatus() }));
 api.get('/admin/prompts', (_req, res) => res.json({ version: promptVersion(), files: PROMPT_FILES.map((f) => ({ name: f, text: readPrompt(f) })) }));
 
-// ---------- AI Upscaler (separate from jobs) ----------
+// ---------- AI Upscaler and Vectorizer (separate from jobs) ----------
 api.use('/upscales', upscaleRouter);
+api.use('/vectors', vectorRouter);
 
 // ---------- Projects ----------
 api.get('/projects', (req, res) => {
@@ -198,7 +200,7 @@ function projectPayload(p: Project) {
     }
   }
   const photoCount = p.spec?.imageOption === 'none' ? 0 : Math.max(1, p.uploads.photos.length);
-  return { project: p, concepts, outputs, layouts, autoDescription: p.spec ? autoDescription(p.spec, p.wording, { fontStated: !(p.parse?.assumed ?? []).includes('font'), photoCount }) : null };
+  return { project: p, concepts, outputs, layouts, autoDescription: p.spec ? autoDescription(p.spec, p.wording, { fontStated: !(p.parse?.assumed ?? []).includes('font'), photoCount, logoCount: p.uploads.logos.length }) : null };
 }
 
 api.get('/projects/:id', ah((req, res) => res.json(projectPayload(loadProject(req)))));
@@ -241,7 +243,7 @@ api.patch('/projects/:id', express.json(), ah((req, res) => {
   if (typeof b.name === 'string') p.name = b.name.trim().slice(0, 120);
   if (b.spec) {
     const s = { ...(p.spec ?? b.spec), ...b.spec };
-    for (const [k, g] of [['material', 'materials'], ['finish', 'finishes'], ['backgroundColor', 'backgroundColors'], ['backgroundTexture', 'backgroundTextures'], ['border', 'borders'], ['font', 'fonts'], ['imageOption', 'imageOptions'], ['mounting', 'mountings'], ['process', 'processes']] as const) {
+    for (const [k, g] of [['material', 'materials'], ['finish', 'finishes'], ['backgroundColor', 'backgroundColors'], ['backgroundTexture', 'backgroundTextures'], ['border', 'borders'], ['font', 'fonts'], ['imageOption', 'imageOptions'], ['mounting', 'mountings'], ['process', 'processes'], ['logoTreatment', 'logoTreatments']] as const) {
       mustOption(g, s[k]);
     }
     if (s.backgroundColor === 'custom') {
@@ -261,12 +263,8 @@ api.patch('/projects/:id', express.json(), ah((req, res) => {
   }
   if (b.wording?.blocks) p.wording = { blocks: cleanBlocks(b.wording.blocks), notes: p.wording?.notes ?? [] };
   if (['auto', 'top', 'middle', 'bottom'].includes(b.logoSlot)) p.logoSlot = b.logoSlot;
-  if (['standard', 'description', 'etched'].includes(b.proofStyle)) p.proofStyle = b.proofStyle;
-  if (['person', 'site', 'none'].includes(b.visualScale)) p.visualScale = b.visualScale;
-  if (['standard', 'photo'].includes(b.disclaimer)) p.disclaimer = b.disclaimer;
   if (b.proofNote === null || typeof b.proofNote === 'string') p.proofNote = b.proofNote ? String(b.proofNote).slice(0, 400) : null;
   if (b.imageAfterBlock === null || Number.isInteger(b.imageAfterBlock)) p.imageAfterBlock = b.imageAfterBlock;
-  if (b.siteMountHeightIn === null || (typeof b.siteMountHeightIn === 'number' && b.siteMountHeightIn > 0)) p.siteMountHeightIn = b.siteMountHeightIn;
   if (b.proofDescription === null || typeof b.proofDescription === 'string') p.proofDescription = b.proofDescription ? String(b.proofDescription).slice(0, 2000) : null;
   saveProject(p);
   res.json(projectPayload(p));
@@ -424,19 +422,20 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   // edit the current picture to the new layout drawing; image-only changes edit it in place.
   const structural = changesOrder(plan);
   const previous = structural ? contentSnapshot(p) : undefined;
-  if (!structural && c.snapshot && !matchesSnapshot(p, c.snapshot)) {
-    return res.status(409).json({ error: 'Use this version first to restore its options, wording and files, then apply the visual edit.' });
-  }
-  applyPlan(p, plan, c.preset);
-  if (!p.wording?.blocks.length) throw new Error('Add the customer wording first.');
-  if (p.spec?.imageOption !== 'none' && !p.uploads.photos.length) throw new Error('Upload the photo before requesting this image treatment.');
+  // An image-only edit of an older version works from that version's own content, so the
+  // picture being edited and the layout drawing it is checked against agree. The order as
+  // it is now is left alone.
+  const base = !structural && c.snapshot && !matchesSnapshot(p, c.snapshot) ? projectForConcept(p, c) : p;
+  applyPlan(base, plan, c.preset);
+  if (!base.wording?.blocks.length) throw new Error('Add the customer wording first.');
+  if (base.spec?.imageOption !== 'none' && !base.uploads.photos.length) throw new Error('Upload the photo before requesting this image treatment.');
   // Validate the changed layout before saving any order change.
-  layoutFor(p, c.preset);
+  layoutFor(base, c.preset);
   if (previous) p.selectedConceptId = null;
   const regenerate = plan.kind === 'spec' || (plan.kind === 'edit' && !!plan.specPatch);
-  const rec = newConceptRecord(p, { preset: c.preset, kind: regenerate ? 'regenerate' : 'fix', batchId: c.batchId, parentId: c.id, note: plan.restated, plan, previous });
+  const rec = newConceptRecord(base, { preset: c.preset, kind: regenerate ? 'regenerate' : 'fix', batchId: c.batchId, parentId: c.id, note: plan.restated, plan, previous });
   db.transaction(() => { if (previous) saveProject(p); saveConcept(rec); })();
-  await runStreamed(res, p, [rec], pickQuality(req.body?.quality) ?? 'high', plan);
+  await runStreamed(res, base, [rec], pickQuality(req.body?.quality) ?? 'high', plan);
 }));
 
 api.post('/concepts/:id/undo', express.json(), ah((req, res) => {
@@ -524,16 +523,7 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
   const layout = layoutFor(p, c.preset);
   // Versions count per layout: three proofs of three layouts are three options, not v1-v3.
   const version = listOutputs(p.id).filter((x) => x.kind === 'proof' && outputPreset(x) === c.preset).length + 1;
-  let productionPdf: Buffer | null = null;
-  if (p.proofStyle === 'etched') {
-    productionPdf = (
-      await buildProductionPdf({
-        jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout,
-        logos: productionLogos(p, layout), customFontFile: uploadPath(p, 'font'),
-      })
-    ).pdf;
-  }
-  const pdf = await buildProof(p.proofStyle, {
+  const pdf = await buildProof('description', {
     jobNumber: p.jobNumber || 'draft',
     version,
     spec: p.spec!,
@@ -541,13 +531,8 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
     layout,
     plaqueImage: fs.readFileSync(conceptFile(c, 'image.png')),
     proofNote: p.proofNote,
-    disclaimer: p.disclaimer,
     description: p.proofDescription,
     fontStated: !(p.parse?.assumed ?? []).includes('font'),
-    visualScale: p.visualScale,
-    sitePhoto: uploadPath(p, 'site'),
-    siteMountHeightIn: p.siteMountHeightIn,
-    productionPdf,
   });
   const fileName = `Proof - ${p.jobNumber || 'draft'} - ${presetLabel(c.preset)}${version > 1 ? ` v${version}` : ''}.pdf`;
   const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'proof', conceptId: c.id, preset: c.preset, fileName, preflight: null, createdAt: now() };
@@ -571,7 +556,7 @@ api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
     jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout, logos,
     customFontFile: uploadPath(p, 'font'),
   });
-  const checks = await preflight(result.pdf, layout, { logosTraced: logos.filter((l) => l.png).length, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed });
+  const checks = await preflight(result.pdf, layout, { logosTraced: logos.filter((l) => l.png).length, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed, logoTreatment: p.spec!.logoTreatment });
   // The layout name keeps the vector files of the three concepts apart once downloaded.
   const fileName = result.fileName.replace(/_production\.pdf$/, `_${presetLabel(preset).replace(/\s+/g, '_')}_production.pdf`);
   const o: OutputRecord = { id: newId('o'), projectId: p.id, kind: 'production', conceptId: c?.id ?? null, preset, fileName, preflight: checks, createdAt: now() };

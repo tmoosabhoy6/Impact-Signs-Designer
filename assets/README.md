@@ -34,6 +34,12 @@ If an icon is missing, the proof falls back to a flat color square (paint colors
 | Brown | `assets/background-colors/brown.jpg` |
 | Duranodic Bronze | `assets/background-colors/duranodic-bronze.jpg` |
 
+## Logo treatments (`assets/logo-treatments/`), shown next to the Logo treatment choice and sent to the image model
+| Option | File |
+|---|---|
+| Raised Cast (the logo's lines are cast as raised metal) | `assets/logo-treatments/raised-cast.png` |
+| UV Print (the logo is printed on a raised metal plate) | `assets/logo-treatments/uv-print.png` |
+
 ## Background textures (`assets/background-textures/`), sent to the image model only
 | Option | File |
 |---|---|

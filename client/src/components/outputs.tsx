@@ -71,12 +71,16 @@ export function WordingCheckWarning({ check, onConfirm }: { check: WordingCheck;
   );
 }
 
-/** "Feature Image v2": the concept a file came from, numbered as the chips under that column. */
-export function outputTag(o: OutputRecord, concepts: ConceptRecord[], catalog: Catalog): string {
-  const c = concepts.find((x) => x.id === o.conceptId);
-  const preset = o.preset ?? c?.preset;
-  const label = catalog.presets.find((x) => x.id === preset)?.label ?? '';
-  if (!c) return label;
+/** "Feature Image v2": a concept's layout and version, numbered as the chips under its column. */
+export function conceptTag(c: ConceptRecord, concepts: ConceptRecord[], catalog: Catalog): string {
+  const label = catalog.presets.find((x) => x.id === c.preset)?.label ?? c.preset;
   const versions = concepts.filter((x) => x.preset === c.preset).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   return `${label} v${versions.findIndex((x) => x.id === c.id) + 1}`;
+}
+
+/** The concept a file came from, as conceptTag; just the layout for older files. */
+export function outputTag(o: OutputRecord, concepts: ConceptRecord[], catalog: Catalog): string {
+  const c = concepts.find((x) => x.id === o.conceptId);
+  if (c) return conceptTag(c, concepts, catalog);
+  return catalog.presets.find((x) => x.id === o.preset)?.label ?? '';
 }

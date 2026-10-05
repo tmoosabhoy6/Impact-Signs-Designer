@@ -19,8 +19,8 @@ function ImageBox({ title, src, href, caption }: { title: string; src: string; h
         <span className="label">{title}</span>
         <span className="font-mono text-[12px] text-muted">{caption}</span>
       </figcaption>
-      <a href={href} target="_blank" rel="noreferrer" title="Open full size in a new tab" className="grid aspect-[4/3] place-items-center overflow-hidden border border-line bg-paper">
-        <img src={src} alt={title} className="h-full w-full object-contain" />
+      <a href={href} target="_blank" rel="noreferrer" title="Open full size in a new tab" className="relative block aspect-[4/3] overflow-hidden border border-line bg-paper transition-colors hover:border-navy/40">
+        <img src={src} alt={title} className="fade-in absolute inset-0 h-full w-full object-contain" />
       </a>
     </figure>
   );

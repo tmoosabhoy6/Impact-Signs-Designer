@@ -14,6 +14,8 @@ export interface PlaqueSpec {
   lettering: string;
   /** 'cast' (sand-cast, the default) or 'reverse-etched'. */
   process: string;
+  /** How logos are made: 'raised-cast' (the default) or 'uv-print' (printed on a raised plate). */
+  logoTreatment: string;
   /** Plate thickness in inches when the order states it (e.g. 0.25). */
   thicknessIn: number | null;
   /** Garden stake length in inches (e.g. 24) when mounting is a garden stake. */
@@ -279,6 +281,7 @@ export interface Uploads {
   extra?: { file: string; name: string }[];
 }
 
+/** Proof templates. The app makes the Description sheet; the others are kept for the measured samples and tests. */
 export type ProofStyle = 'standard' | 'description' | 'etched';
 
 export interface Project {
@@ -293,22 +296,14 @@ export interface Project {
   uploads: Uploads;
   selectedConceptId: string | null;
   logoSlot: 'auto' | 'top' | 'middle' | 'bottom';
-  /** Which locked proof template to use. */
-  proofStyle: ProofStyle;
-  /** Designer-edited DESCRIPTION text for the Description-sheet proof (null = written from the spec). */
+  /** Designer-edited DESCRIPTION text for the proof (null = written from the spec). */
   proofDescription: string | null;
   /** Put the image after this wording block (index); null = image at the top / left. */
   imageAfterBlock: number | null;
   /** Designer layout adjustments per layout column (from Fix instructions). */
   layoutAdjust?: Partial<Record<LayoutPresetId, LayoutAdjust>>;
-  /** Description sheet: person figure, photo of the site, or no scale panel. */
-  visualScale: 'person' | 'site' | 'none';
-  /** Height of the plaque's center above the floor/ground on the site photo, in inches. */
-  siteMountHeightIn: number | null;
   /** Red note printed under the plaque on the proof. */
   proofNote: string | null;
-  /** Proof footer wording. */
-  disclaimer: 'standard' | 'photo';
   createdBy: string;
   /** Signed-in account that owns this job (missing on jobs from before sign-in accounts). */
   ownerId?: string;

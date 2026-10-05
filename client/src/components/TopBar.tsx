@@ -6,8 +6,14 @@ export function Logo({ className = 'h-6' }: { className?: string }) {
   return <span role="img" aria-label="Impact Signs" className={`brand-logo aspect-[1210/260] shrink-0 ${className}`} />;
 }
 
+/** The tools next to the studio: each is its own page, independent of jobs. */
+const TOOLS = [
+  { href: '/upscaler', label: 'AI Upscaler' },
+  { href: '/vectorizer', label: 'Vectorizer' },
+];
+
 export function TopBar({ me, center, right }: { me: Me; center?: ReactNode; right?: ReactNode }) {
-  const onUpscaler = window.location.pathname.startsWith('/upscaler');
+  const path = window.location.pathname;
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white">
       <div className="flex h-14 items-center gap-4 px-4 md:px-5">
@@ -23,19 +29,27 @@ export function TopBar({ me, center, right }: { me: Me; center?: ReactNode; righ
           <span className="hidden h-5 w-px bg-line sm:block" />
           <span className="hidden font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-ink sm:block">Plaque Proof Studio</span>
         </a>
-        <a
-          href="/upscaler"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/upscaler');
-          }}
-          aria-current={onUpscaler ? 'page' : undefined}
-          className={`${center ? 'hidden sm:flex' : 'flex'} h-14 shrink-0 items-center border-b-[3px] px-1 font-display text-[13px] font-semibold uppercase tracking-[0.08em] transition-colors sm:text-[14px] ${
-            onUpscaler ? 'border-gold text-navy' : 'border-transparent text-graphite hover:text-accent'
-          }`}
-        >
-          AI Upscaler
-        </a>
+        <nav className={`${center ? 'hidden sm:flex' : 'flex'} h-14 shrink-0 items-stretch gap-2 sm:gap-3`} aria-label="Tools">
+          {TOOLS.map((t) => {
+            const on = path.startsWith(t.href);
+            return (
+              <a
+                key={t.href}
+                href={t.href}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(t.href);
+                }}
+                aria-current={on ? 'page' : undefined}
+                className={`flex items-center border-b-[3px] px-1 font-display text-[12px] font-semibold uppercase tracking-[0.06em] transition-colors duration-150 sm:text-[14px] sm:tracking-[0.08em] ${
+                  on ? 'border-gold text-navy' : 'border-transparent text-graphite hover:border-line hover:text-accent'
+                }`}
+              >
+                {t.label}
+              </a>
+            );
+          })}
+        </nav>
         <div className="min-w-0 flex-1">{center}</div>
         <div className="flex shrink-0 items-center gap-3 text-[13px]">
           {right}
@@ -50,13 +64,13 @@ export function TopBar({ me, center, right }: { me: Me; center?: ReactNode; righ
               e.preventDefault();
               navigate('/admin');
             }}
-            className="text-graphite hover:text-accent"
+            className="hidden text-graphite transition-colors hover:text-accent sm:inline"
           >
             Admin
           </a>
           {me.passwordRequired && (
             <button
-              className="text-graphite hover:text-accent"
+              className="text-graphite transition-colors hover:text-accent"
               onClick={async () => {
                 await api.post('/logout');
                 window.location.href = '/';

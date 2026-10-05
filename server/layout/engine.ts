@@ -250,6 +250,28 @@ export function capHeightRatio(font: OTFont): number {
   return os2?.sCapHeight ? os2.sCapHeight / font.unitsPerEm : 0.66;
 }
 
+/** Letters are cast at least this tall; punctuation and digits have no minimum. */
+export const MIN_LETTER_IN = 0.25;
+
+/**
+ * Height of a line's letters per inch of em size: the cap height for capitals (and digits,
+ * which are cap height), about two thirds of it for lowercase (3/8" caps give 1/4"
+ * lowercase), small capitals at their scale. Null when the line is only punctuation.
+ */
+export function letterRatio(face: OTFont, text: string, style?: TextStyle): number | null {
+  if (!/[A-Za-z0-9]/.test(text)) return null;
+  const cap = capHeightRatio(face);
+  const hasLower = /[a-z]/.test(text);
+  if (style?.smallCaps && hasLower) return cap * SMALL_CAPS_SCALE;
+  return hasLower ? cap * (0.25 / 0.375) : cap;
+}
+
+/** The smallest em size (inches) at which this line's letters are MIN_LETTER_IN tall. */
+function minSizeFor(face: OTFont, text: string, style?: TextStyle): number {
+  const ratio = letterRatio(face, text, style);
+  return ratio ? MIN_LETTER_IN / ratio : 0;
+}
+
 /** Stacks items vertically; returns positions relative to the stack's top (y = 0). */
 function stack(items: Item[], B: number, gapMul: number, spacing = 1): Placed {
   const out: Placed = { lines: [], rules: [], height: 0, maxLineWidth: 0 };
@@ -280,6 +302,9 @@ function stack(items: Item[], B: number, gapMul: number, spacing = 1): Placed {
           : prev.role === item.role ? (item.role === 'headline' || item.role === 'subhead' ? 1.25 * (item.size / B) : GAP.paragraph)
           : GAP.headlineToSubhead;
         first = cursor + g * B * (prev.role === item.role ? spacing : gapMul);
+        // Never closer than the previous line's descent plus this line's cap height: lines
+        // held at the ¼" minimum are larger than the base size the gaps scale with.
+        first = Math.max(first, cursor + 0.28 * prev.size + (cap + 0.12) * item.size);
       }
       const rows = new Map<number, number>(); // row index -> baseline (columns share rows)
       item.lines.forEach((l, i) => {
@@ -306,8 +331,16 @@ function roleMul(role: WordingRole, p: PresetDef) {
   return role === 'headline' ? p.headline : role === 'subhead' ? p.subhead : role === 'footer' ? 0.85 : p.body;
 }
 
-function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number, spacing = 1): Item[] {
+function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number, spacing = 1): { items: Item[]; raised: number } {
   const items: Item[] = [];
+  // Lines whose letters would be cast smaller than the minimum are set at the minimum instead.
+  let raised = 0;
+  const floor = (size: number, face: OTFont, text: string, style: TextStyle) => {
+    const min = minSizeFor(face, text, style);
+    if (size >= min - 1e-9) return size;
+    raised++;
+    return min;
+  };
   // Wider spacing opens the line leading a little too.
   const lead = 1 + (spacing - 1) * 0.4;
   const blocks = (input.wording?.blocks ?? []).filter((b) => b.text.trim());
@@ -324,6 +357,7 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
       const colW = maxWidth / cols;
       const longest = Math.max(...entries.map((e) => measure(face, e, size, style.smallCaps)));
       if (longest > colW * 0.94) size = Math.max(size * 0.4, (size * colW * 0.94) / longest);
+      size = floor(size, face, b.text, style);
       const lines: (StyledText & { row: number })[] = entries.map((text, i) => {
         const c = Math.floor(i / perCol);
         const row = i % perCol;
@@ -338,13 +372,14 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
       const natural = measure(face, b.text, size, style.smallCaps);
       if (natural > maxWidth) size = Math.max(size * 0.75, (size * maxWidth) / natural);
     }
+    size = floor(size, face, b.text, style);
     const leading = (b.role === 'body' || b.role === 'footer' ? GAP.bodyLeading * size : 1.15 * size) * lead;
     const wrapped = wrapText(face, b.text, size, maxWidth, style.smallCaps);
     const width = Math.max(0, ...wrapped.map((t) => measure(face, t, size, style.smallCaps)));
     const lines: StyledText[] = wrapped.map((text) => (style.align === 'left' ? { text, dx: 0, left: -maxWidth / 2 } : { text, dx: 0 }));
     items.push({ kind: 'text', role: b.role, lines, size, leading, style, face, faceFile: rf.file, width });
   }
-  return items;
+  return { items, raised };
 }
 
 export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): PlaqueLayout {
@@ -423,6 +458,7 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
   let frameRect: Rect | null = null;
   let frameCells: Rect[] = [];
   let scale = 1;
+  let raised = 0;
   const textOnly = !hasImage;
   // Text-only plaques set their type large (Kathleen Awe, Sax-Zim Bog, Hadar Family Hall).
   const dense = (input.wording?.blocks.length ?? 0) >= 6;
@@ -444,7 +480,9 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
       colW = contentW - fw - gutter;
       frameRect = { x: content.x + pad, y: content.y + (content.h - fh) / 2, w: fw, h: fh };
       frameCells = group.cells;
-      const items = textItems(input, B, preset, colW, adj.spacing);
+      const texts = textItems(input, B, preset, colW, adj.spacing);
+      raised = texts.raised;
+      const items = texts.items;
       if (hasLogo) {
         const logo = logoItem(rowBudget(0.5 * colW, logos.length, 0.95 * colW) * scale, 0.16 * contentH * scale, colW);
         if (slot === 'bottom') items.push(logo);
@@ -458,7 +496,9 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
       colX = content.x;
       colW = content.w;
       const maxText = Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
-      const texts = textItems(input, B, preset, maxText, adj.spacing);
+      const made = textItems(input, B, preset, maxText, adj.spacing);
+      raised = made.raised;
+      const texts = made.items;
       const items: Item[] = [];
       let frame: Item | null = null;
       if (hasImage) {
@@ -491,7 +531,12 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
     }
   }
   if (!best) throw new Error('Layout failed');
-  if (scale < 0.25) warnings.push('The wording does not fit comfortably at a readable size. Consider a larger plaque or less text.');
+  if (scale < 0.25) {
+    warnings.push(raised
+      ? `At the ¼" minimum letter height the wording does not fit this plaque. Shorten the wording or use a larger plaque.`
+      : 'The wording does not fit comfortably at a readable size. Consider a larger plaque or less text.');
+  }
+  if (raised) warnings.push(`${raised} line${raised > 1 ? 's were' : ' was'} enlarged to the ¼" minimum letter height for casting.`);
 
   // Center the stack vertically in its area (or move it up/down within the free space).
   const areaTop = imageLeft ? content.y + pad : content.y;
@@ -524,15 +569,13 @@ export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): Pla
     ? best.logo.cells.map((c, i) => ({ ...offset(c, logoRow.x, logoRow.y), ...(logos[i].id ? { logoId: logos[i].id } : {}) }))
     : [];
 
-  // Minimum letter heights: capitals ¼", mixed case ⅜" cap height (≈ ¼" lowercase).
+  // Height of the smallest letters (lines without letters do not count).
   let minLetterIn = Infinity;
   for (const l of lines) {
-    const cap = capHeightRatio(resolveFontFace(l.face) ?? main.font);
-    const hasLower = /[a-z]/.test(l.text);
-    const letter = cap * l.size * (l.style?.smallCaps && hasLower ? SMALL_CAPS_SCALE : 1);
-    minLetterIn = Math.min(minLetterIn, hasLower && !l.style?.smallCaps ? letter * (0.25 / 0.375) : letter);
+    const ratio = letterRatio(resolveFontFace(l.face) ?? main.font, l.text, l.style);
+    if (ratio) minLetterIn = Math.min(minLetterIn, ratio * l.size);
   }
-  if (minLetterIn < 0.25 - 1e-3) {
+  if (minLetterIn < MIN_LETTER_IN - 1e-3) {
     warnings.push(`The smallest letters are ${minLetterIn.toFixed(2)}" tall, below the ¼" casting minimum.`);
   }
 

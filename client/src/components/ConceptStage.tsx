@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Download, FileCheck2, FileCog, Maximize2, RefreshCw, Wand2, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AlertTriangle, Check, CheckCircle2, Maximize2, RefreshCw, Wand2 } from 'lucide-react';
 import { api, ApiError, conceptUrl, stream, type ProjectPayload } from '../api';
 import type { Catalog } from '../catalog';
 import { Button, Notice, Spinner, fmtUsd } from './ui';
-import { useMakeOutput, WordingCheckWarning } from './outputs';
+import { Lightbox } from './Lightbox';
 import type { ConceptRecord, InstructionPlan } from '../../../shared/types';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void; reload: () => void };
@@ -23,12 +23,6 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   const [quality, setQuality] = useState('high');
   const [lightbox, setLightbox] = useState<ConceptRecord | null>(null);
   const [plans, setPlans] = useState<Record<string, InstructionPlan>>({});
-  useEffect(() => {
-    if (!lightbox) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setLightbox(null);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [lightbox]);
 
   const concepts = useMemo(() => {
     const map = new Map(data.concepts.map((c) => [c.id, c]));
@@ -71,7 +65,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
           <h2 className="font-display text-[15px] font-semibold uppercase tracking-[0.08em] text-white">
             <span className="mr-2 font-mono text-[12px] text-bronze">04</span>Concepts
           </h2>
-          <p className="text-[13px] text-white/55">Three production-realistic layouts. Make a proof and vector PDF from any of them.</p>
+          <p className="text-[13px] text-white/55">Three production-realistic layouts. “Use this one” sends a concept to the proof panel; do that for each one you want to proof.</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-2 text-[12px] text-white/60">
@@ -110,7 +104,6 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
             plan={plans[preset.id]}
             wide={wide}
             onOpen={setLightbox}
-            onChange={onChange}
             onSelect={async (c) => {
               setError('');
               try { onChange(await api.post<ProjectPayload>(`/projects/${p.id}/select`, { conceptId: c.id })); }
@@ -132,24 +125,18 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
       </div>
 
       {lightbox && (
-        <div role="dialog" aria-modal aria-label="Concept full size" className="fixed inset-0 z-50 grid place-items-center bg-black/85 p-6" onClick={() => setLightbox(null)}>
-          <button className="absolute top-4 right-4 text-white/70 hover:text-white" aria-label="Close" onClick={() => setLightbox(null)} autoFocus>
-            <X className="h-6 w-6" />
-          </button>
-          <figure className="flex max-h-full max-w-full flex-col items-center gap-3">
-            <img src={conceptUrl(lightbox, 'image.png')} alt="Concept full size" className="min-h-0 max-w-full flex-1 object-contain" />
-            <figcaption className="font-display text-[13px] font-semibold uppercase tracking-wider text-white/70">
-              {catalog.presets.find((x) => x.id === lightbox.preset)?.label ?? lightbox.preset} · Esc to close
-            </figcaption>
-          </figure>
-        </div>
+        <Lightbox
+          src={conceptUrl(lightbox, 'image.png')}
+          title={`${catalog.presets.find((x) => x.id === lightbox.preset)?.label ?? lightbox.preset} concept`}
+          onClose={() => setLightbox(null)}
+        />
       )}
     </div>
   );
 }
 
 function PresetColumn({
-  preset, concepts, data, partials, ratio, running, plan, wide, onOpen, onChange, onSelect, onRegenerate, onFix, onUndo,
+  preset, concepts, data, partials, ratio, running, plan, wide, onOpen, onSelect, onRegenerate, onFix, onUndo,
 }: {
   preset: { id: string; label: string; description: string };
   wide: boolean;
@@ -160,7 +147,6 @@ function PresetColumn({
   running: boolean;
   plan?: InstructionPlan;
   onOpen: (c: ConceptRecord) => void;
-  onChange: (d: ProjectPayload) => void;
   onSelect: (c: ConceptRecord) => void;
   onRegenerate: (c: ConceptRecord) => void;
   onFix: (c: ConceptRecord, instruction: string) => void;
@@ -175,22 +161,22 @@ function PresetColumn({
   const busy = current && (current.status === 'running' || current.status === 'queued');
   const partial = current ? partials[current.id] : undefined;
   const shownPlan = plan ?? current?.plan;
-  // Proof and vector file for the version shown here, whether or not it is the selected one.
-  const out = useMakeOutput(p.id, current?.id ?? null, onChange);
-  const made = (kind: 'proof' | 'production') => data.outputs.find((o) => o.kind === kind && o.conceptId === current?.id);
   const planNote = shownPlan?.kind === 'refuse' ? shownPlan.reason
-    : shownPlan?.kind === 'visual' ? 'Visual edit to this image'
+    : shownPlan?.kind === 'visual' ? 'Sent to the image model as written (changes the image only; the proof and vector file keep the current order)'
     : shownPlan ? `Interpreted as: ${shownPlan.restated} ${planScope(shownPlan)}` : '';
 
   return (
     <article
-      className={`flex min-w-0 flex-col gap-3 rounded-[4px] border bg-stage-2/70 p-3.5 ${wide ? '' : '@[560px]:row-span-3 @[560px]:grid @[560px]:grid-cols-[minmax(0,1fr)] @[560px]:grid-rows-subgrid'} ${selected ? 'border-bronze ring-1 ring-bronze' : 'border-white/10'}`}
+      aria-current={selected ? 'true' : undefined}
+      className={`concept-column flex min-w-0 flex-col gap-3 rounded-[4px] border bg-stage-2/70 p-3.5 ${wide ? '' : '@[560px]:row-span-3 @[560px]:grid @[560px]:grid-cols-[minmax(0,1fr)] @[560px]:grid-rows-subgrid'} ${selected ? 'is-selected border-bronze' : 'border-white/10'}`}
     >
       <header className="min-w-0">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-display text-[15px] font-semibold uppercase tracking-[0.06em] text-white">{preset.label}</h3>
           {selected && (
-            <span className="shrink-0 rounded-[3px] bg-bronze px-1.5 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-ink">Selected</span>
+            <span className="flex shrink-0 items-center gap-1 rounded-[3px] bg-ok px-1.5 py-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-white">
+              <Check className="h-3 w-3" /> On the proof
+            </span>
           )}
         </div>
         <p className="mt-0.5 text-[12px] leading-snug text-white/50">{preset.description}</p>
@@ -199,8 +185,8 @@ function PresetColumn({
       <div className="relative mx-auto w-full min-w-0 self-start" style={{ maxWidth: ratio < 1 ? 440 : '100%' }}>
         <div className="relative w-full" style={{ aspectRatio: String(ratio) }}>
           {current?.hasImage ? (
-            <button className="group plaque-shadow absolute inset-0" onClick={() => onOpen(current)} aria-label="View full size">
-              <img src={`${conceptUrl(current, 'preview.jpg')}?v=${current.id}`} alt={`${preset.label} concept`} className="h-full w-full object-fill" />
+            <button className="group plaque-shadow concept-image absolute inset-0" onClick={() => onOpen(current)} aria-label="View full size">
+              <img src={`${conceptUrl(current, 'preview.jpg')}?v=${current.id}`} alt={`${preset.label} concept`} className="fade-in h-full w-full object-fill" />
               <Maximize2 className="absolute right-2 bottom-2 h-4 w-4 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100" />
             </button>
           ) : partial ? (
@@ -214,6 +200,11 @@ function PresetColumn({
             </div>
           ) : (
             <div className="absolute inset-0 grid place-items-center border border-dashed border-white/15 text-[12px] text-white/40">Layout appears once the order is read</div>
+          )}
+          {selected && (
+            <span className="selected-check absolute top-2 left-2 z-10 grid h-8 w-8 place-items-center rounded-full bg-ok text-white shadow-lg ring-2 ring-white/80" title="This concept goes on the proof" aria-hidden>
+              <Check className="h-5 w-5" strokeWidth={3} />
+            </span>
           )}
           {busy && (
             <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-black/60 px-2 py-1.5 text-[12px] text-white">
@@ -260,37 +251,13 @@ function PresetColumn({
           {current.hasImage && (
             <>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant={selected ? 'stage' : 'primary'} className="flex-1 whitespace-nowrap" disabled={!!selected || running} onClick={() => onSelect(current)}>
-                  {selected ? 'Selected for proof' : 'Use this one'}
+                <Button size="sm" variant={selected ? 'stage' : 'primary'} className="flex-1 whitespace-nowrap" disabled={!!selected || running} onClick={() => onSelect(current)} title={selected ? 'This concept is on the proof panel' : 'Send this concept to the proof panel'}>
+                  {selected ? <><Check className="h-3.5 w-3.5" /> On the proof</> : 'Use this one'}
                 </Button>
                 <Button size="sm" variant="stage" className="shrink-0" disabled={running} onClick={() => { setIndex(null); onRegenerate(current); }} title="Generate this layout again">
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              {/* Side by side when they fit; a narrow column (1366 px laptop) stacks them. */}
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="stage" className="grow whitespace-nowrap px-2" disabled={running || !!out.busy} busy={out.busy === 'proof'} onClick={() => out.makeProof()} title={`Customer proof of ${preset.label} v${concepts.indexOf(current) + 1}`}>
-                  {out.busy !== 'proof' && <FileCheck2 className="h-3.5 w-3.5" />} Proof PDF
-                </Button>
-                <Button size="sm" variant="stage" className="grow whitespace-nowrap px-2" disabled={running || !!out.busy} busy={out.busy === 'production'} onClick={() => out.makeProduction()} title={`Vector production file of ${preset.label} v${concepts.indexOf(current) + 1}`}>
-                  {out.busy !== 'production' && <FileCog className="h-3.5 w-3.5" />} Vector PDF
-                </Button>
-              </div>
-              {out.error && <Notice tone="error">{out.error.message}</Notice>}
-              {out.check && <WordingCheckWarning check={out.check} onConfirm={() => out.makeProof(true)} />}
-              {(made('proof') || made('production')) && (
-                <ul className="space-y-1" aria-label={`Files from ${preset.label}`}>
-                  {[made('proof'), made('production')].map((o) => o && (
-                    <li key={o.id} className="flex min-w-0 items-center gap-1.5 text-[12px] text-white/70">
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#7fd1a6]" />
-                      <a href={`/api/outputs/${o.id}/download?inline=1`} target="_blank" rel="noreferrer" className="min-w-0 truncate hover:text-white hover:underline" title={o.fileName}>{o.fileName}</a>
-                      <a href={`/api/outputs/${o.id}/download`} className="ml-auto shrink-0 text-white/80 hover:text-white" aria-label={`Download ${o.fileName}`} title="Download">
-                        <Download className="h-3.5 w-3.5" />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
               <form
                 className="flex items-start gap-2"
                 onSubmit={(e) => {
@@ -313,9 +280,9 @@ function PresetColumn({
                     }
                   }}
                   rows={2}
-                  placeholder='Change anything, e.g. "move the text up"'
+                  placeholder="Describe any change to this image"
                   className="min-h-[52px] min-w-0 flex-1 resize-y rounded-[3px] border border-white/15 bg-white/5 px-2 py-1.5 text-[12.5px] leading-snug text-white placeholder:text-white/35 outline-none focus:border-white/40"
-                  aria-label="Describe a fix for this image"
+                  aria-label="Describe a change for this image"
                   aria-describedby={planNote ? `plan-${preset.id}` : undefined}
                   maxLength={1000}
                 />

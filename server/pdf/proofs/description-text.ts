@@ -68,19 +68,27 @@ export function imagePhrase(spec: PlaqueSpec, count = 1): string {
   }
 }
 
+/** "Includes raised cast logo." / "Includes UV printed logo on raised plate." */
+export function logoPhrase(spec: PlaqueSpec, count = 0): string {
+  if (count < 1) return '';
+  const many = count > 1;
+  if (spec.logoTreatment === 'uv-print') return many ? `Includes ${count} UV printed logos on raised plates.` : 'Includes UV printed logo on raised plate.';
+  return many ? `Includes ${count} raised cast logos.` : 'Includes raised cast logo.';
+}
+
 /** The wording itself when it is short (Awe: "Copy: In Memory of Kathleen Awe 1949-2020"); otherwise "as per customer art file". */
 export function copyPhrase(wording: Wording | null): string {
   const all = (wording?.blocks ?? []).map((b) => b.text.replace(/\n/g, ' ')).join(' ').replace(/\s+/g, ' ').trim();
   return all && all.length <= 60 ? `Copy: ${all}` : 'Copy: as per customer art file.';
 }
 
-export function autoDescription(spec: PlaqueSpec, wording: Wording | null, opts: { fontStated?: boolean; photoCount?: number } = {}): string {
+export function autoDescription(spec: PlaqueSpec, wording: Wording | null, opts: { fontStated?: boolean; photoCount?: number; logoCount?: number } = {}): string {
   const thick = spec.thicknessIn ? ` ${fractionText(spec.thicknessIn)}” thick` : '';
   const size = `${inch(spec.widthIn)}x${inch(spec.heightIn)}`;
   // The designers only list the font when the order names one.
   const font = spec.font === 'custom' || opts.fontStated ? `Font: ${fontLabel(spec)}.` : '';
   const l1 = `DESCRIPTION: Qty. 1 set ${size}${thick} ${materialPhrase(spec)}. ${finishPhrase(spec)}. ${borderPhrase(spec)}`;
   const l2 = backgroundPhrase(spec);
-  const l3 = [copyPhrase(wording), imagePhrase(spec, opts.photoCount), font, mountingPhrase(spec)].filter(Boolean).join('  ');
+  const l3 = [copyPhrase(wording), imagePhrase(spec, opts.photoCount), logoPhrase(spec, opts.logoCount), font, mountingPhrase(spec)].filter(Boolean).join('  ');
   return [l1, l2, l3].join('\n');
 }

@@ -22,6 +22,7 @@ export interface Catalog {
     mountings: CatalogOption[];
     materials: CatalogOption[];
     processes: CatalogOption[];
+    logoTreatments: (CatalogOption & { description: string })[];
     proofStyles: { id: string; label: string; description: string }[];
   };
   presets: { id: string; label: string; description: string }[];
@@ -37,6 +38,7 @@ export const SPEC_FIELDS = [
   { key: 'font', group: 'fonts', label: 'Font' },
   { key: 'imageOption', group: 'imageOptions', label: 'Image option' },
   { key: 'mounting', group: 'mountings', label: 'Mounting' },
+  { key: 'logoTreatment', group: 'logoTreatments', label: 'Logo treatment' },
 ] as const;
 
 /** URL of a library asset (served from the repo's assets/ folder). */

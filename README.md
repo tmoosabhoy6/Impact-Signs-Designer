@@ -3,7 +3,7 @@
 Impact Signs' internal tool for cast bronze plaques. It takes an order and produces:
 
 1. **Three concept images** of the finished plaque, generated with OpenAI's image model (`gpt-image-2.5-sunburst-2026-09-08`). Each uses a different production-realistic layout.
-2. **The customer proof PDF** in one of Impact Signs' three locked proof styles, each measured from real proofs:
+2. **The customer proof PDF**: the Description sheet, measured from real proofs (the Standard and Order/version templates are kept in the code for the measured samples and tests only):
    - **Standard** (Liquid Mercury): red dimension brackets, mounting diagram, finish and paint-fill swatches, disclaimer.
    - **Description sheet** (Awe, Raccoon River): DESCRIPTION header with ORDER#/VERSION, blue dimensions, captioned option tiles, and a Visual Scale panel (a 6 ft person on the ground or beside an 8 ft wall, or a photo of the site).
    - **Order version + outline art** (Structure of Merit): an "ORDER # – VERSION" header, side view and process captions, plus a second page with the production outline art.
@@ -36,25 +36,36 @@ The interface uses the current impactsigns.com palette: navy navigation and butt
    - The same file added twice, a file that is not a picture, or one file too many is refused with its name; the other files are still added.
    - The app warns about each photo that is low resolution for its size on the plaque.
 6. **04 Concepts:** click **Generate 3 concepts**. Images stream in as they render (about a minute). Under each image you can:
-   - **Use this one** to pick it for the proof.
-   - **Proof PDF** and **Vector PDF** to make the customer proof and the vector production file straight from that concept, without picking it. Do this under all three to send the customer three options, each with its own vector file. The finished files are listed under the buttons and in the right-hand panel, labeled with the concept they came from (e.g. *From Feature Image v2*). The buttons use the version shown in that column, and the proof settings in **05 Customer proof** (style, note, disclaimer).
+   - **Use this one** to put it on the proof: the concept stands forward with a green check, and the right-hand panel switches to it (its picture, the description and the proof and vector buttons all work on that concept). Press **Use this one** under another concept to proof that one next; nothing you made for the first is lost. Three concepts, three proofs, three vector files, if you like. Every file in the right-hand panel says which concept it came from (*From Feature Image v2*).
+   - **The full-size view** (click a picture): scroll to zoom, drag to move, double-click to fit, +/−/0/1 keys, Esc to close.
    - **Regenerate** (↻) the same layout for a fresh take.
-   - **Fix** with an instruction, small or large, and several changes at once if you like (e.g. *"move the text up, make the photo bigger and spread the lines out"*, *"make the name larger and the etching deeper"*, *"use verde patina and change Founder to Chairman"*). Enter applies; Shift+Enter adds a line. The app shows how it read the request, and the result is saved as a new version (v2, v3…).
+   - **Fix** with any instruction at all, small or large, and several changes at once if you like. Enter applies; Shift+Enter adds a line. The app shows how it read the request, and the result is saved as a new version (v2, v3…). Nothing is refused: whatever the catalog, the wording editor and the layout cannot express is sent to the image model word for word as an image-only change (the proof and vector file then keep the current order, and the note under the box says so).
      - **Layout** changes (text size, spacing, photo or logo size, moving the content up or down, photo above or below the text, logo position) change that column's layout drawing, so the proof and the vector production file follow them. Each column keeps its own adjustments. With several photos or logos, "make the logos bigger" resizes the whole row together; a change to just one of them ("make the left logo bigger") is made on the image only.
      - Adding, removing or swapping photos and logos is done in **03 Customer files**, not with Fix.
      - **Catalog** options and **exact wording** changes update the order, as before.
      - **Anything else** about how the image looks (etching depth, photo detail, finish appearance, moving one element in a way the layout can't) is made by the image model on the current picture. These change the image only; the vector file keeps the layout drawing.
-     - Only requests that need something outside the catalog (e.g. *"purple anodized"*) or aren't about the plaque are refused. **Undo order change** reverses any layout, catalog or wording change.
+     - **Undo order change** reverses any layout, catalog or wording change.
+     - Editing an older version works from that version's own content, even if the order has moved on since.
 
    Every image is automatically **spell-checked**: the app reads the text back and compares it with the customer's wording.
-7. **05 Customer proof:** pick the **Proof style**. For Description sheets, choose the scale panel (person, site photo or none) and adjust the auto-written DESCRIPTION header if needed. Optionally add a red note under the plaque. Then click **Create proof PDF**. If the spell check found a difference, the app stops and shows it: fix the image first, or confirm you've checked it. Each layout counts its own versions: the first Classic, Feature Image and Statement proofs are all version 1 (`Proof - 32241 - Classic.pdf`, `Proof - 32241 - Statement.pdf`), and the next Classic proof is `Proof - 32241 - Classic v2.pdf`.
-8. **06 Vector production PDF:** click **Create vector PDF** for the selected concept (or **Vector PDF** under any concept). The file name ends in the layout, e.g. `32241_Heritage_Foundation_12x18_Statement_production.pdf`. A preflight checklist confirms page size, no fonts, no images and one ink, and warns about stand-in fonts, traced logos and minimum letter heights. Download it and open it in Illustrator (it opens directly, like the .ai files).
+7. **05 Customer proof:** the description is written from the order; edit it if needed (it goes across the top of the proof, or bottom right when it is long). Optionally add a red note under the plaque. Then click **Create proof PDF**. If the spell check found a difference, the app stops and shows it: fix the image first, or confirm you've checked it. Each layout counts its own versions: the first Classic, Feature Image and Statement proofs are all version 1 (`Proof - 32241 - Classic.pdf`, `Proof - 32241 - Statement.pdf`), and the next Classic proof is `Proof - 32241 - Classic v2.pdf`. The proof is always the Description sheet: order description, blue dimension arrows, captioned option tiles, the plaque at its measured size. (There is no visual-scale figure and no choice of proof style any more.)
+8. **06 Vector production PDF:** click **Create vector PDF** for the concept on the proof. The file name ends in the layout, e.g. `32241_Heritage_Foundation_12x18_Statement_production.pdf`. Letters are never cast smaller than ¼": lines that would be smaller are enlarged to ¼" in the layout (so the image, the proof and the vector file agree), and the preflight says which. Digits and punctuation have no minimum. A preflight checklist confirms page size, no fonts, no images and one ink, and warns about stand-in fonts, traced logos and minimum letter heights. Download it and open it in Illustrator (it opens directly, like the .ai files).
 
 Nothing is ever overwritten: every image, proof and production file is kept as its own version.
+
+**Logos** are made one of two ways; pick it under **Logo treatment** in the specification (the order's wording "UV print logo" sets it):
+- **Raised Cast:** the logo's lines and shapes are cast as raised metal, like the letters. The vector file carries the logo traced to outlines.
+- **UV Print:** the logo is printed in full detail on a smooth raised metal plate. The vector file carries the raised plate; the artwork is printed after casting.
+
+The concept image, the layout drawing, the proof description and the vector file all follow the choice. The logo reader works from any file: a clean logo on white, a gold logo on a dark background, a full-color logo, or a photo of a finished plaque (the marks on the plate are read as the logo).
+
+**The workspace fits the work.** Drag the handles between the three sections to resize them (all three stay on screen); double-click a handle to let the layout follow your work again: the order sheet has the room first, then the concepts, then the proof panel opens up once a concept is on it.
 
 ### AI Upscaler
 
 The **AI Upscaler** tab, next to **Plaque Proof Studio** at the top, enlarges a low-resolution image just enough to be usable, without changing it. It is separate from jobs.
+
+The **Vectorizer** tab turns a picture or PDF (PNG, JPG, WebP, TIFF, SVG, PDF, .ai) into a one-ink vector PDF (and an SVG): outlines only, no pixels, no fonts, at the width you ask for. It uses the same logo reader as the production file, so a photo of a finished plaque comes out as its logo. Choose the page tone (automatic, light or dark) and how closely the outlines follow the pixels. It is separate from jobs.
 
 1. Drop in or choose an image (PNG, JPG, WebP, TIFF or GIF, up to 30 MB).
 2. Pick **720p** or **1080p**. The short side becomes 720 or 1080 px and the proportions stay the same. Pick the smallest size that works: the less the image is enlarged, the less the AI has to fill in. Images that are already that size are refused, at no cost.
@@ -171,7 +182,7 @@ npm run build && npm start  # http://localhost:8080
 
 - `npm test` runs the golden tests: the Heritage Foundation job must reproduce the real proof and production file within 2 pt, the production PDF must pass preflight, and more.
 - `npm run samples` rebuilds every example job in its proof style next to the real proof: see [`output/samples/README.md`](output/samples/README.md).
-- `node scripts/screens.mjs` drives the whole app in a browser (sign in, example jobs, generate, proof, vector PDF) and saves screenshots to `docs/screens/` (needs a running server, demo mode recommended).
+- `node scripts/screens.mjs` drives the whole app in a browser (sign in, example jobs, generate, Fix, three proofs of one job, the full-size viewer, panel resizing, the Vectorizer, admin and phone widths) and saves screenshots to `docs/screens/` (needs a running server, demo mode recommended).
 - `python3 scripts/build_proof_template.py` re-cuts the fixed proof parts (disclaimers, mounting diagrams, wordmark and person outlines) from the real proofs, if a proof design ever changes.
 
 Optional system tool: **Poppler** (`pdftocairo`), installed automatically in the Docker image. It reads PDF/.ai uploads and renders proof previews.

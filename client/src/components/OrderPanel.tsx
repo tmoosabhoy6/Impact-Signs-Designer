@@ -102,18 +102,18 @@ function SpecSection({ data, catalog, onChange }: Props) {
               const opt = options.find((o) => o.id === value);
               return (
                 <div key={f.key} className="flex items-center py-1.5">
-                  <dt className="flex items-center gap-1.5 text-graphite">
+                  <dt className="flex items-center gap-1.5 whitespace-nowrap text-graphite">
                     {f.label}
                     {assumed.has(f.key) && <Chip tone="amber" title="Not stated in the order: the app picked this. Change it if needed.">Assumed</Chip>}
                   </dt>
                   <span className="leader" />
                   <dd className="flex items-center gap-2">
-                    {opt?.asset && (f.group === 'finishes' || f.group === 'backgroundColors' || f.group === 'backgroundTextures') && (
+                    {opt?.asset && (f.group === 'finishes' || f.group === 'backgroundColors' || f.group === 'backgroundTextures' || f.group === 'logoTreatments') && (
                       <img src={assetUrl(opt.asset)} alt="" className="h-6 w-6 rounded-[2px] border border-line object-cover" />
                     )}
                     <select
                       aria-label={f.label}
-                      className={`h-8 max-w-[190px] rounded-[3px] border bg-white px-1.5 text-[13px] outline-none focus:border-navy ${assumed.has(f.key) ? 'border-amber/50' : 'border-line'}`}
+                      className={`h-8 max-w-[170px] rounded-[3px] border bg-white px-1.5 text-[13px] outline-none focus:border-navy ${assumed.has(f.key) ? 'border-amber/50' : 'border-line'}`}
                       value={value}
                       onChange={(e) => {
                         const patch = { [f.key]: e.target.value } as Partial<PlaqueSpec>;

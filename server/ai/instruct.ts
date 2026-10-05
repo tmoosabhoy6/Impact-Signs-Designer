@@ -13,7 +13,7 @@ import type { ConceptRecord, InstructionPlan, LayoutAdjust, LayoutPresetId, Plac
 export const SPEC_GROUPS = {
   material: 'materials', finish: 'finishes', backgroundColor: 'backgroundColors',
   backgroundTexture: 'backgroundTextures', border: 'borders', font: 'fonts',
-  imageOption: 'imageOptions', mounting: 'mountings', lettering: 'lettering', process: 'processes',
+  imageOption: 'imageOptions', mounting: 'mountings', lettering: 'lettering', process: 'processes', logoTreatment: 'logoTreatments',
 } as const satisfies Partial<Record<keyof PlaqueSpec, OptionGroup>>;
 
 const role = z.enum(['headline', 'subhead', 'body', 'footer']);
@@ -35,6 +35,7 @@ function specPatchSchema() {
     material: option('materials'), finish: option('finishes'), backgroundColor: option('backgroundColors'),
     backgroundTexture: option('backgroundTextures'), border: option('borders'), font: option('fonts'),
     imageOption: option('imageOptions'), mounting: option('mountings'), lettering: option('lettering'), process: option('processes'),
+    logoTreatment: option('logoTreatments'),
     widthIn: dimension, heightIn: dimension,
     thicknessIn: z.number().refine((n) => c.thickness.options.includes(n)).optional(),
   }).refine((p) => Object.keys(p).length > 0, 'Specify an option to change.');
@@ -72,22 +73,11 @@ export function planSchema() {
 }
 export type Plan = InstructionPlan;
 
-const refuse = (reason: string, group?: OptionGroup): Plan => ({
-  kind: 'refuse', reason, nearestOptions: group ? getCatalog()[group].map((o) => o.label) : [],
-});
 /**
- * Offline refusals the language model may still resolve: 'vocab' = the offline reader did
- * not recognise the request; 'text' = a wording change without the exact current text
- * (the model may resolve it to a literal wording edit, never to an image-only change).
- * Every other refusal is hard: catalog, size or construction limits.
+ * Nothing is refused. Whatever the catalog, the wording editor and the layout cannot express
+ * goes to the image model exactly as the designer wrote it (an image-only change).
  */
-const SOFT = new WeakMap<object, 'vocab' | 'text'>();
-const softRefuse = (reason: string, why: 'vocab' | 'text'): Plan => {
-  const plan = refuse(reason);
-  SOFT.set(plan, why);
-  return plan;
-};
-export const isSoftRefusal = (plan: Plan) => SOFT.has(plan);
+const asImage = (instruction: string): Plan => ({ kind: 'visual', restated: instruction.trim() });
 const unquote = (s: string) => s.replace(/^(["'“‘])([\s\S]*)["'”’]$/, '$2');
 
 function finishFits(project: Project, patch: Partial<PlaqueSpec>) {
@@ -123,9 +113,8 @@ function planClause(project: Project, instruction: string, preset: LayoutPresetI
     if (!/^(?:the )?(?:border|finish|paint|background|texture|font|mounting|size|image|process)\b/i.test(from)) {
       const quoted = /^["“'‘]/.test(change[1].trim()) || /^["“'‘]/.test(change[2].trim());
       const textish = /\b(?:name|title|date|year|line|text|word|wording|headline|subhead|caption|inscription|quote)\b/i.test(from);
-      if (quoted || blocks.length > 1 || (textish && /[A-Z0-9]/.test(to))) {
-        return softRefuse('To change the wording, name the exact current text and the new text, for example: change "Founder" to "Chairman".', 'text');
-      }
+      // Without the exact current text the wording editor cannot make it: the image model does.
+      if (quoted || blocks.length > 1 || (textish && /[A-Z0-9]/.test(to))) return asImage(instruction);
     }
   }
 
@@ -137,22 +126,14 @@ function planClause(project: Project, instruction: string, preset: LayoutPresetI
   const remove = s.match(/^(?:please )?(?:delete|remove) (.+?) (?:line|block)$/i);
   if (remove) {
     const b = targetBlock(project, remove[1]);
-    return b ? { kind: 'wording', restated: `Remove “${b.text}”`, wordingEdits: [{ op: 'delete_block', blockId: b.id }] } : softRefuse('Name one exact wording block to remove.', 'text');
-  }
-  // Photos and logos are customer files: the image model must never add, drop or swap one,
-  // or the picture would disagree with the proof's file list and the vector production file.
-  const FILES = '(?:logos?|photos?|pictures?|portraits?|images?)';
-  if (new RegExp(`^(?:please )?(?:add|upload|insert|include|put in)\\s+(?:a |an |another |one more |more |extra |a second |a new |\\d+ )?(?:\\w+ )?${FILES}\\b`, 'i').test(s)
-    || new RegExp(`^(?:please )?(?:remove|delete|drop|take out|get rid of)\\s+(?:the |one of the |a )?(?:\\w+ )?${FILES}$`, 'i').test(s)
-    || new RegExp(`^(?:please )?(?:swap|switch|reorder|re-order|rearrange|reverse)\\s+(?:the |two |the two |both )*(?:order of (?:the )?)?${FILES}\\b`, 'i').test(s)) {
-    return refuse('Photos and logos come from the customer’s files. Add, remove or reorder them under 03 Customer files, then generate again.');
+    return b ? { kind: 'wording', restated: `Remove “${b.text}”`, wordingEdits: [{ op: 'delete_block', blockId: b.id }] } : asImage(instruction);
   }
   const layout = layoutClause(project, s, preset);
   if (layout) return layout;
   const styling = s.match(/^(?:please )?make (.+?) (italic|bold|small caps|larger|bigger|smaller|headline|subhead|body|footer)$/i);
   if (styling && !/\band\b/i.test(styling[1])) {
     const b = targetBlock(project, styling[1]);
-    if (!b) return softRefuse('Name one exact wording block to style (for example, the name line).', 'text');
+    if (!b) return asImage(instruction);
     const value = styling[2].toLowerCase() === 'bigger' ? 'larger' : styling[2].toLowerCase();
     const edit: WordingEdit = ['headline', 'subhead', 'body', 'footer'].includes(value)
       ? { op: 'set_role', blockId: b.id, role: value as 'headline' }
@@ -164,21 +145,11 @@ function planClause(project: Project, instruction: string, preset: LayoutPresetI
   const size = parseSize(s);
   if (size) {
     const { minIn, maxIn } = getCatalog().sizeLimits;
-    if ([size.widthIn, size.heightIn].some((n) => n < minIn || n > maxIn)) return refuse(`Plaque sizes must be between ${minIn} and ${maxIn} inches.`);
+    // A size we cannot cast is not an order change; the image model shows what was asked.
+    if ([size.widthIn, size.heightIn].some((n) => n < minIn || n > maxIn)) return asImage(instruction);
     patch.widthIn = size.widthIn;
     patch.heightIn = size.heightIn;
   }
-  const explicit: [keyof typeof SPEC_GROUPS, RegExp][] = [
-    ['material', /\balumin(?:i)?um|\bmaterial\b/i], ['finish', /\bfinish|patina|anodized|gold leaf/i],
-    ['backgroundColor', /\bpaint|color|colour/i], ['backgroundTexture', /\btexture/i],
-    ['border', /\bborder/i], ['font', /\bfont|typeface/i], ['mounting', /\bmount|screw|rosette|stake/i],
-  ];
-  // "Darker background color" or "warmer photo" is about appearance, not choosing an option.
-  const appearance = /\b(?:photos?|images?|pictures?|portraits?|etchings?|darker|lighter|warmer|cooler|brighter|richer|deeper|shinier|duller|glossier|softer|stronger|subtler|finer|coarser|smoother|rougher|more|less)\b/i.test(s);
-  for (const [field, re] of explicit) {
-    if (!appearance && re.test(s) && !matchOption(SPEC_GROUPS[field], [s])) return refuse('That option is not in our plaque catalog. Choose an available option.', SPEC_GROUPS[field]);
-  }
-  if (/purple|anodized|gold leaf|plastic|transparent|floating|neon/i.test(s)) return refuse('That construction or finish is not in our plaque catalog.', /paint|color/i.test(s) ? 'backgroundColors' : 'finishes');
   // Only accept known option phrases and simple connectors; never quietly apply
   // one recognized part of a request containing an unsupported second change.
   let remainder = s.replace(/\bthrough the face\b/gi, 'through face');
@@ -196,25 +167,30 @@ function planClause(project: Project, instruction: string, preset: LayoutPresetI
     if (field === 'material' && m.option.id === 'bronze' && /finish|patina|satin|brushed|polish|oxidiz/i.test(s)) continue;
     if (field === 'process' && m.alias === 'cast bronze') continue;
     if (field === 'imageOption' && m.alias === 'photo' && !/image|treatment|relief/i.test(s)) continue;
+    // "UV print logo" is a logo treatment, not a printed photo.
+    if (field === 'imageOption' && /\buv\b/i.test(m.alias) && /\blogo/i.test(s)) continue;
     patch[field] = m.option.id;
     const names = [m.option.label, m.option.id, ...m.option.aliases].sort((a, b) => b.length - a.length);
     for (const name of names) remainder = remainder.replace(new RegExp(`(^|[^a-z])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z])`, 'gi'), '$1 $2');
   }
-  remainder = remainder.replace(/\b(?:please|make|the|it|use|change|to|set|a|an|and|with|border|finish|paint|color|colour|background|field|texture|font|typeface|mounting|size|inches|inch|wide|tall|image|treatment|line|through)\b/gi, '').replace(/[\s,.'"-]/g, '');
+  remainder = remainder.replace(/\b(?:please|make|the|it|use|change|to|set|a|an|and|with|border|finish|paint|color|colour|background|field|texture|font|typeface|mounting|size|inches|inch|wide|tall|image|treatment|line|through|logos?|as)\b/gi, '').replace(/[\s,.'"-]/g, '');
   if (Object.keys(patch).length && !remainder) {
-    if (!finishFits(project, patch)) return refuse('Choose a finish made for the requested metal. Ask for both the material and finish together.', 'finishes');
+    // A new metal takes a finish made for it; a finish the metal cannot have is an image-only change.
+    if (!finishFits(project, patch)) {
+      const alt = patch.material && !patch.finish ? getCatalog().finishes.find((f) => (f.materials as string[] | undefined)?.includes(patch.material!)) : null;
+      if (!alt) return asImage(instruction);
+      patch.finish = alt.id;
+    }
     const descriptions = Object.entries(patch).map(([field, value]) => {
       const group = SPEC_GROUPS[field as keyof typeof SPEC_GROUPS];
-      return group ? `change ${field === 'backgroundColor' ? 'paint' : field === 'backgroundTexture' ? 'texture' : field} to ${getCatalog()[group].find((o) => o.id === value)!.label}` : `${field === 'widthIn' ? 'width' : 'height'} ${value} inches`;
+      return group ? `change ${field === 'backgroundColor' ? 'paint' : field === 'backgroundTexture' ? 'texture' : field === 'logoTreatment' ? 'logo treatment' : field === 'imageOption' ? 'image option' : field} to ${getCatalog()[group].find((o) => o.id === value)!.label}` : `${field === 'widthIn' ? 'width' : 'height'} ${value} inches`;
     });
     return planSchema().parse({ kind: 'spec', restated: descriptions.join('; '), specPatch: patch });
   }
-  // Anything else about the plaque's appearance is a change the image model makes.
-  if (PLAQUE_WORDS.test(s)) return { kind: 'visual', restated: instruction.trim() };
-  return softRefuse('That does not describe a change to this plaque. Say what to change, for example "move the text up" or "make the photo larger".', 'vocab');
+  // Anything else is a change the image model makes, in the designer's own words.
+  return asImage(instruction);
 }
 
-const PLAQUE_WORDS = /\b(?:text|names?|lines?|words?|wording|letters?|lettering|font|type|title|heading|headline|subhead|dates?|years?|logos?|photos?|pictures?|images?|portraits?|faces?|person|people|etch\w*|relief|engrav\w*|border|frame|edges?|corners?|spacing|spaces?|gaps?|margins?|padding|bigger|smaller|larger|move|shift|up|down|left|right|cent(?:er|re)\w*|top|bottom|middle|darker|lighter|brighter|dark|light|contrast|shadows?|depth|deeper|shallower|texture|finish|colou?r|background|plaque|size|layout|align\w*|sharp\w*|blur\w*|detail\w*|crisp\w*|bold|italic|thin\w*|thick\w*|wider|narrower|tall\w*|short\w*|screws?|rosettes?|glare|shin\w*|polish\w*|matte|patina|paint|spell\w*|typo|misspel\w*|bronze|metal|raised|recess\w*|emblem|seal|icon|graphic|art\w*|eagle|flag)\b/i;
 
 const clamp = (n: number, [lo, hi]: readonly [number, number]) => Math.min(hi, Math.max(lo, n));
 const pct = (m: number) => `${Math.round(Math.abs(m - 1) * 100)}%`;
@@ -323,7 +299,7 @@ function editParts(plan: Plan): Omit<Extract<Plan, { kind: 'edit' }>, 'kind' | '
 }
 
 /** Combines the plans of several clauses into one edit. */
-function mergePlans(project: Project, plans: Plan[]): Plan {
+function mergePlans(project: Project, plans: Plan[], instruction: string): Plan {
   const out: Extract<Plan, { kind: 'edit' }> = { kind: 'edit', restated: plans.map((p) => ('restated' in p ? p.restated : '')).join('; ') };
   for (const plan of plans) {
     const p = editParts(plan);
@@ -338,12 +314,13 @@ function mergePlans(project: Project, plans: Plan[]): Plan {
       out.layoutPatch = l;
     }
   }
-  if (out.specPatch && !finishFits(project, out.specPatch)) return refuse('Choose a finish made for the requested metal. Ask for both the material and finish together.', 'finishes');
+  // Parts that cannot be made as an order change together are left to the image model whole.
+  if (out.specPatch && !finishFits(project, out.specPatch)) return asImage(instruction);
   if (out.wordingEdits) {
     try {
       applyWordingEdits(project.wording, out.wordingEdits);
     } catch {
-      return refuse('Those wording changes conflict with each other. Make them one at a time.');
+      return asImage(instruction);
     }
   }
   return planSchema().parse(out);
@@ -357,9 +334,7 @@ export function fallbackInstruction(project: Project, instruction: string, prese
   const clauses = splitClauses(instruction);
   if (clauses.length <= 1) return whole;
   const plans = clauses.map((c) => planClause(project, c, preset));
-  const refusal = plans.find((p) => p.kind === 'refuse' && !SOFT.has(p)) ?? plans.find((p) => p.kind === 'refuse');
-  if (refusal) return refusal;
-  return mergePlans(project, plans);
+  return mergePlans(project, plans, instruction);
 }
 
 export function applyWordingEdits(wording: Wording | null, edits: WordingEdit[]): Wording {
@@ -388,8 +363,9 @@ export function applyWordingEdits(wording: Wording | null, edits: WordingEdit[])
 
 /** Validates model output against the schema AND the literal request. */
 export function validateInstructionPlan(raw: unknown, project: Project, instruction: string, preset: LayoutPresetId = 'classic'): Plan {
-  const plan = planSchema().parse(raw);
-  if (/\b(?:purple|anodized|gold leaf|plastic|neon|floating)\b/i.test(instruction) && plan.kind !== 'refuse') throw new Error('Requested construction is not in the catalog.');
+  const parsed = planSchema().parse(raw);
+  // The model may not refuse either: what it cannot place goes to the image model as written.
+  const plan: Plan = parsed.kind === 'refuse' ? asImage(instruction) : parsed;
   const parts = editParts(plan);
   if (parts.specPatch) {
     if (!finishFits(project, parts.specPatch)) throw new Error('Finish is not available for this material.');
@@ -430,22 +406,11 @@ export function validateInstructionPlan(raw: unknown, project: Project, instruct
     applyWordingEdits(project.wording, parts.wordingEdits);
   }
   if (parts.placement?.imageAfterBlock != null && parts.placement.imageAfterBlock >= (project.wording?.blocks.length ?? 0)) throw new Error('The image position names a missing wording block.');
-  if (plan.kind === 'refuse') {
-    const labels = Object.values(SPEC_GROUPS).flatMap((g) => getCatalog()[g].map((o) => o.label));
-    if (plan.nearestOptions.some((o) => !labels.includes(o))) throw new Error('Suggested options must come from the catalog.');
-    return plan;
-  }
   // Each clause the offline reader understands has a fixed meaning: the plan must contain
-  // that catalog or wording change, and catalog/size refusals stand.
+  // that catalog or wording change.
   const split = splitClauses(instruction);
   for (const clause of split.length > 1 ? split : [instruction]) {
     const known = planClause(project, clause, preset);
-    if (known.kind === 'refuse') {
-      const soft = SOFT.get(known);
-      if (!soft) throw new Error(known.reason);
-      if (soft === 'text' && !parts.wordingEdits) throw new Error('A wording change must be a literal wording edit, not an image-only change.');
-      continue;
-    }
     if (known.kind === 'spec') {
       for (const [k, v] of Object.entries(known.specPatch)) if (parts.specPatch?.[k as keyof PlaqueSpec] !== v) throw new Error('The plan misses a requested catalog change.');
     }
@@ -514,9 +479,9 @@ Shape: {"kind":"edit","restated":"plain-English summary of everything that will 
 - layoutPatch (this layout only, relative to now): textScale (all text, multiplier: 1.15 = 15% larger), spacing (space between lines and groups, multiplier), imageScale (photo frame, multiplier), logoScale (multiplier), verticalOffset (absolute target: -1 top, 0 centered, 1 bottom; the current value is given). Steps: slightly 1.08, normal 1.15 to 1.25, a lot 1.4; smaller is the inverse (0.85).
 - placement (whole order): imageAfterBlock (index of the wording block the photo goes after; null = photo first, at the top or left), logoSlot (top, middle or bottom).
 - Several photos sit together as one group of frames, and several logos as one row, in the order listed in layout.photos / layout.logos. imageScale, logoScale and placement always resize or move the whole group. A change to just one of them (for example "make the left logo bigger") cannot be made in the layout: use imageEdit for it and say in restated that it changes the image only. Adding, removing or reordering photos and logos is done in Customer files, not here: refuse with that reason.
-- imageEdit: anything else, as one clear direct instruction to the image model: how the photo, portrait or etching looks (detail, depth, contrast, tone, sharpness, crop inside its frame), how the chosen finish, paint or texture looks within the current catalog choice, moving or resizing one particular element in a way layoutPatch and placement cannot express, removing artifacts, re-rendering misspelled letters. It changes the image only. Never use it to change wording, add text, or switch to a finish, color, material, border or mounting other than the current catalog choice.
+- imageEdit: everything else, passed to the image model as a direct instruction in the designer's own words: how the photo, portrait, etching, logo, finish, paint or texture looks, moving or resizing one particular element, re-rendering letters, a finish, color or construction that is not in the catalog, a whole new rendering, anything at all. It changes the image only; the proof and the vector production file keep the order as it is, so say so in restated when an imageEdit asks for something the order cannot hold (wording, a non-catalog finish).
 Prefer specPatch, wordingEdits, layoutPatch and placement over imageEdit whenever they can express the change: they also update the proof and the vector production file. Use imageEdit together with them for the rest.
-Refuse only when the request is not about this plaque, is unsafe, or needs a material, finish, paint, border, mounting, thickness or construction that is not in the catalog: {"kind":"refuse","reason":"plain-English reason","nearestOptions":["catalog labels"]}.`;
+Never refuse. Every request becomes a plan; when nothing else fits, the whole request is the imageEdit, word for word.`;
 
 export async function planInstruction(project: Project, concept: ConceptRecord, instruction: string): Promise<Plan> {
   const preset = concept.preset ?? 'classic';

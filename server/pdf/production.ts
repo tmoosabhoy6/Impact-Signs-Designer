@@ -7,7 +7,7 @@
 import { PDFDocument, rgb, type PDFPage } from 'pdf-lib';
 import { resolveFont } from '../text/fonts.js';
 import { linePathData } from '../render/flat.js';
-import { traceLogo } from './trace.js';
+import { inkMask, traceLogo } from './trace.js';
 import type { PlaqueLayout, PlaqueSpec, Rect } from '../../shared/types.js';
 
 export const INK_HEX = '#231F20';
@@ -47,6 +47,15 @@ export function productionFileName(jobNumber: string, name: string, spec: Plaque
     .slice(0, 32);
   const fmt = (v: number) => String(+v.toFixed(3));
   return `${jobNumber || 'job'}_${short}_${fmt(spec.widthIn)}x${fmt(spec.heightIn)}_production.pdf`;
+}
+
+/** The raised plate of a UV printed logo: the logo plus its padding, fitted inside the logo box. */
+export function uvPlateRect(box: Rect, logoAspect: number): Rect {
+  const aspect = logoAspect > 0 ? logoAspect : 1;
+  // Padding is a share of the logo, so the plate's aspect ratio is the logo's.
+  const w = Math.min(box.w, box.h * aspect);
+  const h = w / aspect;
+  return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
 }
 
 export async function buildProductionPdf(input: ProductionInput): Promise<ProductionResult> {
@@ -91,13 +100,22 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
     rect(f.inner, WHITE, 1.12);
   }
 
-  // Logos, each traced to vector outlines and centered in its own box.
+  // Logos, each centered in its own box: traced to raised outlines (raised cast), or drawn
+  // as the raised plate the logo is printed on afterwards (UV print).
   const many = layout.logos.length > 1;
+  const uvPrint = spec.logoTreatment === 'uv-print';
   for (const [i, box] of layout.logos.entries()) {
     const logo = input.logos?.[i];
     const which = many ? `Logo ${i + 1}${logo?.name ? ` (${logo.name})` : ''}` : 'Logo';
     if (!logo?.png) {
       notes.push(`${which} position is reserved but no logo file was uploaded.`);
+      continue;
+    }
+    if (uvPrint) {
+      const mask = await inkMask(logo.png);
+      const plate = uvPlateRect(box, mask.width / mask.height);
+      rect(plate);
+      notes.push(`${which}: UV print. The raised plate (${+plate.w.toFixed(2)}" x ${+plate.h.toFixed(2)}") is in this file; the logo artwork is printed on it after casting, so it is not outlined here.`);
       continue;
     }
     const traced = await traceLogo(logo.png);
@@ -108,9 +126,11 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
       page.drawSvgPath(p.d, { x: ox, y: H - oy, scale: s, color: INK, borderWidth: 0 });
     }
     notes.push(
-      logo.fromVector
-        ? `${which} was traced from a high-resolution render of the vector file. Check it against the original.`
-        : `${which} was traced from a raster image. Check its edges, or replace it with the vector original in Illustrator.`,
+      traced.fromPlate
+        ? `${which} was read from the marks on a plate or card in the picture (a photo of a finished plaque, for example). Check it against the original logo.`
+        : logo.fromVector
+          ? `${which} was traced from a high-resolution render of the vector file. Check it against the original.`
+          : `${which} was traced from a raster image. Check its edges, or replace it with the vector original in Illustrator.`,
     );
   }
 

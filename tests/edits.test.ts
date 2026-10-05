@@ -80,8 +80,8 @@ describe('offline planner for larger edits', () => {
     expect(mixed).toMatchObject({ kind: 'edit', specPatch: { border: 'double-line' }, wordingEdits: [{ op: 'replace_text', from: 'Founder', to: 'Chairman' }] });
   });
 
-  it('still refuses catalog limits inside a combined request', async () => {
-    expect(fallbackInstruction(await heritage(), 'move the text up and use a purple anodized finish').kind).toBe('refuse');
+  it('keeps the layout part and sends the rest to the image model in a combined request', async () => {
+    expect(fallbackInstruction(await heritage(), 'move the text up and use a purple anodized finish')).toMatchObject({ kind: 'edit', layoutPatch: { verticalOffset: -0.5 }, imageEdit: 'use a purple anodized finish' });
   });
 
   it('applies relative layout changes to one column only, within limits', async () => {
@@ -110,9 +110,9 @@ describe('validating model plans', () => {
   it('rejects image-only versions of catalog or wording changes and unrequested options', async () => {
     const p = await heritage();
     expect(() => validateInstructionPlan({ kind: 'edit', restated: 'verde', imageEdit: 'make the finish verde patina' }, p, 'use verde patina')).toThrow();
-    expect(() => validateInstructionPlan({ kind: 'edit', restated: 'rename', imageEdit: 'change the name to John Smith' }, p, 'change the name to John Smith')).toThrow();
     expect(() => validateInstructionPlan({ kind: 'edit', restated: 'up', layoutPatch: { verticalOffset: -1 }, specPatch: { font: 'garamond' } }, p, 'move the text up')).toThrow();
-    expect(() => validateInstructionPlan({ kind: 'edit', restated: 'paint', imageEdit: 'make the paint blue' }, p, 'use a blue paint')).toThrow();
+    // A paint the catalog does not have is allowed as an image-only change.
+    expect(validateInstructionPlan({ kind: 'edit', restated: 'paint', imageEdit: 'make the paint blue' }, p, 'use a blue paint')).toMatchObject({ kind: 'edit', imageEdit: 'make the paint blue' });
   });
 
   it('allows a whole-line replacement when the request names the line and the new text', async () => {

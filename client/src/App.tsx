@@ -5,6 +5,7 @@ import { Jobs } from './pages/Jobs';
 import { Workspace } from './pages/Workspace';
 import { Admin } from './pages/Admin';
 import { Upscaler } from './pages/Upscaler';
+import { Vectorizer } from './pages/Vectorizer';
 import { Spinner } from './components/ui';
 
 export interface Me {
@@ -50,5 +51,6 @@ export function App() {
   if (job) return <Workspace key={job[1]} projectId={job[1]} me={me} />;
   if (path.startsWith('/admin')) return <Admin me={me} />;
   if (path.startsWith('/upscaler')) return <Upscaler me={me} />;
+  if (path.startsWith('/vectorizer')) return <Vectorizer me={me} />;
   return <Jobs me={me} />;
 }

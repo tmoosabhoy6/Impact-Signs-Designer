@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Download, ExternalLink, FileCheck2, FileCog, AlertTriangle, XCircle } from 'lucide-react';
+import { Check, CheckCircle2, Download, ExternalLink, FileCheck2, FileCog, AlertTriangle, XCircle } from 'lucide-react';
 import { api, conceptUrl, type ProjectPayload } from '../api';
 import { assetUrl, type Catalog } from '../catalog';
 import { Button, Notice, Panel } from './ui';
-import { UploadSlot } from './OrderPanel';
-import { outputTag, useMakeOutput, WordingCheckWarning } from './outputs';
+import { conceptTag, outputTag, useMakeOutput, WordingCheckWarning } from './outputs';
 import type { ConceptRecord, OutputRecord } from '../../../shared/types';
 
 type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayload) => void };
@@ -23,10 +22,16 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
     <div>
       <Panel step="05" title="Customer proof">
         {selected ? (
-          <div className="flex gap-3">
-            <img src={conceptUrl(selected, 'preview.jpg')} alt="Selected concept" className="h-24 w-auto max-w-[96px] bg-stage object-contain" />
+          <div className="fade-in flex gap-3" key={selected.id}>
+            <div className="relative shrink-0">
+              <img src={conceptUrl(selected, 'preview.jpg')} alt="Selected concept" className="h-28 w-auto max-w-[110px] bg-stage object-contain" />
+              <span className="absolute -top-1.5 -left-1.5 grid h-5 w-5 place-items-center rounded-full bg-ok text-white ring-2 ring-white" aria-hidden>
+                <Check className="h-3 w-3" strokeWidth={3} />
+              </span>
+            </div>
             <div className="min-w-0 space-y-1.5 text-[13px]">
-              <div className="label">Goes on the proof</div>
+              <div className="label">On the proof</div>
+              <div className="font-display text-[14px] font-semibold text-ink">{conceptTag(selected, data.concepts, catalog)}</div>
               {finish && (
                 <div className="flex items-center gap-2">
                   {finish.asset && <img src={assetUrl(finish.asset)} alt="" className="h-7 w-7 border border-line object-cover" />}
@@ -42,7 +47,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
             </div>
           </div>
         ) : (
-          <p className="text-[13px] text-muted">Choose “Use this one” under a concept, or press “Proof PDF” under any concept to proof it as it is.</p>
+          <p className="text-[13px] text-muted">Press “Use this one” under a concept. Its image and the options below make the proof; press it under another concept to proof that one next.</p>
         )}
         <ProofSettings data={data} catalog={catalog} onChange={onChange} />
         <Button className="mt-3 w-full" disabled={!selected} busy={busy === 'proof'} onClick={() => makeProof()}>
@@ -55,7 +60,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
 
       <Panel step="06" title="Vector production PDF">
         <p className="text-[13px] text-muted">
-          One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of the selected concept{selected ? ` (${catalog.presets.find((x) => x.id === selected.preset)?.label})` : ''}. Every concept also has its own “Vector PDF” button.
+          One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of the concept on the proof{selected ? ` (${conceptTag(selected, data.concepts, catalog)})` : ''}.
         </p>
         <Button className="mt-3 w-full" variant="secondary" disabled={!p.spec || !p.wording?.blocks.length} busy={busy === 'production'} onClick={makeProduction}>
           <FileCog className="h-4 w-4" /> Create vector PDF
@@ -76,7 +81,7 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
   );
 }
 
-function ProofSettings({ data, catalog, onChange }: Props) {
+function ProofSettings({ data, onChange }: Props) {
   const p = data.project;
   const [desc, setDesc] = useState(p.proofDescription ?? '');
   const [note, setNote] = useState(p.proofNote ?? '');
@@ -91,91 +96,36 @@ function ProofSettings({ data, catalog, onChange }: Props) {
       setError((e as Error).message);
     }
   };
-  const style = catalog.catalog.proofStyles.find((s) => s.id === p.proofStyle);
-  const wallMount = !!p.spec && catalog.catalog.mountings.find((m) => m.id === p.spec!.mounting)?.scale !== 'ground';
-  const sel = 'h-8 w-full rounded-[3px] border border-line bg-white px-1.5 text-[13px] outline-none focus:border-navy';
   return (
     <div className="mt-4 space-y-3 border-t border-line pt-3">
       <label className="block">
-        <span className="label">Proof style</span>
-        <select className={`mt-1 ${sel}`} value={p.proofStyle} onChange={(e) => save({ proofStyle: e.target.value })}>
-          {catalog.catalog.proofStyles.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        {style && <span className="mt-1 block text-[12px] leading-snug text-muted">{style.description}</span>}
+        <span className="label flex items-center justify-between">
+          Description
+          {p.proofDescription && (
+            <button className="text-[11px] normal-case tracking-normal text-accent hover:underline" onClick={() => save({ proofDescription: null })}>
+              Use automatic
+            </button>
+          )}
+        </span>
+        <textarea
+          className="mt-1 h-28 w-full resize-y rounded-[3px] border border-line px-2 py-1.5 text-[13px] leading-snug outline-none transition-colors focus:border-navy"
+          value={desc || data.autoDescription || ''}
+          onChange={(e) => setDesc(e.target.value)}
+          onBlur={() => desc && desc !== (p.proofDescription ?? '') && desc !== data.autoDescription && save({ proofDescription: desc })}
+          aria-label="Proof description"
+        />
+        <span className="text-[12px] text-muted">{p.proofDescription ? 'Edited by hand.' : 'Written from the order; edit it to override. It goes across the top of the proof, or bottom right when it is long.'}</span>
       </label>
-
-      {p.proofStyle === 'description' && (
-        <>
-          <label className="block">
-            <span className="label">Scale panel</span>
-            <select className={`mt-1 ${sel}`} value={p.visualScale} onChange={(e) => save({ visualScale: e.target.value })}>
-              <option value="person">6 ft person {wallMount ? 'beside an 8 ft wall' : 'on the ground'}</option>
-              <option value="site">Photo of the site (approximate)</option>
-              <option value="none">None: option tiles along the bottom</option>
-            </select>
-          </label>
-          {p.visualScale === 'site' && (
-            <UploadSlot kind="site" label="Site photo" hint="Photo of the wall or spot where the plaque goes." accept="image/*" file={p.uploads.site} data={data} onChange={onChange} />
-          )}
-          {(p.visualScale === 'site' || (p.visualScale === 'person' && wallMount)) && (
-            <label className="flex items-center justify-between gap-2 text-[13px]">
-              <span className="text-graphite">{p.visualScale === 'site' ? 'Mounting height shown' : 'Plaque center height'}</span>
-              <span className="flex items-center gap-1">
-                <input
-                  key={p.siteMountHeightIn ?? 'default'}
-                  className="h-8 w-16 rounded-[3px] border border-line px-1.5 text-right font-mono outline-none focus:border-navy"
-                  defaultValue={p.siteMountHeightIn ?? 60}
-                  inputMode="decimal"
-                  onBlur={(e) => save({ siteMountHeightIn: Number(e.target.value) > 0 ? Number(e.target.value) : null })}
-                  aria-label="Height in inches"
-                />
-                <span className="font-mono text-[12px] text-muted">in</span>
-              </span>
-            </label>
-          )}
-          <label className="block">
-            <span className="label flex items-center justify-between">
-              Description header
-              {p.proofDescription && (
-                <button className="text-[11px] normal-case tracking-normal text-navy hover:underline" onClick={() => save({ proofDescription: null })}>
-                  Use automatic
-                </button>
-              )}
-            </span>
-            <textarea
-              className="mt-1 h-28 w-full resize-y rounded-[3px] border border-line px-2 py-1 text-[12px] leading-snug outline-none focus:border-navy"
-              value={desc || data.autoDescription || ''}
-              onChange={(e) => setDesc(e.target.value)}
-              onBlur={() => desc && desc !== (p.proofDescription ?? '') && desc !== data.autoDescription && save({ proofDescription: desc })}
-            />
-            <span className="text-[11px] text-muted">{p.proofDescription ? 'Edited by hand.' : 'Written from the spec; edit to override.'}</span>
-          </label>
-        </>
-      )}
-
       <label className="block">
         <span className="label">Red note under the plaque (optional)</span>
         <textarea
-          className="mt-1 h-14 w-full resize-y rounded-[3px] border border-line px-2 py-1 text-[12px] leading-snug outline-none focus:border-navy"
+          className="mt-1 h-14 w-full resize-y rounded-[3px] border border-line px-2 py-1.5 text-[13px] leading-snug outline-none transition-colors focus:border-navy"
           placeholder="Note: Small letters are currently at minimum required height (1/4’’)"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           onBlur={() => note !== (p.proofNote ?? '') && save({ proofNote: note || null })}
         />
       </label>
-      {p.proofStyle === 'standard' && (
-        <label className="block">
-          <span className="label">Disclaimer</span>
-          <select className={`mt-1 ${sel}`} value={p.disclaimer} onChange={(e) => save({ disclaimer: e.target.value })}>
-            <option value="standard">Simulated appearance, actual product finish may vary…</option>
-            <option value="photo">Photo for scale and placement only…</option>
-          </select>
-        </label>
-      )}
       {error && <Notice tone="error">{error}</Notice>}
     </div>
   );

@@ -34,6 +34,8 @@ export interface Catalog {
   imageOptions: Option[];
   mountings: (Option & { diagram?: string; scale?: 'wall' | 'ground' })[];
   lettering: Option[];
+  /** How a customer logo is made: cast as raised metal, or UV printed on a raised plate. */
+  logoTreatments: (Option & { description: string })[];
   processes: (Option & { proofFinishNote: string; proofPaintNote: string })[];
   thickness: { defaultIn: number; options: number[] };
   proofStyles: { id: string; label: string; description: string }[];
@@ -51,6 +53,7 @@ export type OptionGroup =
   | 'imageOptions'
   | 'mountings'
   | 'lettering'
+  | 'logoTreatments'
   | 'processes';
 
 export const OPTION_GROUPS: { key: OptionGroup; label: string }[] = [
@@ -63,6 +66,7 @@ export const OPTION_GROUPS: { key: OptionGroup; label: string }[] = [
   { key: 'imageOptions', label: 'Image option' },
   { key: 'mountings', label: 'Mounting' },
   { key: 'lettering', label: 'Lettering' },
+  { key: 'logoTreatments', label: 'Logo treatment' },
   { key: 'processes', label: 'Process' },
 ];
 

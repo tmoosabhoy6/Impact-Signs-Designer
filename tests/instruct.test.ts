@@ -37,11 +37,8 @@ describe('offline instruction planner', () => {
     expect(after.blocks.slice(1)).toEqual(before!.blocks.slice(1));
     expect(p.wording).toEqual(before);
   });
-  it('refuses purple anodizing with only catalog finishes as alternatives', async () => {
-    const plan = fallbackInstruction(await heritage(), 'use a purple anodized finish');
-    expect(plan.kind).toBe('refuse');
-    if (plan.kind !== 'refuse') throw new Error('Expected refusal');
-    expect(plan.nearestOptions).toEqual(getCatalog().finishes.map((f) => f.label));
+  it('sends a finish the catalog does not have to the image model, word for word', async () => {
+    expect(fallbackInstruction(await heritage(), 'use a purple anodized finish')).toEqual({ kind: 'visual', restated: 'use a purple anodized finish' });
   });
   it('sets italic on the name/headline block', async () => {
     const p = await heritage();
@@ -59,16 +56,24 @@ describe('offline instruction planner', () => {
   ])('plans %s without changing extra fields', async (instruction, specPatch) => {
     expect(fallbackInstruction(await heritage(), instruction)).toMatchObject({ kind: 'spec', specPatch });
   });
-  it.each(['make it 120 x 24', 'use gold leaf', 'use a blue paint', 'use double line and add neon lights', 'write me a poem', 'use aluminum'])('refuses unsupported instructions: %s', async (instruction) => {
-    expect(fallbackInstruction(await heritage(), instruction).kind).toBe('refuse');
+  it.each(['make it 120 x 24', 'use gold leaf', 'use a blue paint', 'write me a poem', 'recreate the entire image in a warmer light'])('never refuses: %s goes to the image model as written', async (instruction) => {
+    expect(fallbackInstruction(await heritage(), instruction)).toEqual({ kind: 'visual', restated: instruction });
   });
-  it('accepts every alternative chip returned for a finish refusal', async () => {
+  it('a catalog change plus something only the image can do becomes one edit', async () => {
+    expect(fallbackInstruction(await heritage(), 'use double line and add neon lights')).toMatchObject({ kind: 'edit', specPatch: { border: 'double-line' }, imageEdit: 'add neon lights' });
+  });
+  it('a new metal takes a finish made for it; a finish the metal cannot have is an image change', async () => {
     const p = await heritage();
+    expect(fallbackInstruction(p, 'use aluminum')).toMatchObject({ kind: 'spec', specPatch: { material: 'aluminum', finish: 'brushed-aluminum' } });
     for (const f of getCatalog().finishes) {
       const plan = fallbackInstruction(p, `use ${f.label}`);
       if ((f.materials as string[]).includes(p.spec!.material)) expect(plan).toMatchObject({ kind: 'spec', specPatch: { finish: f.id } });
-      else expect(plan.kind).toBe('refuse');
+      else expect(plan).toEqual({ kind: 'visual', restated: `use ${f.label}` });
     }
+  });
+  it('turns a refusal from the language model into an image edit', async () => {
+    const p = await heritage();
+    expect(validateInstructionPlan({ kind: 'refuse', reason: 'no', nearestOptions: [] }, p, 'make it glow')).toEqual({ kind: 'visual', restated: 'make it glow' });
   });
   it('inserts verbatim text at the bottom and preserves punctuation', async () => {
     const p = await heritage();

@@ -201,9 +201,7 @@ describe('proof styles', () => {
       const layout = computeLayout({ spec: s, wording, photos: [{ aspect: 0.9 }] }, 'classic');
       const prod = await buildProductionPdf({ jobNumber: 'x', name: 'x', spec: s, layout });
       const pdf = await buildProof(style, {
-        jobNumber: '12345', version: 2, spec: s, wording, layout, plaqueImage: await png(),
-        visualScale: dir.includes('hadar') ? 'site' : 'person', sitePhoto: dir.includes('hadar') ? `${REF}/${dir}/site-photo.png` : null,
-        siteMountHeightIn: 60, productionPdf: prod.pdf,
+        jobNumber: '12345', version: 2, spec: s, wording, layout, plaqueImage: await png(), productionPdf: prod.pdf,
       });
       const doc = await PDFDocument.load(pdf);
       expect(doc.getPageCount()).toBe(pages);
