@@ -39,7 +39,7 @@ export interface ImageAdapter {
 let client: OpenAI | null = null;
 export function openai(): OpenAI {
   if (!config.openaiKey) throw new Error('OPENAI_API_KEY is not set. Add it in the server settings.');
-  if (!client) client = new OpenAI({ apiKey: config.openaiKey, timeout: 10 * 60 * 1000, maxRetries: 1 });
+  if (!client) client = new OpenAI({ apiKey: config.openaiKey, timeout: 5 * 60 * 1000, maxRetries: 1 });
   return client;
 }
 

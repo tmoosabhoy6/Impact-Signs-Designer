@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import express, { type Request, type Response } from 'express';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
@@ -36,6 +37,7 @@ import { resolveFont } from './text/fonts.js';
 import type { ConceptRecord, InstructionPlan, LayoutPresetId, OutputRecord, PlaqueLayout, Project, TextStyle, WordingBlock, WordingRole } from '../shared/types.js';
 
 export const api = express.Router();
+const runTool = promisify(execFile);
 const UPLOAD_LIMIT_MB = 60;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: UPLOAD_LIMIT_MB * 1024 * 1024 } });
 const UPLOAD_KINDS: UploadKind[] = ['photo', 'logo', 'sketch', 'font'];
@@ -365,6 +367,8 @@ api.get('/projects/:id/files/:kind/:fileId', fileHandler);
 
 api.get('/projects/:id/layout/:preset', ah(async (req, res) => {
   const p = loadProject(req);
+  // The engine would quietly draw the first layout for an unknown name; say so instead.
+  if (!PRESETS.some((x) => x.id === req.params.preset)) return res.status(404).json({ error: 'That layout does not exist.' });
   const layout = layoutFor(p, String(req.params.preset) as LayoutPresetId);
   const { w, h } = canvasSize(p.spec!.widthIn, p.spec!.heightIn, 900);
   const png = await layoutDrawing(p, layout, w, h);
@@ -549,15 +553,24 @@ function outputPresets(o: OutputRecord): LayoutPresetId[] {
   return one ? [one] : [];
 }
 
+/**
+ * Content-Disposition for a PDF shown in the browser. Header values must be plain ASCII, so a
+ * job name with an accent or a curly quote gets a safe fallback name plus the exact UTF-8 name.
+ */
+function inlineDisposition(fileName: string): string {
+  const fallback = fileName.replace(/[^\x20-\x7e]|["\\%]/g, '_');
+  return `inline; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
 function outputFile(o: OutputRecord) {
   return path.join(projectDir(o.projectId, 'outputs'), `${o.id}.pdf`);
 }
 
-function pdfPreview(pdf: string, dpi: number, page = 1): Buffer | null {
+async function pdfPreview(pdf: string, dpi: number, page = 1): Promise<Buffer | null> {
   if (!hasPoppler) return null;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pps-'));
   try {
-    execFileSync('pdftocairo', ['-png', '-singlefile', '-f', String(page), '-l', String(page), '-r', String(dpi), pdf, path.join(tmp, 'p')], { timeout: 60_000 });
+    await runTool('pdftocairo', ['-png', '-singlefile', '-f', String(page), '-l', String(page), '-r', String(dpi), pdf, path.join(tmp, 'p')], { timeout: 60_000 });
     return fs.readFileSync(path.join(tmp, 'p.png'));
   } catch {
     return null;
@@ -666,7 +679,7 @@ api.get('/outputs/:id/download', ah((req, res) => {
   if (!o) return res.status(404).end();
   if (req.query.inline) {
     res.type('application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${o.fileName.replace(/"/g, '')}"`);
+    res.setHeader('Content-Disposition', inlineDisposition(o.fileName));
     return res.sendFile(outputFile(o));
   }
   res.download(outputFile(o), o.fileName);
@@ -680,7 +693,7 @@ api.get('/outputs/:id/preview.png', ah(async (req, res) => {
   const page = Math.min(pageCount, Math.max(1, Math.floor(Number(req.query.page)) || 1));
   const cache = outputFile(o).replace(/\.pdf$/, page > 1 ? `-p${page}.png` : '.png');
   if (!fs.existsSync(cache)) {
-    const png = pdfPreview(outputFile(o), o.kind === 'proof' ? 110 : 40, page);
+    const png = await pdfPreview(outputFile(o), o.kind === 'proof' ? 110 : 40, page);
     if (!png) return res.status(404).json({ error: 'Preview not available on this computer.' });
     fs.writeFileSync(cache, await sharp(png).png().toBuffer());
   }

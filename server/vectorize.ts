@@ -42,7 +42,7 @@ async function readSource(file: { name: string; buffer: Buffer }): Promise<{ png
     try {
       const f = path.join(tmp, `source${ext}`);
       fs.writeFileSync(f, file.buffer);
-      return { png: pdfToPng(f, 600), kind: 'pdf' };
+      return { png: await pdfToPng(f, 600), kind: 'pdf' };
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }

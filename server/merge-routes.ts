@@ -51,7 +51,7 @@ mergeRouter.post('/preview', limiter, (req, res, next) => {
   try {
     const file = path.join(tmp, 'in.pdf');
     fs.writeFileSync(file, req.file.buffer);
-    const png = pdfToPng(file, 60);
+    const png = await pdfToPng(file, 60);
     const preview: MergePreview = { pages: doc.getPageCount(), image: `data:image/png;base64,${png.toString('base64')}` };
     res.json(preview);
   } finally {
