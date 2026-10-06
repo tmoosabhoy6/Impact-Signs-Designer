@@ -2,7 +2,7 @@
 // without changing what is in it. The image model sharpens a Lanczos enlargement of the
 // original; the result is then checked against the original and, when it matches, its
 // broad tones and colors are locked to the original so only fine detail comes from the AI.
-// Separate from the plaque pipeline: it shares only the OpenAI client and the daily budget.
+// Separate from the plaque pipeline: it shares only the OpenAI client, the daily budget and the render slots.
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
@@ -11,6 +11,7 @@ import type { ImageEditParamsBase, ImagesResponse } from 'openai/resources/image
 import { config } from '../config.js';
 import { addSpend, newId, now, spentToday } from '../db.js';
 import { costUsd, friendlyError, openai, withImageCompatibility, type ImageUsage } from './images.js';
+import { acquireRenderSlot } from './render-slots.js';
 import { MIN_SCALE, targetSize, type UpscaleFidelity, type UpscaleRecord, type UpscaleTarget } from '../../shared/upscale.js';
 
 export { UPSCALE_TARGETS, targetSize, type UpscaleRecord, type UpscaleTarget } from '../../shared/upscale.js';
@@ -137,6 +138,16 @@ export function checkUpscale(width: number, height: number, target: UpscaleTarge
 }
 
 export async function upscaleImage(file: { name: string; buffer: Buffer }, target: UpscaleTarget, createdBy: string, ownerId?: string): Promise<UpscaleRecord> {
+  // Upscales hold several full-size pictures in memory, like a plaque render: they share its slots.
+  const release = await acquireRenderSlot();
+  try {
+    return await upscaleInSlot(file, target, createdBy, ownerId);
+  } finally {
+    release();
+  }
+}
+
+async function upscaleInSlot(file: { name: string; buffer: Buffer }, target: UpscaleTarget, createdBy: string, ownerId?: string): Promise<UpscaleRecord> {
   const t0 = Date.now();
   const src = await readImage(file.buffer);
   const out = checkUpscale(src.width, src.height, target);

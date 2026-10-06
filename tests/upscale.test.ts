@@ -108,6 +108,31 @@ describe('upscaler routes in demo mode', () => {
     expect(text.status).toBe(400);
     expect((await text.json()).error).toMatch(/not an image/);
   });
+
+  it('refuses a target that is only an object property name', async () => {
+    const res = await postImage(await testImage(400, 300), 'constructor');
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Choose 720p or 1080p/);
+  });
+
+  it('waits for a free render slot, like a plaque render', async () => {
+    const { acquireRenderSlot } = await import('../server/ai/render-slots');
+    const before = config.maxParallelImages;
+    config.maxParallelImages = 1;
+    const release = await acquireRenderSlot();
+    try {
+      let finished = false;
+      const job = upscaleImage({ name: 'logo.png', buffer: await testImage(400, 300) }, '720p', 'Test').then(() => { finished = true; });
+      await new Promise((r) => setTimeout(r, 400));
+      expect(finished).toBe(false);
+      release();
+      await job;
+      expect(finished).toBe(true);
+    } finally {
+      release();
+      config.maxParallelImages = before;
+    }
+  });
 });
 
 describe('upscaler OpenAI call (stubbed client)', () => {

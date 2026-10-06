@@ -61,7 +61,7 @@ describe('instruction routes in demo mode', () => {
       const events = streamEvents(await response.text());
       expect(events.find((e) => e.type === 'start').concepts.map((c: ConceptRecord) => c.preset)).toEqual(['classic', 'statement']);
       expect(run).toHaveBeenCalledTimes(2);
-      const catalog = await (await fetch(`${base}/catalog`)).json();
+      const catalog = await (await fetch(`${base}/catalog`, { headers: { Cookie: cookie } })).json();
       expect(catalog.presets.filter((pr: { active: boolean }) => pr.active).map((pr: { id: string }) => pr.id)).toEqual(['classic', 'statement']);
     } finally { run.mockRestore(); }
   });

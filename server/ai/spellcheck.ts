@@ -110,7 +110,8 @@ export async function spellcheckImage(png: Buffer, expectedLines: string[], smal
         },
       ],
       text: { format: { type: 'json_object' } },
-    });
+    // Its own limit: the image client allows 10 minutes, and a stuck check would leave the version "running".
+    }, { timeout: 90_000, maxRetries: 1 });
     const parsed = z.object({ lines: z.array(z.string()), designChecks: z.unknown().optional() }).parse(JSON.parse(res.output_text || '{}'));
     const seen = parsed.lines;
     const differences = compareWording(expectedLines, seen, smallCapsLines);

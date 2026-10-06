@@ -343,11 +343,12 @@ interface TextStats {
   members: Set<string>;
 }
 
-function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number, spacing = 1, stats?: TextStats): { items: Item[]; raised: number } {
+function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number, spacing = 1, stats?: TextStats, minLetter = true): { items: Item[]; raised: number } {
   const items: Item[] = [];
   // Lines whose letters would be cast smaller than the minimum are set at the minimum instead.
   let raised = 0;
   const floor = (size: number, face: OTFont, text: string, style: TextStyle) => {
+    if (!minLetter) return size;
     const min = minSizeFor(face, text, style);
     if (size >= min - 1e-9) return size;
     raised++;
@@ -365,7 +366,7 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
     if (cols > 1) {
       // Donor-list columns: entries fill columns top to bottom.
       const entries = b.text.split('\n').map((t) => t.trim()).filter(Boolean);
-      const perCol = Math.ceil(entries.length / cols);
+      const slots = columnSlots(entries, cols);
       const colW = maxWidth / cols;
       const longest = Math.max(...entries.map((e) => measure(face, e, size, style.smallCaps)));
       if (longest > colW * 0.94) size = Math.max(size * 0.4, (size * colW * 0.94) / longest);
@@ -376,8 +377,7 @@ function textItems(input: LayoutInput, B: number, p: PresetDef, maxWidth: number
         if (stats.members.has(b.id)) stats.listSize = Math.min(stats.listSize, size);
       }
       const lines: (StyledText & { row: number })[] = entries.map((text, i) => {
-        const c = Math.floor(i / perCol);
-        const row = i % perCol;
+        const { col: c, row } = slots[i]!;
         const colLeft = -maxWidth / 2 + c * colW;
         return style.align === 'left' ? { text, dx: 0, left: colLeft + colW * 0.03, row } : { text, dx: colLeft + colW / 2, row };
       });
@@ -405,9 +405,18 @@ interface Fitted {
   layout: PlaqueLayout;
   fits: boolean;
   listSize: number;
+  /** Nothing runs off the plaque or overlaps (it may still be tighter than comfortable). */
+  sound: boolean;
 }
 
-function fitLayout(input: LayoutInput, presetId: LayoutPresetId, contentOverride: Rect | undefined, plan: { dense: boolean; members: Set<string> }): Fitted {
+interface FitPlan {
+  dense: boolean;
+  members: Set<string>;
+  /** Hold letters at the ¼" minimum. Off only when the wording cannot fit at it (see `computeCore`). */
+  minLetter: boolean;
+}
+
+function fitLayout(input: LayoutInput, presetId: LayoutPresetId, contentOverride: Rect | undefined, plan: FitPlan): Fitted {
   const { spec } = input;
   const preset = PRESETS.find((p) => p.id === presetId) ?? PRESETS[0];
   const W = spec.widthIn;
@@ -517,7 +526,7 @@ function fitLayout(input: LayoutInput, presetId: LayoutPresetId, contentOverride
           remaining.push(block);
           continue;
         }
-        const made = textItems({ ...input, wording: { blocks: [block], notes: [] } }, B, preset, headW, adj.spacing, stats);
+        const made = textItems({ ...input, wording: { blocks: [block], notes: [] } }, B, preset, headW, adj.spacing, stats, plan.minLetter);
         openingRaised += made.raised;
         const item = made.items[0];
         if (!item || item.kind !== 'text') continue;
@@ -528,7 +537,7 @@ function fitLayout(input: LayoutInput, presetId: LayoutPresetId, contentOverride
         if (take < item.lines.length) remaining.push({ ...block, text: item.lines.slice(take).map((l) => l.text).join('\n') });
       }
       const head = stack(opening, B, gapMul, adj.spacing);
-      const bodyMade = textItems({ ...input, wording: { blocks: remaining, notes: [] } }, B, preset, maxW, adj.spacing, stats);
+      const bodyMade = textItems({ ...input, wording: { blocks: remaining, notes: [] } }, B, preset, maxW, adj.spacing, stats, plan.minLetter);
       raised = openingRaised + bodyMade.raised;
       const bodyItems = bodyMade.items;
       if (hasLogo) {
@@ -567,7 +576,7 @@ function fitLayout(input: LayoutInput, presetId: LayoutPresetId, contentOverride
       colW = contentW - fw - gutter;
       frameRect = { x: content.x + pad, y: content.y + (content.h - fh) / 2, w: fw, h: fh };
       frameCells = group.cells;
-      const texts = textItems(input, B, preset, colW, adj.spacing, stats);
+      const texts = textItems(input, B, preset, colW, adj.spacing, stats, plan.minLetter);
       raised = texts.raised;
       const items = texts.items;
       if (hasLogo) {
@@ -583,7 +592,7 @@ function fitLayout(input: LayoutInput, presetId: LayoutPresetId, contentOverride
       colX = content.x;
       colW = content.w;
       const maxText = Math.min(content.w * 0.92, content.w - 2 * screwKeepOut);
-      const made = textItems(input, B, preset, maxText, adj.spacing, stats);
+      const made = textItems(input, B, preset, maxText, adj.spacing, stats, plan.minLetter);
       raised = made.raised;
       const texts = made.items;
       const items: Item[] = [];
@@ -704,8 +713,9 @@ function fitLayout(input: LayoutInput, presetId: LayoutPresetId, contentOverride
     warnings,
   };
   // Say so when the drawing is not sound, instead of handing on text that hangs off the plaque.
-  layout.warnings.push(...layoutProblems(layout, spec.font));
-  return { layout, fits: scale >= 0.25 && !stats.wide, listSize: stats.listSize };
+  const problems = layoutProblems(layout, spec.font);
+  layout.warnings.push(...problems);
+  return { layout, fits: scale >= 0.25 && !stats.wide, listSize: stats.listSize, sound: !problems.length };
 }
 
 // ---------- Donor lists ----------
@@ -724,6 +734,64 @@ function isEntry(text: string): boolean {
 
 /** A tier heading such as GOLD: capitals only, three letters or more. */
 const isCaps = (text: string) => /[A-Z]{3}/.test(text) && text === text.toUpperCase();
+
+/** A gift-range tier heading such as "$15,000+", "$7,500-$14,999" or "$1,000 and up". */
+const isAmount = (text: string) =>
+  /^\$\s?\d[\d,.]*(\s*\+|\s*(?:-|–|—|to)\s*\$?\s?\d[\d,.]*\+?)?(\s+(?:and|&)\s+(?:up|above|over))?$/i.test(text.trim());
+
+/**
+ * The column and row of each entry of a list set in `cols` columns, filled top to bottom.
+ * A tiered list (headings over groups of names) breaks columns between tiers when the columns
+ * still come out about even, as Impact Signs sets donor walls; otherwise the entries are shared
+ * evenly. Either way a heading never sits alone at the foot of a column.
+ */
+function columnSlots(entries: string[], cols: number): { col: number; row: number }[] {
+  const n = entries.length;
+  const even = Math.ceil(n / cols);
+  const capsShare = entries.filter(isCaps).length / Math.max(1, n);
+  const heading = (t: string) => isAmount(t) || (capsShare < 0.5 && isCaps(t));
+  // Start index of each column.
+  let starts: number[] | null = null;
+  const groupStarts = entries.map((t, i) => i).filter((i) => i === 0 || heading(entries[i]!));
+  if (groupStarts.length >= cols && entries.some(heading)) {
+    const sizes = groupStarts.map((s, g) => (groupStarts[g + 1] ?? n) - s);
+    const split = balancedSplit(sizes, cols);
+    const tallest = Math.max(...split.map((first, c) => sizes.slice(first, split[c + 1] ?? sizes.length).reduce((a, b) => a + b, 0)));
+    if (tallest <= even + Math.max(2, Math.ceil(even * 0.2))) starts = split.map((g) => groupStarts[g]!);
+  }
+  if (!starts) {
+    starts = Array.from({ length: cols }, (_, c) => Math.min(n, c * even));
+    // Move a heading that would end a column to the top of the next one.
+    for (let c = 1; c < cols; c++) if (starts[c]! > starts[c - 1]! + 1 && heading(entries[starts[c]! - 1] ?? '')) starts[c]!--;
+  }
+  return entries.map((_, i) => {
+    let col = 0;
+    while (col + 1 < cols && i >= starts![col + 1]!) col++;
+    return { col, row: i - starts![col]! };
+  });
+}
+
+/** Splits consecutive groups into `parts` runs with the smallest tallest run; returns each run's first group. */
+function balancedSplit(sizes: number[], parts: number): number[] {
+  const m = sizes.length;
+  const prefix = [0];
+  for (const s of sizes) prefix.push(prefix[prefix.length - 1]! + s);
+  // best[k][i]: smallest tallest run when the first i groups make k runs.
+  const best = Array.from({ length: parts + 1 }, () => new Array<number>(m + 1).fill(Infinity));
+  const cut = Array.from({ length: parts + 1 }, () => new Array<number>(m + 1).fill(0));
+  best[0]![0] = 0;
+  for (let k = 1; k <= parts; k++) {
+    for (let i = k; i <= m; i++) {
+      for (let j = k - 1; j < i; j++) {
+        const v = Math.max(best[k - 1]![j]!, prefix[i]! - prefix[j]!);
+        if (v < best[k]![i]!) { best[k]![i] = v; cut[k]![i] = j; }
+      }
+    }
+  }
+  const firsts: number[] = [];
+  for (let k = parts, i = m; k > 0; k--) { i = cut[k]![i]!; firsts.unshift(i); }
+  return firsts;
+}
 
 const styleKey = (b: WordingBlock) => JSON.stringify(b.style ?? {});
 
@@ -773,23 +841,47 @@ function withListColumns(wording: Wording, runs: WordingBlock[][], columns: numb
  * Fits the plaque. Donor lists are tried in one column (as pasted) and in two to five, and
  * the columns win only when the whole list fits at a clearly larger size: a list of fifty
  * names in one column cannot be cast at ¼" letters, in four columns it can.
+ *
+ * The ¼" minimum holds whenever the wording fits at it. When it cannot (a long donor list on a
+ * small plate), the type is made smaller until everything fits, as the engine did before the
+ * minimum existed, and the layout says so. Text hanging off the plate is never an answer: it
+ * made production files that could not be used at all.
  */
 function computeCore(input: LayoutInput, presetId: LayoutPresetId, contentOverride?: Rect): PlaqueLayout {
+  const strict = arrange(input, presetId, contentOverride, true);
+  // Tighter than comfortable but on the plate and clear of everything: ¼" letters win.
+  if (strict.fits || strict.sound) return strict.layout;
+  const relaxed = arrange(input, presetId, contentOverride, false);
+  if (!relaxed.sound) return strict.layout;
+  const { widthIn: W, heightIn: H } = input.spec;
+  const smallest = relaxed.layout.minLetterIn;
+  // Drop the strict pass's "does not fit" lines: this layout fits; say what it cost instead.
+  relaxed.layout.warnings = [
+    `At the ¼" minimum letter height the wording does not fit this ${W}" x ${H}" plaque, so the letters were made smaller to fit${smallest != null ? ` (smallest ${smallest.toFixed(2)}")` : ''}. For ¼" letters, use a larger plaque or shorten the wording.`,
+    ...relaxed.layout.warnings,
+  ];
+  return relaxed.layout;
+}
+
+/** The best arrangement of the wording, with or without the ¼" letter minimum. */
+function arrange(input: LayoutInput, presetId: LayoutPresetId, contentOverride: Rect | undefined, minLetter: boolean): Fitted {
   const blocks = input.wording?.blocks ?? [];
-  const dense = blocks.length >= 6;
   const runs = listRuns(blocks);
-  const members = new Set(runs.flat().map((b) => b.id));
-  const one = fitLayout(input, presetId, contentOverride, { dense, members });
-  if (!runs.length) return one.layout;
-  const tries = Array.from({ length: MAX_LIST_COLUMNS - 1 }, (_, i) => i + 2).map((n) => ({
-    n,
-    ...fitLayout({ ...input, wording: withListColumns(input.wording!, runs, n) }, presetId, contentOverride, { dense, members }),
-  }));
-  const fitting = tries.filter((t) => t.fits);
+  const plan: FitPlan = { dense: blocks.length >= 6, members: new Set(runs.flat().map((b) => b.id)), minLetter };
+  const one = fitLayout(input, presetId, contentOverride, plan);
+  if (!runs.length) return one;
+  const tries = Array.from({ length: MAX_LIST_COLUMNS - 1 }, (_, i) => i + 2).map((n) =>
+    fitLayout({ ...input, wording: withListColumns(input.wording!, runs, n) }, presetId, contentOverride, plan));
+  // Fits comfortably, then at least sound (nothing off the plate or overlapping), then anything.
+  const rank = (t: Fitted) => (t.fits ? 2 : t.sound ? 1 : 0);
+  const top = Math.max(rank(one), ...tries.map(rank));
+  const pool = tries.filter((t) => rank(t) === top);
   // Largest type first; fewer columns when the type is the same.
-  const best = (fitting.length ? fitting : tries).reduce((a, b) => (b.listSize > a.listSize * 1.001 ? b : a));
-  if (!one.fits) return (fitting.length || best.listSize > one.listSize ? best : one).layout;
-  return best.fits && best.listSize >= one.listSize * 1.15 ? best.layout : one.layout;
+  const best = pool.length ? pool.reduce((a, b) => (b.listSize > a.listSize * 1.001 ? b : a)) : null;
+  if (rank(one) < top) return best!;
+  if (!best) return one;
+  // A list that fits as pasted is set in columns only for clearly larger type.
+  return best.listSize >= one.listSize * (top === 2 ? 1.15 : 1.001) ? best : one;
 }
 
 function resolveFontFace(file?: string): OTFont | null {
