@@ -45,10 +45,10 @@ describe('donor lists: the layout fits the plaque or says it cannot', () => {
           const spec = plaque(size);
           const wording = wordingOf(['OUR DONORS', 'With gratitude', ...names(n, make), 'Dedicated 2025']);
           const layout = computeLayout({ spec, wording }, 'classic');
-          const cannot = layout.warnings.some((w) => /does not fit/.test(w));
-          // Either every line sits on the plaque, or the layout says it does not fit. Never silent.
-          if (!cannot) expect(layoutProblems(layout, spec.font), layout.warnings.join(' | ')).toEqual([]);
-          else expect(layout.warnings.join(' ')).toMatch(/does not fit|run past the edge/);
+          // Every line sits on the plaque, whatever the list: the vector file is always usable.
+          expect(layoutProblems(layout, spec.font), layout.warnings.join(' | ')).toEqual([]);
+          // Below the ¼" minimum only when it cannot be helped, and then it says so.
+          if ((layout.minLetterIn ?? 1) < 0.249) expect(layout.warnings.join(' ')).toMatch(/letters were made smaller to fit/);
           expect(letters(layout.lines.map((l) => l.text))).toBe(letters(texts(wording)));
         });
       }
@@ -129,17 +129,57 @@ describe('donor lists: the layout fits the plaque or says it cannot', () => {
     expect(layout.lines.map((l) => l.text).sort()).toEqual([...texts(wording)].sort());
   });
 
-  it('a list that cannot be cast at 1/4" reports it plainly and fails the preflight, never silently', async () => {
+  it('a list that cannot be cast at 1/4" is set smaller to fit, says so, and still makes a usable vector file', async () => {
     const spec = plaque('12" x 18"');
     const layout = computeLayout({ spec, wording: wordingOf(['OUR DONORS', ...names(80, LONG)]) }, 'classic');
-    expect(layout.warnings.join(' ')).toMatch(/does not fit/);
-    expect(layout.warnings.join(' ')).toMatch(/run past the edge/);
+    expect(layout.warnings.join(' ')).toMatch(/does not fit this 12" x 18" plaque, so the letters were made smaller to fit/);
+    expect(layout.minLetterIn).toBeLessThan(0.25);
+    expect(layoutProblems(layout, spec.font)).toEqual([]);
     const r = await buildProductionPdf({ jobNumber: '1', name: 'x', spec, layout });
-    const check = (await preflight(r.pdf, layout, { fontLicensed: true })).find((c) => c.label === 'Everything fits on the plaque')!;
-    expect(check.ok).toBe(false);
-    expect(check.warnOnly).toBeUndefined();
-    expect(check.detail).toMatch(/larger plaque|Shorten/);
+    const checks = await preflight(r.pdf, layout, { fontLicensed: true });
+    expect(checks.filter((c) => !c.ok && !c.warnOnly)).toEqual([]);
+    const letterCheck = checks.find((c) => c.label === 'Letter heights')!;
+    expect(letterCheck.ok).toBe(false);
+    expect(letterCheck.warnOnly).toBe(true);
+    expect(letterCheck.detail).toMatch(/below the ¼" casting minimum/);
   });
+
+  // Job 6 (Varnermiller Pavilion), whose vector file ran off the plate before.
+  const VARNERMILLER = ['VARNERMILLER PAVILION', 'Gifted by the Leadership Dorchester Class of 2026', 'Made possible, in part, through the generous contributions of:',
+    '$15,000+', 'Richard & Lori Miller', '$7,500-$14,999', 'The Bastion Group', 'Frampton Construction', 'Lutes Electrical', 'REV Federal Credit Union', 'SLS Siteworks', 'Thomas & Hutton',
+    '$2,500-$7,499', 'Blue Cross Blue Shield of SC', 'Modern Woodmen of America', 'Pratt Family Foundation',
+    '$1,000-$2,499', 'Appraisal Services of SC', 'Dorchester Seniors', 'HCA Healthcare', 'Home Telecom', 'Leadership Dorchester c/o 2025', 'United Community',
+    '$500-$999', 'Anthony Pope', 'Lowcountry Conference Center', 'Player’s Place Billiards', 'Summerville Country Club', 'The Village at Summerville', 'Winfield Entertainment',
+    '$100-$499', 'Anna McSwain', 'Ashley Greene', 'Beth Hicks', 'Billy Lee', 'Break Point Cola', 'Brittany VanAllen', 'The Cookie Chick', 'Donna Gamble', 'Dustin Fuller', 'Jason Chambles', 'Matt Mullin', 'Tonja Willey'];
+
+  for (const preset of ['classic', 'statement'] as const) {
+    it(`${preset}: a tiered donor wall on 18" x 12" fits, keeps every word, and keeps each gift level with its names`, async () => {
+      const spec = plaque('18" x 12"');
+      const wording = wordingOf(VARNERMILLER);
+      const layout = computeLayout({ spec, wording }, preset);
+      expect(layoutProblems(layout, spec.font)).toEqual([]);
+      expect(letters(layout.lines.map((l) => l.text))).toBe(letters(VARNERMILLER));
+      const at = (t: string) => layout.lines.find((l) => l.text === t)!;
+      // Three columns, broken between gift levels as Impact Signs sets them.
+      const left = at('$15,000+').cx;
+      expect(at('$1,000-$2,499').cx).toBeGreaterThan(left + 3);
+      expect(at('$100-$499').cx).toBeGreaterThan(at('$1,000-$2,499').cx + 3);
+      for (const [heading, first] of [['$7,500-$14,999', 'The Bastion Group'], ['$2,500-$7,499', 'Blue Cross Blue Shield of SC'], ['$500-$999', 'Anthony Pope'], ['$1,000-$2,499', 'Appraisal Services of SC'], ['$100-$499', 'Anna McSwain']]) {
+        // A heading is never alone at the foot of a column: its first name is right below it.
+        expect(at(first!).cx, heading).toBeCloseTo(at(heading!).cx, 6);
+        expect(at(first!).baseline, heading).toBeGreaterThan(at(heading!).baseline);
+      }
+      // Each column's top is a gift level.
+      for (const heading of ['$15,000+', '$1,000-$2,499', '$100-$499']) {
+        // The middle column shares its center with the title: look at the list only.
+        const col = layout.lines.filter((l) => VARNERMILLER.indexOf(l.text) >= 3 && Math.abs(l.cx - at(heading).cx) < 1e-6);
+        expect(Math.min(...col.map((l) => l.baseline))).toBeCloseTo(at(heading).baseline, 6);
+      }
+      const r = await buildProductionPdf({ jobNumber: '6', name: 'Varnermiller', spec, layout });
+      const checks = await preflight(r.pdf, layout, { fontLicensed: true });
+      expect(checks.filter((c) => !c.ok && !c.warnOnly)).toEqual([]);
+    });
+  }
 
   it('a donor plaque that fits passes every preflight check', async () => {
     const spec = plaque('24" x 36"');
