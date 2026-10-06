@@ -351,7 +351,8 @@ describe('image model references', () => {
     const refs = await buildReferences(p, layout, await layoutDrawing(p, layout, 400, 600));
     expect(refs.length).toBeLessThanOrEqual(MAX_REFERENCES);
     // Layout + 4 photos + 6 catalog pictures (type, finish, paint, texture, border, screws) + 2 sheets.
-    expect(refs).toHaveLength(13);
+    expect(refs.filter((r) => !r.designExample)).toHaveLength(13);
+    expect(refs.filter((r) => r.designExample)).toHaveLength(3);
     // Sketches and logos share a sheet each; every photo keeps its own reference.
     expect(refs.filter((r) => /^customer photo \d of 4/.test(r.role))).toHaveLength(4);
     expect(refs.find((r) => r.name === 'customer-logo-sheet.png')?.role).toMatch(/all 6 customer logos on one sheet/);

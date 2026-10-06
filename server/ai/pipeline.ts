@@ -15,6 +15,7 @@ import { changesOrder } from './instruct.js';
 import { canvasSize, imageLongEdgeForQuality, costUsd, friendlyError, imageAdapter } from './images.js';
 import { fitToPlaque, smallPreview } from './postprocess.js';
 import { spellcheckImage } from './spellcheck.js';
+import { designContext, designReferences } from './design-library.js';
 import type { ConceptRecord, ContentSnapshot, LayoutPresetId, PlaqueLayout, Project } from '../../shared/types.js';
 
 export interface ConceptEvents {
@@ -115,7 +116,7 @@ async function groupRefs(g: CustomerGroup): Promise<RefImage[]> {
   return Promise.all(g.files.map(async (f, i) => ({ role: g.one(i), file: await asPng(f, 1536, g.name === 'customer-logo' ? '#808080' : '#ffffff'), name: g.files.length > 1 ? `${g.name}-${i + 1}.png` : `${g.name}.png`, mime: 'image/png' })));
 }
 
-export async function buildReferences(project: Project, layout: PlaqueLayout, layoutPng: Buffer): Promise<RefImage[]> {
+export async function buildReferences(project: Project, layout: PlaqueLayout, layoutPng: Buffer, includeDesign = true): Promise<RefImage[]> {
   const spec = project.spec!;
   const files = layoutFiles(project, layout);
   // Customer files: one reference each when they fit within the model's limit; otherwise the
@@ -184,6 +185,9 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   ];
   // The upload limits keep this within range; never send the model more than it accepts.
   if (refs.length > MAX_REFERENCES) throw new Error(`Too many reference pictures (${refs.length}). Remove a sketch or a logo and try again.`);
+  // Customer artwork keeps priority. Examples occupy only remaining slots, never force
+  // photos/logos onto smaller sheets or replace the catalog's treatment reference.
+  if (includeDesign) refs.push(...designReferences(spec, layout, MAX_REFERENCES - refs.length));
   return refs;
 }
 
@@ -283,6 +287,7 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
 
     let prompt: string;
     let images: RefImage[];
+    let styleRefs: RefImage[];
     if (rec.kind === 'fix' && rec.parentId) {
       const parent = getConcept(rec.parentId);
       if (!parent?.hasImage) throw new Error('The image to fix is missing.');
@@ -294,7 +299,7 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
         ...(structural ? [{ role: 'updated layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' }] : []),
       ];
       // Original logo files restore details that may already be missing in the photograph.
-      const refs = await buildReferences(project, layout, layoutPng);
+      const refs = await buildReferences(project, layout, layoutPng, false);
       images.push(...refs.filter((r) => r.name.startsWith('customer-logo')));
       prompt = structural
         ? buildRelayoutPrompt(rec.instruction ?? rec.note, undefined, layout)
@@ -302,11 +307,14 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
       if (layout.logos.length) {
         prompt += `\n\nImages after Image ${structural ? 2 : 1} are the original customer logos, in layout order. Use them only when the instruction asks to change or restore a logo. Preserve complete artwork, including white lettering, fine rules and white color regions. Otherwise keep the logos exactly as they appear in Image 1.`;
       }
+      // Taste references belong in the review, not in a focused edit of the selected image.
+      styleRefs = designReferences(project.spec!, layout, 3);
     } else {
       images = await buildReferences(project, layout, layoutPng);
+      styleRefs = images.filter((r) => r.designExample);
       prompt = buildConceptPrompt(project.spec!, layout, images, { logoCount: layoutFiles(project, layout).logos.filter(Boolean).length, direction: designerChange(rec) });
     }
-    update({ prompt });
+    update({ prompt, designContext: designContext(styleRefs) });
 
     const result = await imageAdapter().run({
       model: rec.model,
@@ -334,8 +342,10 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     if (cost) addSpend(cost);
     update({ hasImage: true, usage: result.usage, costUsd: cost, status: 'running', size: result.size ?? size, quality: result.quality ?? quality });
 
-    const spellcheck = await spellcheckImage(fitted.png, layout.lines.map((l) => l.text), layout.lines.map((l) => !!l.style?.smallCaps));
-    update({ spellcheck, status: 'done', durationMs: Date.now() - started });
+    const { designReview, ...spellcheck } = await spellcheckImage(fitted.png, layout.lines.map((l) => l.text), layout.lines.map((l) => !!l.style?.smallCaps), {
+      spec: project.spec!, layoutPng, styleRefs, instruction: rec.kind === 'fix' ? rec.instruction ?? rec.note : undefined,
+    });
+    update({ spellcheck, designReview, status: 'done', durationMs: Date.now() - started });
   } catch (e) {
     update({ status: 'error', error: friendlyError(e), durationMs: Date.now() - started });
   } finally {

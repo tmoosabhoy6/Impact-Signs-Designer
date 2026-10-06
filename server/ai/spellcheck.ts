@@ -4,7 +4,11 @@
 import { config } from '../config.js';
 import { friendlyError, openai } from './images.js';
 import { readPrompt } from './prompts.js';
-import type { SpellcheckResult } from '../../shared/types.js';
+import type { RefImage } from './prompts.js';
+import { DESIGN_CRITERIA, type DesignReview, type PlaqueSpec, type SpellcheckResult } from '../../shared/types.js';
+import { mustOption, paintHex, paintLabel } from '../catalog.js';
+import sharp from 'sharp';
+import { z } from 'zod';
 
 const norm = (s: string) =>
   s
@@ -46,36 +50,79 @@ export function compareWording(expectedLines: string[], seenLines: string[], sma
   return diffs;
 }
 
-export async function spellcheckImage(png: Buffer, expectedLines: string[], smallCapsLines: boolean[] = []): Promise<SpellcheckResult> {
-  if (!expectedLines.length) return { ok: true, checked: false, differences: [], message: 'No text to check.' };
+export interface DesignReviewInput {
+  spec: PlaqueSpec;
+  layoutPng: Buffer;
+  styleRefs: RefImage[];
+  instruction?: string;
+}
+
+const checksSchema = z.array(z.object({ criterion: z.enum(DESIGN_CRITERIA), ok: z.boolean(), detail: z.string().trim().min(1).max(600) }))
+  .length(DESIGN_CRITERIA.length)
+  .refine((checks) => new Set(checks.map((c) => c.criterion)).size === DESIGN_CRITERIA.length);
+
+export function parseDesignReview(value: unknown): DesignReview {
+  const result = checksSchema.safeParse(value);
+  if (!result.success) return { ok: false, checked: false, checks: [], message: 'Design review was incomplete. Inspect the image before making a proof.' };
+  const checks = result.data;
+  const ok = checks.every((check) => check.ok);
+  return { ok, checked: true, checks, message: ok ? 'Design review found no visible issues.' : 'Design review found issues. Check the notes before making a proof.' };
+}
+
+function reviewSpecification(input: DesignReviewInput): string {
+  const s = input.spec;
+  const details = [
+    `Material: ${mustOption('materials', s.material).label}; process: ${mustOption('processes', s.process ?? 'cast').label}.`,
+    `Finish: ${mustOption('finishes', s.finish).label}; recessed paint: ${paintLabel(s)} (${paintHex(s)}); texture: ${mustOption('backgroundTextures', s.backgroundTexture).label}.`,
+    `Image treatment: ${mustOption('imageOptions', s.imageOption).prompt}`,
+    `Logo treatment: ${mustOption('logoTreatments', s.logoTreatment ?? 'raised-cast').prompt}`,
+    `Border: ${mustOption('borders', s.border).label}; mounting: ${mustOption('mountings', s.mounting).label}.`,
+    ...input.styleRefs.map((ref, i) => `Image ${i + 3}: ${ref.role}`),
+  ];
+  if (input.instruction) details.push(`The designer explicitly requested this edit; it overrides conflicting defaults for the requested change only: ${input.instruction}`);
+  return details.join('\n');
+}
+
+/** Spelling and design use one vision request. No taste score, auto-approval or paid reroll. */
+export async function spellcheckImage(png: Buffer, expectedLines: string[], smallCapsLines: boolean[] = [], review?: DesignReviewInput): Promise<SpellcheckResult & { designReview?: DesignReview }> {
+  if (!expectedLines.length && !review) return { ok: true, checked: false, differences: [], message: 'No text to check.' };
   if (config.mockAI || !config.openaiKey) {
-    return { ok: true, checked: false, differences: [], message: 'Spelling check skipped (demo mode). Proofread the image yourself.' };
+    return { ok: true, checked: false, differences: [], message: 'Spelling check skipped (demo mode). Proofread the image yourself.',
+      ...(review ? { designReview: { ok: false, checked: false, checks: [], message: 'Design review skipped (demo mode). Inspect the image yourself.' } } : {}) };
   }
   try {
+    const content: import('openai/resources/responses/responses').ResponseInputContent[] = [
+      { type: 'input_text', text: readPrompt('spellcheck.md') + (review ? `\n\n${readPrompt('design-review.md')}\n\n${reviewSpecification(review)}` : '') },
+      { type: 'input_image', image_url: `data:image/png;base64,${png.toString('base64')}`, detail: 'high' },
+    ];
+    if (review) {
+      const drawing = await sharp(review.layoutPng).resize({ width: 768, height: 768, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+      content.push({ type: 'input_image', image_url: `data:image/png;base64,${drawing.toString('base64')}`, detail: 'high' });
+      for (const ref of review.styleRefs) content.push({ type: 'input_image', image_url: `data:${ref.mime};base64,${ref.file.toString('base64')}`, detail: 'high' });
+    }
     const res = await openai().responses.create({
       model: config.visionModel,
       store: false,
       input: [
         {
           role: 'user',
-          content: [
-            { type: 'input_text', text: readPrompt('spellcheck.md') },
-            { type: 'input_image', image_url: `data:image/png;base64,${png.toString('base64')}`, detail: 'high' },
-          ],
+          content,
         },
       ],
       text: { format: { type: 'json_object' } },
     });
-    const parsed = JSON.parse(res.output_text || '{}') as { lines?: string[] };
-    const seen = Array.isArray(parsed.lines) ? parsed.lines.map(String) : [];
+    const parsed = z.object({ lines: z.array(z.string()), designChecks: z.unknown().optional() }).parse(JSON.parse(res.output_text || '{}'));
+    const seen = parsed.lines;
     const differences = compareWording(expectedLines, seen, smallCapsLines);
     return {
       ok: differences.length === 0,
       checked: true,
       differences,
       message: differences.length ? `${differences.length} wording difference${differences.length > 1 ? 's' : ''} found. Use "Fix" or regenerate.` : 'Wording matches the customer text.',
+      ...(review ? { designReview: parseDesignReview(parsed.designChecks) } : {}),
     };
   } catch (e) {
-    return { ok: true, checked: false, differences: [], message: `Spelling check could not run (${friendlyError(e)}). Proofread the image yourself.` };
+    return { ok: true, checked: false, differences: [], message: `Spelling check could not run (${friendlyError(e)}). Proofread the image yourself.`,
+      ...(review ? { designReview: { ok: false, checked: false, checks: [], message: 'Design review could not run. Inspect the image before making a proof.' } } : {}) };
   }
 }

@@ -5,7 +5,7 @@ import { Button, Notice } from './ui';
 import type { ConceptRecord, OutputRecord } from '../../../shared/types';
 
 export type OutputKind = 'proof' | 'production';
-type WordingCheck = { message: string; differences: { expected: string; seen: string; where?: string }[] };
+type WordingCheck = { message: string; differences: { expected: string; seen: string; where?: string }[]; issues: string[] };
 
 /**
  * Makes the proof (one page per image on the proof, in order) or the vector PDF (from the first
@@ -27,7 +27,7 @@ export function useMakeOutput(projectId: string, conceptIds: string[], onChange:
       onChange(await api.post<ProjectPayload>(`/projects/${projectId}/proof`, { conceptIds, acknowledged }));
       setCheck(null);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) setCheck({ message: e.message, differences: (e.data.differences as WordingCheck['differences']) ?? [] });
+      if (e instanceof ApiError && e.status === 409) setCheck({ message: e.message, differences: (e.data.differences as WordingCheck['differences']) ?? [], issues: (e.data.issues as string[]) ?? [] });
       else setError({ kind: 'proof', message: (e as Error).message });
     } finally {
       setBusy(null);
@@ -51,7 +51,7 @@ export function useMakeOutput(projectId: string, conceptIds: string[], onChange:
   return { busy, error, check, notes, makeProof, makeProduction };
 }
 
-/** The spelling check found differences (or did not run): show them and ask before proofing. */
+/** Wording/design checks found issues (or did not run): show them before proofing. */
 export function WordingCheckWarning({ check, onConfirm }: { check: WordingCheck; onConfirm: () => void }) {
   return (
     <div className="space-y-2">
@@ -62,6 +62,7 @@ export function WordingCheckWarning({ check, onConfirm }: { check: WordingCheck;
             {d.where ? `${d.where}: ` : ''}expected “{d.expected}” · shows “{d.seen}”
           </div>
         ))}
+        {check.issues.map((issue, i) => <div key={i}>{issue}</div>)}
         <div className="mt-1">Fix it on the concept first, or confirm you have checked it yourself.</div>
       </Notice>
       <Button size="sm" variant="danger" onClick={onConfirm}>

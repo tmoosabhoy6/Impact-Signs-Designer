@@ -1,0 +1,450 @@
+{
+  "version": 1,
+  "description": "Visually reviewed Impact Signs examples. Observed treatment matches are style evidence, not manufacturing certification. Empty imageOptions means the process is uncertain.",
+  "examples": [
+    {
+      "id": "bee-murphy",
+      "family": "bee-murphy",
+      "label": "Bee Murphy music memorial",
+      "source": "Screenshot 2026-10-06 at 5.22.19 AM.png",
+      "asset": "bee-murphy.webp",
+      "imageOptions": [],
+      "aspect": 0.72,
+      "density": "medium",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "A framed flat monochrome portrait, stacked serif name, short centered dedication and restrained rules. The photo process cannot be established from this screenshot.",
+      "sourceSha256": "765daf82da271a3a90cb5573c0f23379787c84a3e9c35270abcae3fe89ff270f",
+      "sha256": "34d7c398f2656974cb94ce2a646bfb1da0a267e9eaa3081bb4ea005afe02a69f",
+      "hasLogo": false
+    },
+    {
+      "id": "murphys-music",
+      "family": "murphys-music",
+      "label": "Murphy’s Music Center",
+      "source": "Screenshot 2026-10-06 at 5.22.28 AM.png",
+      "asset": "murphys-music.webp",
+      "imageOptions": [
+        "none"
+      ],
+      "aspect": 1.45,
+      "density": "sparse",
+      "subject": "none",
+      "detail": false,
+      "lesson": "Clear three-level hierarchy: name, small qualifier, large date; clean cast letter faces and a quiet dark textured field.",
+      "sourceSha256": "c006924ed8755d279e07d0324e9ce2446877b612cfe4d9f8ea2584f0c14f23c5",
+      "sha256": "3d50a08c77ae6323e2fae40403a52b7d36b007e2234360a12ba72908a436d59c",
+      "hasLogo": false
+    },
+    {
+      "id": "schwartz",
+      "family": "schwartz",
+      "label": "Dr. Ronald Schwartz dedication",
+      "source": "Screenshot 2026-10-06 at 5.22.51 AM.png",
+      "asset": "schwartz.webp",
+      "imageOptions": [
+        "full-color-uv"
+      ],
+      "aspect": 1.33,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Natural-color photograph stays flat inside a narrow metal frame; compact biography beside it and a full-width closing dedication.",
+      "sourceSha256": "07a6918bd45a7aedf629d8c2d9544d223ce9e11da9bdcc43f8e006f543260eee",
+      "sha256": "ce2ca66a6ba2291c201c81f389498f2d39a8b173d4024b63d9420c1a786cef14",
+      "hasLogo": false
+    },
+    {
+      "id": "bowman",
+      "family": "bowman",
+      "label": "Bertie H. Bowman building",
+      "source": "Screenshot 2026-10-06 at 5.23.38 AM.png",
+      "asset": "bowman.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 0.69,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Modeled bust, generous space around the portrait, strong name hierarchy, complete institutional mark and separated board lists.",
+      "sourceSha256": "270765e80f58596f547ce7d717b3f99c6bcb1ba2a2be3b9a4d498767091e275d",
+      "sha256": "821136c22eca185b9d9714e995d5065a87246ab0fa793cf6979ff1d3539e3ff2",
+      "hasLogo": true
+    },
+    {
+      "id": "bowman-detail",
+      "family": "bowman",
+      "label": "Bertie H. Bowman bust detail",
+      "source": "Screenshot 2026-10-06 at 5.23.47 AM.png",
+      "asset": "bowman-detail.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 0.69,
+      "density": "medium",
+      "subject": "portrait",
+      "detail": true,
+      "lesson": "Sculpted cheeks, glasses, jacket and neck have modeled metal depth; clean edges separate the bust from the recessed field.",
+      "sourceSha256": "1df65d75177f161708a201c7c999d7808a68b5fb5b75e6e123e01c1348f4027e",
+      "sha256": "33b40f3ffab1ee73fd0b02c5fa6d52ebb01992561aa2f8ab65ccf0b027fa03c9",
+      "hasLogo": false
+    },
+    {
+      "id": "volpe",
+      "family": "volpe",
+      "label": "Dr. Anthony Volpe memorial",
+      "source": "Screenshot 2026-10-06 at 5.23.58 AM.png",
+      "asset": "volpe.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 0.73,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Sculpted bust above compact grouped name, dates and quotation. Mixed flat text panel is composition evidence only, not permission to add a printed plate.",
+      "sourceSha256": "e4ce8f9f5da2265629d8c92b776a719341c86dd05d8fc670bdc952a528db0ff7",
+      "sha256": "b998e2aa579eb47b86026e970a0629ddc4d0240f820defea20f0851ca4acfef0",
+      "hasLogo": false
+    },
+    {
+      "id": "faa",
+      "family": "faa",
+      "label": "Federal Aviation Administration dedication",
+      "source": "Screenshot 2026-10-06 at 5.24.14 AM.png",
+      "asset": "faa.webp",
+      "imageOptions": [],
+      "aspect": 0.8,
+      "density": "dense",
+      "subject": "scene",
+      "detail": false,
+      "lesson": "A formal seal, aligned row of three flat tonal photographs, restrained rule and centered dedication. Tonal photo process is uncertain; do not infer a UV or etched process.",
+      "sourceSha256": "9e5472f8f5ed0ded61d4f633d98faf472e79643dd946591cab658ee5d20342df",
+      "sha256": "c8b476ca4e1d94489c12ac01d6d41c68e2b367dcc1a440e323d87e0b38568cf9",
+      "hasLogo": true
+    },
+    {
+      "id": "doug-thomas",
+      "family": "doug-thomas",
+      "label": "Doug Thomas Memorial Field",
+      "source": "Screenshot 2026-10-06 at 5.24.35 AM.png",
+      "asset": "doug-thomas.webp",
+      "imageOptions": [
+        "photo-relief"
+      ],
+      "aspect": 0.85,
+      "density": "medium",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Shallow tonal metal portrait contrasts with a dark cast field; compact capitals, thin image frame and an isolated complete team mark. Custom shield silhouette is not transferable.",
+      "sourceSha256": "4b51e16234dc66c0af3038237deac3c1a91e7c02808163c7462ede36eed1ffb4",
+      "sha256": "48f998ffdebbd8abf718e34ce039e5c8b9d31c1e01e587b629d2d42d90356703",
+      "hasLogo": true
+    },
+    {
+      "id": "lachance",
+      "family": "lachance",
+      "label": "Paul E. LaChance memorial",
+      "source": "Screenshot 2026-10-06 at 5.24.48 AM.png",
+      "asset": "lachance.webp",
+      "imageOptions": [
+        "photo-relief"
+      ],
+      "aspect": 0.73,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Photographic detail remains in shallow metal tones; a quiet frame separates the portrait from grouped dedication paragraphs and an italic closing quote.",
+      "sourceSha256": "1d7ea42303d0257567316368d2140838293d32908722f8407923e844b40102f8",
+      "sha256": "17f283c5dc66b8518b2e9224a877bef7b191e654174caff0144667736ba48ccd",
+      "hasLogo": false
+    },
+    {
+      "id": "hodges-detail",
+      "family": "hodges",
+      "label": "Hodges Hall portrait detail",
+      "source": "Screenshot 2026-10-06 at 5.25.10 AM.png",
+      "asset": "hodges-detail.webp",
+      "imageOptions": [
+        "photo-relief"
+      ],
+      "aspect": 0.82,
+      "density": "medium",
+      "subject": "portrait",
+      "detail": true,
+      "lesson": "Two people remain distinct within one shallow photographic metal panel; fine frame, clean title and crisp uniform raised lettering.",
+      "sourceSha256": "8feef64bad0e3575127331b279012deaca9178bf87117826a752ce6a905ff33e",
+      "sha256": "ab97a146646c770fab252a5475665c06b9d6acfb2e9e94ba675dd0c50a42ad1e",
+      "hasLogo": false
+    },
+    {
+      "id": "hodges",
+      "family": "hodges",
+      "label": "Hodges Hall dedication",
+      "source": "Screenshot 2026-10-06 at 5.25.19 AM.png",
+      "asset": "hodges.webp",
+      "imageOptions": [
+        "photo-relief"
+      ],
+      "aspect": 0.82,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Large framed two-person metal portrait, clear headline, short dedication, thin rule and separated body text. Do not borrow its extra outer moulding.",
+      "sourceSha256": "a95e8093b43025b0a3540bbfa185de1e39e0fa7b5b1f0b623dfc90978803f819",
+      "sha256": "1749121c24b7025e8d99962e688b90e3a73706e291ecfb2d168588669ac1c278",
+      "hasLogo": false
+    },
+    {
+      "id": "dojo",
+      "family": "dojo",
+      "label": "Niko Njotorahardjo memorial",
+      "source": "Screenshot 2026-10-06 at 5.25.28 AM.png",
+      "asset": "dojo.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 0.75,
+      "density": "medium",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Isolated modeled bust, serif name hierarchy and grouped compact text; the ornamental outline and border are specific to this order.",
+      "sourceSha256": "a409b36b76a332447039ff9b2bdf8a1e701d3b8a8d9bf0687f14a52b5f34785a",
+      "sha256": "dd05362679b4b34e1978397c7f723763a368a06e4c755559956ca5ade5bcbe95",
+      "hasLogo": false
+    },
+    {
+      "id": "miller-detail",
+      "family": "miller",
+      "label": "Kenneth W. A. Miller portrait detail",
+      "source": "Screenshot 2026-10-06 at 5.26.05 AM.png",
+      "asset": "miller-detail.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 0.75,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": true,
+      "lesson": "Low sculpted metal planes and natural facial contours within a thin frame; bronze highlights remain controlled against a dark field.",
+      "sourceSha256": "f16815c9d50055bf463f33760613e7e7744cde5d35c9a81c89659ed2d013de89",
+      "sha256": "86c5df977cf0ddf2c89e8738342206b383e062a69155d34b3f7fcbddf7d39703",
+      "hasLogo": false
+    },
+    {
+      "id": "miller",
+      "family": "miller",
+      "label": "Kenneth W. A. Miller memorial",
+      "source": "Screenshot 2026-10-06 at 5.26.14 AM.png",
+      "asset": "miller.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 0.75,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Contained sculpted portrait, modest sans name and grouped centered paragraphs; soft depth rather than exaggerated extrusion.",
+      "sourceSha256": "b330fd9ea6d0951bed6a4e5aeb7f8c0e3e4a01404d7df87d127ff9abbfdd4411",
+      "sha256": "a3001413e0ada6677f5800b6a34832609c4a394aad2de291e9b4dd1a6413fb95",
+      "hasLogo": false
+    },
+    {
+      "id": "estess",
+      "family": "estess",
+      "label": "Roy S. Estess building",
+      "source": "Screenshot 2026-10-06 at 5.27.07 AM.png",
+      "asset": "estess.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 0.78,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Unframed modeled bust, strong serif name, readable compact paragraphs and a separate footer; thin border with consistent field margins.",
+      "sourceSha256": "63c858e19ce5f31a0de33e019fff5a20cd0fa74e5a5483aa4752808b1125960b",
+      "sha256": "f76d554140175e0e6d9253387ca69f9d63795901181ba70c6ddc1645f1d0cbdb",
+      "hasLogo": false
+    },
+    {
+      "id": "matick",
+      "family": "matick",
+      "label": "George S. Matick memorial",
+      "source": "Screenshot 2026-10-06 at 5.27.31 AM.png",
+      "asset": "matick.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 0.86,
+      "density": "dense",
+      "subject": "portrait",
+      "detail": false,
+      "lesson": "Isolated sculpted bust above a compact name/date group and two distinct body paragraphs; precise letter faces contrast with fine background texture.",
+      "sourceSha256": "6c07b24701d8e9c14814210fc5a0ad477934ecc25c0fead58980d26f86bba8da",
+      "sha256": "4f51cfd68d2c7423566511c29977bb5706488d34ae786a7cad69f7406c7af54a",
+      "hasLogo": false
+    },
+    {
+      "id": "chicago-fire",
+      "family": "chicago-fire",
+      "label": "Chicago Fire sculpted scene",
+      "source": "Screenshot 2026-10-06 at 5.27.56 AM.png",
+      "asset": "chicago-fire.webp",
+      "imageOptions": [
+        "bas-relief"
+      ],
+      "aspect": 1.5,
+      "density": "medium",
+      "subject": "scene",
+      "detail": false,
+      "lesson": "Sculpted portrait and low-relief city scene use multiple controlled metal depths; supporting inscription is subordinate. Composition cannot add a skyline or any other unprovided artwork.",
+      "sourceSha256": "98e2167640611150836f6cfe5c5f9edf7f796a85d8aee41dea1bb28a168f8260",
+      "sha256": "a1d6326e3bd9aa480edbd9323edeaed1d256822656673f165aa8569e6c6c9af1",
+      "hasLogo": true
+    },
+    {
+      "id": "carey-church",
+      "family": "carey-church",
+      "label": "Carey church trustees",
+      "source": "Screenshot 2026-10-06 at 5.28.25 AM.png",
+      "asset": "carey-church.webp",
+      "imageOptions": [
+        "none"
+      ],
+      "aspect": 0.78,
+      "density": "dense",
+      "subject": "none",
+      "detail": false,
+      "lesson": "Formal serif heading, smaller section labels, evenly grouped trustee names and a separate date; uncluttered border and strong readability.",
+      "sourceSha256": "f2283bf428d774c056dc9cea8ebbd8442be0a56e5a96a5c1c7c6ad1a3578d5ae",
+      "sha256": "ed45e48cf5e3ce126b8ca120da3865159111812232fb29ad9100dfd836b2fbd0",
+      "hasLogo": false
+    },
+    {
+      "id": "canada-college",
+      "family": "canada-college",
+      "label": "Cañada College dedication",
+      "source": "Screenshot 2026-10-06 at 5.28.32 AM.png",
+      "asset": "canada-college.webp",
+      "imageOptions": [
+        "none"
+      ],
+      "aspect": 0.76,
+      "density": "dense",
+      "subject": "none",
+      "detail": false,
+      "lesson": "Complete seal, clear sans title/subtitle, restrained rule, separated trustee groups and small supporting credits.",
+      "sourceSha256": "cf3d2cc23ea0678a96bc00e521f3c19bd61cfb1d54d26cec5b979fe58ac15c5f",
+      "sha256": "93778474ea02b78efe1e7f942c77c7a7e8f6b81643504240b3cdc9490b235317",
+      "hasLogo": true
+    },
+    {
+      "id": "garden-detail",
+      "family": "garden",
+      "label": "Anita Lagomella garden memorial detail",
+      "source": "Screenshot 2026-10-06 at 5.28.43 AM.png",
+      "asset": "garden-detail.webp",
+      "imageOptions": [
+        "none"
+      ],
+      "aspect": 1,
+      "density": "medium",
+      "subject": "none",
+      "detail": true,
+      "lesson": "Graceful supplied script name, restrained double border, balanced dedication and separate date. Flower artwork and flourishes belong only to that order.",
+      "sourceSha256": "7faf10eddd1c12db3b9fdad7812dd806a657bb2ac3e8d9c36d9199505d30d08b",
+      "sha256": "67194c3551c7baa026322e675861ba15e01b09a0da3f82653967f7f380c7986a",
+      "hasLogo": false
+    },
+    {
+      "id": "garden",
+      "family": "garden",
+      "label": "Anita Lagomella garden memorial",
+      "source": "Screenshot 2026-10-06 at 5.28.50 AM.png",
+      "asset": "garden.webp",
+      "imageOptions": [
+        "none"
+      ],
+      "aspect": 1,
+      "density": "medium",
+      "subject": "none",
+      "detail": false,
+      "lesson": "Large script name balances small serif supporting text with a quiet smooth dark field and restrained double border. Never invent the flower or flourishes.",
+      "sourceSha256": "e6650cfb4823581d1d9b48843e6a8f28f05be0e5d4fa97d7e9722cab0d6253a2",
+      "sha256": "b960fb115fa8f601770da7674aa45f6288291eaead656c78a2038d61cf7db263",
+      "hasLogo": false
+    },
+    {
+      "id": "gamboa",
+      "family": "gamboa",
+      "label": "Anne M. Gamboa recognition",
+      "source": "Screenshot 2026-10-06 at 5.29.02 AM.png",
+      "asset": "gamboa.webp",
+      "imageOptions": [
+        "none"
+      ],
+      "aspect": 0.85,
+      "density": "medium",
+      "subject": "none",
+      "detail": false,
+      "lesson": "Dominant script name within a centered serif dedication, generous separation between name, date and closing lines; textured dark field with clean metal faces.",
+      "sourceSha256": "d5e8c7f9ede063bd0b5187b8866f46f0aa9a2739f320aa173d73c7b9230fabd7",
+      "sha256": "fc275b94431f3715d899a1ebb6be7c107d8db26265a27525cab9d79c1cbd2cc5",
+      "hasLogo": false
+    },
+    {
+      "id": "doug-payne",
+      "family": "doug-payne",
+      "label": "Doug Payne memorial",
+      "source": "Screenshot 2026-10-06 at 5.29.18 AM.png",
+      "asset": "doug-payne.webp",
+      "imageOptions": [
+        "none"
+      ],
+      "aspect": 1.5,
+      "density": "sparse",
+      "subject": "none",
+      "detail": false,
+      "lesson": "A compact headline, complete cast team mark and dates with generous open field; one thin rule, a simple border and crisp lettering.",
+      "sourceSha256": "031ebf68917d90d965d6819b8d94c5af3523a8772d82d8212b279c18700e0c7d",
+      "sha256": "e5cdc83cd9fdf46b1231d916c91b7326eb56240c6082fb4fb290f07966d73135",
+      "hasLogo": true
+    },
+    {
+      "id": "september-memorial",
+      "family": "september-memorial",
+      "label": "September 11 memorial scene",
+      "source": "Screenshot 2026-10-06 at 5.29.29 AM.png",
+      "asset": "september-memorial.webp",
+      "imageOptions": [],
+      "aspect": 0.85,
+      "density": "dense",
+      "subject": "scene",
+      "detail": false,
+      "lesson": "Detailed shallow metal scene contained in a fine frame above grouped dedication text. Its selective color and scene are order-specific; not a pure relief or full-color treatment reference.",
+      "sourceSha256": "19b8b23429ee66bc392dc36928f1c1b7e804f73487b77e5df9447c7d356ebbee",
+      "sha256": "e69f4d53c6a46313250d3a23c54e6ee77faed6580fba8afec7f39839a278ea0f",
+      "hasLogo": false
+    },
+    {
+      "id": "tree-memorial",
+      "family": "tree-memorial",
+      "label": "Tree planting memorial",
+      "source": "Screenshot 2026-10-06 at 5.29.36 AM.png",
+      "asset": "tree-memorial.webp",
+      "imageOptions": [
+        "none"
+      ],
+      "aspect": 1.25,
+      "density": "sparse",
+      "subject": "none",
+      "detail": false,
+      "lesson": "Complete tree mark, short quotation, smaller dedication and date; generous dark field, simple bronze border and crisp small raised type.",
+      "sourceSha256": "ccc318fd23a64f8da3b39ab8116f1e28fcc59803f6ebf2588f3c700f5b9c478b",
+      "sha256": "29025557ca9e4799a534f66ebb1a536f035e47950a05c68698c5865252323437",
+      "hasLogo": true
+    }
+  ]
+}

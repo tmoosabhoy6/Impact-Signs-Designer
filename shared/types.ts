@@ -213,6 +213,9 @@ export interface ConceptRecord {
   costUsd: number;
   usage: unknown;
   spellcheck: SpellcheckResult | null;
+  /** Reviewed reference evidence used by this version, not customer content. */
+  designContext?: DesignContext;
+  designReview?: DesignReview;
   error: string | null;
   hasImage: boolean;
   plan?: InstructionPlan;
@@ -227,6 +230,19 @@ export interface SpellcheckResult {
   ok: boolean;
   checked: boolean;
   differences: { expected: string; seen: string }[];
+  message: string;
+}
+
+export interface DesignContext {
+  libraryVersion: string;
+  examples: { id: string; label: string; sha256: string; lesson: string }[];
+}
+
+export const DESIGN_CRITERIA = ['layout', 'material', 'treatment', 'readability', 'house-style'] as const;
+export interface DesignReview {
+  ok: boolean;
+  checked: boolean;
+  checks: { criterion: (typeof DESIGN_CRITERIA)[number]; ok: boolean; detail: string }[];
   message: string;
 }
 

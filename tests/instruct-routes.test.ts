@@ -12,7 +12,7 @@ import { conceptFile, contentSnapshot, newConceptRecord } from '../server/ai/pip
 import { imageAdapter, openai } from '../server/ai/images';
 import { storeUpload } from '../server/uploads';
 import { PDFDocument } from 'pdf-lib';
-import type { ConceptRecord, LayoutPresetId, OutputRecord, Project } from '../shared/types';
+import { DESIGN_CRITERIA, type ConceptRecord, type LayoutPresetId, type OutputRecord, type Project } from '../shared/types';
 
 let server: Server;
 let base: string;
@@ -386,6 +386,35 @@ describe('a proof and a vector file from each concept', () => {
     expect(r.status).toBe(200);
     return ((await r.json()) as { output: OutputRecord }).output;
   };
+
+  it.each(['failed', 'incomplete', 'missing'])('shows %s design-review notes before making a live proof, even with matching wording', async (state) => {
+    const { p, concepts } = await threeConcepts();
+    const c = concepts.statement;
+    const checks = DESIGN_CRITERIA.map((criterion) => ({ criterion, ok: criterion !== 'layout', detail: criterion === 'layout' ? 'The bottom dedication is cut off.' : 'Looks consistent.' }));
+    saveConcept({ ...c, designContext: { libraryVersion: 'review-test', examples: [] },
+      designReview: state === 'missing' ? undefined : { ok: false, checked: state === 'failed', checks: state === 'failed' ? checks : [], message: 'Design review has not completed. Inspect the image yourself.' } });
+    const before = config.mockAI;
+    config.mockAI = false;
+    try {
+      const r = await post(`/projects/${p.id}/proof`, { conceptIds: [concepts.classic.id, c.id] });
+      expect(r.status).toBe(409);
+      expect(await r.json()).toMatchObject({ error: expect.stringContaining('design review'), differences: [], issues: [expect.stringContaining('Page 2 (Statement)')] });
+      expect(listOutputs(p.id)).toEqual([]);
+      const confirmed = await post(`/projects/${p.id}/proof`, { conceptIds: [concepts.classic.id, c.id], acknowledged: true });
+      expect(confirmed.status).toBe(200);
+      expect(listOutputs(p.id)).toHaveLength(1);
+    } finally { config.mockAI = before; }
+  });
+
+  it('allows a completed positive design review on a live proof without acknowledgment', async () => {
+    const { p, concepts } = await threeConcepts();
+    const c = concepts.classic;
+    saveConcept({ ...c, designContext: { libraryVersion: 'review-test', examples: [] }, designReview: { ok: true, checked: true, checks: DESIGN_CRITERIA.map((criterion) => ({ criterion, ok: true, detail: 'Looks consistent.' })), message: 'Design review found no visible issues.' } });
+    const before = config.mockAI;
+    config.mockAI = false;
+    try { expect((await post(`/projects/${p.id}/proof`, { conceptId: c.id })).status).toBe(200); }
+    finally { config.mockAI = before; }
+  });
 
   it('proofs every layout without selecting it or changing the order', async () => {
     const { p, concepts } = await threeConcepts();

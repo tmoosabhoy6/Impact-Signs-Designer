@@ -244,6 +244,21 @@ function PresetColumn({
             <Button size="sm" variant="stage" disabled={running} onClick={() => onUndo(current)}>Undo order change</Button>
           )}
           {current.status === 'error' && <Notice tone="error">{current.error}</Notice>}
+          {!!current.designContext?.examples.length && (
+            <details className="text-[12px] text-white/55">
+              <summary className="cursor-pointer">{current.kind === 'fix' ? 'Reviewed against' : 'Guided by'} {current.designContext.examples.length} Impact Signs examples</summary>
+              <div className="mt-1 space-y-1 pl-2">{current.designContext.examples.map((example) => <div key={example.id}>{example.label}</div>)}</div>
+            </details>
+          )}
+          {current.status === 'done' && current.designReview && (
+            <div className={`flex items-start gap-1.5 text-[12px] ${current.designReview.checked && current.designReview.ok ? 'text-[#7fd1a6]' : current.designReview.checked ? 'text-[#ffb3a6]' : 'text-white/55'}`}>
+              {current.designReview.checked && current.designReview.ok ? <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />}
+              <div>
+                {current.designReview.message}
+                {current.designReview.checks.filter((check) => !check.ok).map((check) => <div key={check.criterion}>{check.detail}</div>)}
+              </div>
+            </div>
+          )}
           {current.status === 'done' && current.spellcheck && (
             <div className={`flex items-start gap-1.5 text-[12px] ${current.spellcheck.ok ? (current.spellcheck.checked ? 'text-[#7fd1a6]' : 'text-white/55') : 'text-[#ffb3a6]'}`}>
               {current.spellcheck.ok ? <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />}

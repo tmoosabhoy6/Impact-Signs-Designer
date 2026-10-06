@@ -6,9 +6,9 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { fromRoot } from '../config.js';
 import { fontLabel, mustOption, paintLabel } from '../catalog.js';
-import type { PlaqueLayout, PlaqueSpec, Rect } from '../../shared/types.js';
+import type { DesignContext, PlaqueLayout, PlaqueSpec, Rect } from '../../shared/types.js';
 
-export const PROMPT_FILES = ['house_rules.md', 'concept.md', 'fix.md', 'relayout.md', 'spellcheck.md'] as const;
+export const PROMPT_FILES = ['house_rules.md', 'concept.md', 'fix.md', 'relayout.md', 'spellcheck.md', 'design.md', 'design-review.md'] as const;
 export type PromptFile = (typeof PROMPT_FILES)[number];
 
 export function readPrompt(name: PromptFile): string {
@@ -30,6 +30,7 @@ export interface RefImage {
   file: Buffer;
   name: string;
   mime: string;
+  designExample?: DesignContext['examples'][number];
 }
 
 export function layoutText(layout: PlaqueLayout): string {
@@ -123,7 +124,7 @@ export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs:
   const direction = opts.direction
     ? `\n\nDESIGNER CHANGE (apply it fully and visibly; Reference 1 still decides the wording and the positions it shows):\n${opts.direction.trim().replace(/\.?$/, '.')}`
     : '';
-  return `${readPrompt('house_rules.md')}\n\n${body}${direction}`;
+  return `${readPrompt('house_rules.md')}\n\n${readPrompt('design.md')}\n\n${body}${direction}`;
 }
 
 export function buildFixPrompt(instruction: string, layout: PlaqueLayout | null = null, hasLayoutRef = false): string {

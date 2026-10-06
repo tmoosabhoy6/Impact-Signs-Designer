@@ -577,14 +577,23 @@ api.post('/projects/:id/proof', express.json(), ah(async (req, res) => {
 
   // Every image is checked before anything is made; the designer confirms them all at once.
   const unchecked = pages.map((c, i) => ({ c, page: i + 1 })).filter(({ c }) => !c.spellcheck?.ok || (!config.mockAI && !c.spellcheck.checked));
-  if (unchecked.length && req.body?.acknowledged !== true) {
+  // Older versions have no design context. New live versions must complete their review,
+  // or show its limitations and defects before the designer can acknowledge them.
+  const designUnchecked = pages.map((c, i) => ({ c, page: i + 1 })).filter(({ c }) => !config.mockAI && c.designContext && (!c.designReview?.checked || !c.designReview.ok));
+  if ((unchecked.length || designUnchecked.length) && req.body?.acknowledged !== true) {
     const many = pages.length > 1;
     const where = (c: ConceptRecord, page: number) => (many ? `Page ${page} (${presetLabel(c.preset)}): ` : '');
     return res.status(409).json({
-      error: unchecked.length > 1 ? `${unchecked.length} of the images have wording that was not confirmed by the spelling check.`
+      error: designUnchecked.length ? 'The design review needs attention before this proof is made. Inspect the image and the notes below.'
+        : unchecked.length > 1 ? `${unchecked.length} of the images have wording that was not confirmed by the spelling check.`
         : unchecked[0]!.c.spellcheck?.checked ? `${many ? `Page ${unchecked[0]!.page} (${presetLabel(unchecked[0]!.c.preset)}): the` : 'The'} spelling check found wording differences in this image.`
         : `${many ? `Page ${unchecked[0]!.page} (${presetLabel(unchecked[0]!.c.preset)}): this` : 'This'} image has not completed a spelling check. Proofread it before confirming.`,
       differences: unchecked.flatMap(({ c, page }) => (c.spellcheck?.differences ?? []).map((d) => ({ ...d, where: many ? where(c, page).slice(0, -2) : undefined }))),
+      issues: designUnchecked.flatMap(({ c, page }) => {
+        const review = c.designReview;
+        const notes = review?.checked ? review.checks.filter((check) => !check.ok).map((check) => check.detail) : [review?.message ?? 'Design review has not completed. Inspect the image yourself.'];
+        return notes.map((note) => where(c, page) + note);
+      }).concat(designUnchecked.length ? unchecked.filter(({ c }) => !c.spellcheck?.checked).map(({ c, page }) => where(c, page) + 'Spelling check has not completed. Proofread this image yourself.') : []),
     });
   }
 
