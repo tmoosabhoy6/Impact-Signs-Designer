@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { projectDir } from './db.js';
 import { isMultiKind, KIND_LABEL, LIST_KEY, UPLOAD_LIMITS, type MultiUploadKind, type UploadKind } from '../shared/uploads.js';
@@ -15,12 +16,17 @@ import type { Project, UploadedFile, UploadedImage, UploadedLogo, Uploads } from
 export type { UploadKind, MultiUploadKind };
 
 const VECTOR_EXT = /\.(svg|pdf|ai|eps)$/i;
+const run = promisify(execFile);
 
-/** Rasterizes the first page of a PDF / .ai file with Poppler (installed in the Docker image). */
-export function pdfToPng(file: string, dpi = 300): Buffer {
+/**
+ * Rasterizes the first page of a PDF / .ai file with Poppler (installed in the Docker image).
+ * Runs as a child process the server waits for without blocking: a big logo takes seconds, and
+ * everyone else's requests and live image previews must keep flowing meanwhile.
+ */
+export async function pdfToPng(file: string, dpi = 300): Promise<Buffer> {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pps-'));
   try {
-    execFileSync('pdftocairo', ['-png', '-singlefile', '-r', String(dpi), '-f', '1', '-l', '1', file, path.join(tmp, 'out')], { timeout: 60_000 });
+    await run('pdftocairo', ['-png', '-singlefile', '-r', String(dpi), '-f', '1', '-l', '1', file, path.join(tmp, 'out')], { timeout: 60_000 });
     return fs.readFileSync(path.join(tmp, 'out.png'));
   } catch {
     throw new Error('Could not read this PDF/.ai file. Export it as PNG, JPG or SVG and upload again.');
@@ -77,7 +83,7 @@ export async function prepareUpload(projectId: string, kind: UploadKind, origina
   try {
     if (/\.(pdf|ai|eps)$/i.test(ext)) {
       fs.writeFileSync(origFile, data);
-      png = pdfToPng(origFile, kind === 'logo' ? 600 : 200);
+      png = await pdfToPng(origFile, kind === 'logo' ? 600 : 200);
     } else if (ext === '.svg') png = await sharp(data, { density: 600 }).png().toBuffer();
     else png = await sharp(data).rotate().png().toBuffer();
     // Keep a sensible working size (the original is preserved).

@@ -9,3 +9,8 @@ data-store/
 coverage/
 __pycache__/
 data-store-test/
+# Scratch renders and verification runs: rebuilt on demand, large, not worth keeping in git.
+# output/samples stays tracked (the README links to it).
+output/live/
+output/brand-screens/
+output/layout-check/
