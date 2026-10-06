@@ -120,3 +120,12 @@ export function owns(user: SessionUser, ownerId: string | undefined | null): boo
   // Work from before sign-in accounts existed belongs to the legacy owner.
   return user.username.toLowerCase() === config.legacyOwner;
 }
+
+/**
+ * The same rule as `owns()`, for narrowing the job list inside the database instead of reading
+ * every job: null when everyone's work is visible (open mode).
+ */
+export function ownerFilter(user: SessionUser): { ownerId: string; legacy: boolean } | null {
+  if (authMode() === 'open') return null;
+  return { ownerId: user.id, legacy: user.username.toLowerCase() === config.legacyOwner };
+}

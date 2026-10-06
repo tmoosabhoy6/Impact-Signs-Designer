@@ -16,6 +16,7 @@ import { canvasSize, imageLongEdgeForQuality, costUsd, friendlyError, imageAdapt
 import { fitToPlaque, smallPreview } from './postprocess.js';
 import { spellcheckImage } from './spellcheck.js';
 import { designContext, designReferences } from './design-library.js';
+import { acquireRenderSlot } from './render-slots.js';
 import type { ConceptRecord, ContentSnapshot, LayoutPresetId, PlaqueLayout, Project } from '../../shared/types.js';
 
 export interface ConceptEvents {
@@ -191,10 +192,13 @@ export async function buildReferences(project: Project, layout: PlaqueLayout, la
   return refs;
 }
 
-export function checkLimits(projectId: string, excludeId?: string) {
+/** Throws if `adding` more images would pass the job's image limit or today's budget is spent. */
+export function checkLimits(projectId: string, excludeId?: string, adding = 1) {
   const used = listConcepts(projectId).filter((c) => c.id !== excludeId && c.status !== 'error').length;
-  if (used >= config.maxImageCallsPerProject) {
-    throw new Error(`This job has reached its limit of ${config.maxImageCallsPerProject} images (MAX_IMAGE_CALLS_PER_PROJECT).`);
+  if (used + adding > config.maxImageCallsPerProject) {
+    throw new Error(used >= config.maxImageCallsPerProject
+      ? `This job has reached its limit of ${config.maxImageCallsPerProject} images (MAX_IMAGE_CALLS_PER_PROJECT).`
+      : `This job has room for ${config.maxImageCallsPerProject - used} more image${config.maxImageCallsPerProject - used === 1 ? '' : 's'} (limit ${config.maxImageCallsPerProject}, MAX_IMAGE_CALLS_PER_PROJECT); this request makes ${adding}.`);
   }
   if (!config.mockAI && spentToday() >= config.dailyBudgetUsd) {
     throw new Error(`Today's image budget of $${config.dailyBudgetUsd} is used up (DAILY_BUDGET_USD). It resets at midnight UTC.`);
@@ -243,25 +247,6 @@ export function newConceptRecord(project: Project, init: Partial<ConceptRecord> 
 /** The free-form part of a designer's Fix instruction, for the image model. */
 function designerChange(rec: ConceptRecord): string | undefined {
   return rec.plan?.kind === 'edit' ? rec.plan.imageEdit?.trim() || undefined : undefined;
-}
-
-/**
- * Everyone shares one server process. Each render holds the layout drawing, the reference
- * pictures and the model's full-size result in memory at once, so unlimited parallel renders
- * (three per order, from several designers) run a 512 MB host out of memory and restart it.
- * Renders beyond the limit wait here, still marked "queued", and start as others finish.
- */
-const renderWaiters: (() => void)[] = [];
-let rendersRunning = 0;
-async function acquireRenderSlot(): Promise<() => void> {
-  if (rendersRunning >= config.maxParallelImages) await new Promise<void>((resolve) => renderWaiters.push(resolve));
-  else rendersRunning++;
-  // A finishing render hands its slot straight to the next waiter (the count stays the same).
-  return () => {
-    const next = renderWaiters.shift();
-    if (next) next();
-    else rendersRunning--;
-  };
 }
 
 /** Runs one generation (new concept, regenerate, or fix of an existing image). */
@@ -328,6 +313,10 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
         smallPreview(png).then((jpg) => ev.onPartial(rec.id, jpg)).catch(() => {});
       },
     });
+    // The image is paid for even if it is rejected below: count it against today's budget first.
+    const cost = costUsd(result.usage);
+    if (cost) addSpend(cost);
+    update({ usage: result.usage, costUsd: cost });
     if (result.quality && result.quality !== 'max') throw new Error('OpenAI returned a different quality than Max. Generate again; this result was not marked complete.');
     fs.writeFileSync(conceptFile(rec, 'raw.png'), result.png);
     if (quality === 'max') {
@@ -338,9 +327,9 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     const fitted = await fitToPlaque(result.png, project.spec!.widthIn, project.spec!.heightIn, Math.max(w, h));
     fs.writeFileSync(conceptFile(rec, 'image.png'), fitted.png);
     fs.writeFileSync(conceptFile(rec, 'preview.jpg'), await smallPreview(fitted.png, 720));
-    const cost = costUsd(result.usage);
-    if (cost) addSpend(cost);
-    update({ hasImage: true, usage: result.usage, costUsd: cost, status: 'running', size: result.size ?? size, quality: result.quality ?? quality });
+    update({ hasImage: true, status: 'running', size: result.size ?? size, quality: result.quality ?? quality });
+    // The heavy work is done: free the slot so a slow spelling check does not hold up other renders.
+    release();
 
     const { designReview, ...spellcheck } = await spellcheckImage(fitted.png, layout.lines.map((l) => l.text), layout.lines.map((l) => !!l.style?.smallCaps), {
       spec: project.spec!, layoutPng, styleRefs, instruction: rec.kind === 'fix' ? rec.instruction ?? rec.note : undefined,

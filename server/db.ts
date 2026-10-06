@@ -100,8 +100,15 @@ export function getProject(id: string): Project | null {
   const row = db.prepare('SELECT data FROM projects WHERE id = ?').get(id) as { data: string } | undefined;
   return row ? upgrade(JSON.parse(row.data) as Project) : null;
 }
-export function listProjects(): Project[] {
-  return (db.prepare('SELECT data FROM projects ORDER BY updated_at DESC LIMIT 5000').all() as { data: string }[]).map((r) => upgrade(JSON.parse(r.data)));
+/**
+ * Newest first. With an owner, SQLite picks that person's jobs (plus pre-account jobs for the
+ * legacy owner) so the list does not read and upgrade everyone's jobs on each request.
+ */
+export function listProjects(owner?: { ownerId: string; legacy: boolean } | null): Project[] {
+  const own = "json_extract(data, '$.ownerId')";
+  const where = owner ? `WHERE ${own} = ?${owner.legacy ? ` OR COALESCE(${own}, '') = ''` : ''}` : '';
+  const rows = db.prepare(`SELECT data FROM projects ${where} ORDER BY updated_at DESC LIMIT 5000`).all(...(owner ? [owner.ownerId] : [])) as { data: string }[];
+  return rows.map((r) => upgrade(JSON.parse(r.data)));
 }
 /** Removes a job with its concepts, outputs and stored files. */
 export function deleteProject(id: string) {

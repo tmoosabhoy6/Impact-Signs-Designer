@@ -9,7 +9,7 @@ import sharp from 'sharp';
 import { config } from './config.js';
 import { getCatalog, mustOption } from './catalog.js';
 import { assetLibraryStatus } from './assets.js';
-import { authMode, checkLogin, clearSession, issueSession, owns, requireAuth, sessionUser, userOf } from './auth.js';
+import { authMode, checkLogin, clearSession, issueSession, ownerFilter, owns, requireAuth, sessionUser, userOf } from './auth.js';
 import {
   blankProject, deleteProject, getConcept, getOutput, getProject, listConcepts, listOutputs, listProjects,
   newId, now, projectDir, saveConcept, saveOutput, saveProject, spentToday, db,
@@ -153,7 +153,7 @@ api.use('/merge', mergeRouter);
 api.get('/projects', (req, res) => {
   const user = userOf(req);
   res.json({
-    projects: listProjects().filter((p) => owns(user, p.ownerId)).map((p) => ({
+    projects: listProjects(ownerFilter(user)).filter((p) => owns(user, p.ownerId)).map((p) => ({
       id: p.id, jobNumber: p.jobNumber, name: p.name, updatedAt: p.updatedAt, createdBy: p.createdBy,
       size: p.spec ? `${p.spec.widthIn}" x ${p.spec.heightIn}"` : '',
       thumb: p.selectedConceptId ?? p.proofConceptIds[0] ?? null,
@@ -403,6 +403,8 @@ api.post('/projects/:id/generate', genLimiter, express.json(), ah(async (req, re
   const batchId = newId('b');
   // Old clients cannot re-enable the retired variation or multiply paid requests.
   const records = ACTIVE_PRESETS.map(({ id: preset }) => newConceptRecord(p, { preset, kind: 'concept', batchId }));
+  // The whole batch must fit: each render checks only the versions already saved.
+  checkLimits(p.id, undefined, records.length);
   await runStreamed(res, p, records);
 }));
 
@@ -411,6 +413,7 @@ api.post('/concepts/:id/regenerate', genLimiter, express.json(), ah(async (req, 
   if (!found) throw new Error('Concept not found.');
   const { c, p } = found;
   const rec = newConceptRecord(p, { preset: c.preset, kind: 'regenerate', batchId: c.batchId, parentId: c.id });
+  checkLimits(p.id);
   await runStreamed(res, p, [rec]);
 }));
 

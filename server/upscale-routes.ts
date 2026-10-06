@@ -39,7 +39,7 @@ upscaleRouter.post('/', limiter, (req, res, next) => {
 }, ah(async (req, res) => {
   if (!req.file) throw new Error('Choose an image to upscale.');
   const target = String(req.body?.target || '720p') as UpscaleTarget;
-  if (!(target in UPSCALE_TARGETS)) throw new Error('Choose 720p or 1080p.');
+  if (!Object.hasOwn(UPSCALE_TARGETS, target)) throw new Error('Choose 720p or 1080p.');
   const user = userOf(req);
   const upscale = await upscaleImage({ name: req.file.originalname, buffer: req.file.buffer }, target, user.name, user.id);
   res.json({ upscale });
