@@ -41,10 +41,11 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
       </Panel>
 
       <Panel step="06" title="Vector production PDF" busy={busy === 'production'}>
+        {!!(selected?.snapshot?.uploads ?? p.uploads).exactDesigns?.length && <Notice tone="info">Use the original exact design artwork for production. Automatic vector output cannot preserve its custom lettering, colors and image edits.</Notice>}
         <p className="text-[13.5px] leading-relaxed text-muted">
           One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of {pages.length > 1 ? 'page 1 of the proof' : 'the concept on the proof'}{selected ? ` (${conceptTag(selected, data.concepts, catalog)})` : ''}.
         </p>
-        <Button className="mt-3 w-full" variant="secondary" disabled={!p.spec || !p.wording?.blocks.length} busy={busy === 'production'} onClick={makeProduction}>
+        <Button className="mt-3 w-full" variant="secondary" disabled={!p.spec || !p.wording?.blocks.length || !!(selected?.snapshot?.uploads ?? p.uploads).exactDesigns?.length} busy={busy === 'production'} onClick={makeProduction}>
           <FileCog className="h-4 w-4" /> Create vector PDF
         </Button>
         {notes.length > 0 && (

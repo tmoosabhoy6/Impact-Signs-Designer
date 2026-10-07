@@ -4,25 +4,26 @@
 import type { UploadedFile, UploadedImage, UploadedLogo, Uploads } from './types.js';
 
 /** Upload kinds as they appear in URLs. */
-export type UploadKind = 'photo' | 'logo' | 'sketch' | 'site' | 'font';
-export type MultiUploadKind = 'photo' | 'logo' | 'sketch';
-export const MULTI_KINDS: readonly MultiUploadKind[] = ['photo', 'logo', 'sketch'];
+export type UploadKind = 'photo' | 'logo' | 'sketch' | 'exact-design' | 'site' | 'font';
+export type MultiUploadKind = 'photo' | 'logo' | 'sketch' | 'exact-design';
+export const MULTI_KINDS: readonly MultiUploadKind[] = ['photo', 'logo', 'sketch', 'exact-design'];
 export const isMultiKind = (k: string): k is MultiUploadKind => (MULTI_KINDS as readonly string[]).includes(k);
 
 /** Where each list lives on `Uploads`. */
-export const LIST_KEY = { photo: 'photos', logo: 'logos', sketch: 'sketches' } as const satisfies Record<MultiUploadKind, keyof Uploads>;
+export const LIST_KEY = { photo: 'photos', logo: 'logos', sketch: 'sketches', 'exact-design': 'exactDesigns' } as const satisfies Record<MultiUploadKind, keyof Uploads>;
 
 /**
  * Most files of each kind per job. Photos: up to four frames still leave room for readable
  * text on the smallest plaques. Logos: a sponsor row. The image model takes at most 16
  * reference pictures, and these maxima are what `buildReferences` is proven to fit.
  */
-export const UPLOAD_LIMITS: Record<MultiUploadKind, number> = { photo: 4, logo: 6, sketch: 4 };
+export const UPLOAD_LIMITS: Record<MultiUploadKind, number> = { photo: 4, logo: 6, sketch: 4, 'exact-design': 1 };
 
 export const KIND_LABEL: Record<MultiUploadKind, { one: string; many: string }> = {
   photo: { one: 'photo', many: 'photos' },
   logo: { one: 'logo', many: 'logos' },
   sketch: { one: 'sketch', many: 'sketches' },
+  'exact-design': { one: 'exact design', many: 'exact designs' },
 };
 
 /** Jobs saved before lists existed held one file per kind. */
@@ -41,13 +42,14 @@ const idOf = (f: { id?: string; file: string }) => f.id || f.file.replace(/\.[^.
  */
 export function normalizeUploads(input: LegacyUploads | null | undefined): Uploads {
   const u = input ?? {};
-  const file = (x: Omit<UploadedFile, 'id'> & { id?: string }): UploadedFile => ({ id: idOf(x), file: x.file, name: x.name, ...(x.hash ? { hash: x.hash } : {}) });
+  const file = (x: Omit<UploadedFile, 'id'> & { id?: string }): UploadedFile => ({ id: idOf(x), file: x.file, name: x.name, ...(x.hash ? { hash: x.hash } : {}), ...(x.originalFile ? { originalFile: x.originalFile } : {}) });
   const image = (x: Omit<UploadedImage, 'id'> & { id?: string }): UploadedImage => ({ ...file(x), width: x.width ?? 0, height: x.height ?? 0 });
   const out: Uploads = {
     photos: (u.photos ?? (u.photo ? [u.photo] : [])).map(image),
     logos: (u.logos ?? (u.logo ? [u.logo] : [])).map((x: Omit<UploadedLogo, 'id'> & { id?: string }) => ({ ...image(x), vectorSource: !!x.vectorSource, ...(x.position ? { position: x.position } : {}) })),
     sketches: (u.sketches ?? (u.sketch ? [u.sketch] : [])).map(file),
   };
+  if (u.exactDesigns?.length) out.exactDesigns = u.exactDesigns.map(image);
   if (u.site) out.site = u.site;
   if (u.font) out.font = u.font;
   if (u.extra) out.extra = u.extra;

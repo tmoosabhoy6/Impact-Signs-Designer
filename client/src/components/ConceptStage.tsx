@@ -11,6 +11,7 @@ type Props = { data: ProjectPayload; catalog: Catalog; onChange: (d: ProjectPayl
 
 export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   const p = data.project;
+  const exactDesign = !!p.uploads.exactDesigns?.length;
   const [live, setLive] = useState<Record<string, ConceptRecord>>({});
   const [partials, setPartials] = useState<Record<string, string>>({});
   const [running, setRunning] = useState(false);
@@ -27,9 +28,9 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
   // What the order still needs before concepts can be made, shown as a checklist.
   const checklist: { label: string; done: boolean }[] = [
     { label: 'Specification read', done: !!p.spec },
-    { label: 'Customer wording added', done: !!p.wording?.blocks.length },
+    { label: 'Customer wording or exact design added', done: !!p.wording?.blocks.length || exactDesign },
   ];
-  if (p.spec && p.spec.imageOption !== 'none') checklist.push({ label: 'Photo uploaded (or Image option set to No Image)', done: p.uploads.photos.length > 0 });
+  if (!exactDesign && p.spec && p.spec.imageOption !== 'none') checklist.push({ label: 'Photo uploaded (or Image option set to No Image)', done: p.uploads.photos.length > 0 });
   const blockers = checklist.filter((c) => !c.done);
 
   const runStream = async (url: string, body: unknown, preset?: string) => {
@@ -64,7 +65,7 @@ export function ConceptStage({ data, catalog, onChange, reload }: Props) {
             <StepBadge step="04" tone="light" />
             Concepts
           </h2>
-          <p className="mt-1 text-[13.5px] leading-snug text-white/60">Two layouts: Classic and Statement. Max quality at 1.5K (1536 px). Each selected image becomes its own proof page.</p>
+          <p className="mt-1 text-[13.5px] leading-snug text-white/60">{exactDesign ? 'Both concepts preserve your exact design.' : 'Two layouts: Classic and Statement.'} Max quality at 1.5K (1536 px). Each selected image becomes its own proof page.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button disabled={blockers.length > 0} busy={running} onClick={() => runStream(`/projects/${p.id}/generate`, {})}>
@@ -160,8 +161,9 @@ function PresetColumn({
   const busy = current && (current.status === 'running' || current.status === 'queued');
   const partial = current ? partials[current.id] : undefined;
   const shownPlan = plan ?? current?.plan;
+  const exactDesign = !!(current?.snapshot?.uploads ?? p.uploads).exactDesigns?.length;
   const planNote = shownPlan?.kind === 'refuse' ? shownPlan.reason
-    : shownPlan?.kind === 'visual' ? 'Sent to the image model as written (changes the image only; the proof and vector file keep the current order)'
+    : shownPlan?.kind === 'visual' ? exactDesign ? 'Sent to the image model as written. Select the edited version to put it on the proof; use the original artwork for production.' : 'Sent to the image model as written (changes the image only; the proof and vector file keep the current order)'
     : shownPlan ? `Interpreted as: ${shownPlan.restated} ${planScope(shownPlan)}` : '';
 
   return (
@@ -181,7 +183,7 @@ function PresetColumn({
             </span>
           )}
         </div>
-        <p className="mt-1 text-[12.5px] leading-snug text-white/55">{preset.description}</p>
+        <p className="mt-1 text-[12.5px] leading-snug text-white/55">{exactDesign ? 'Customer exact design, with the original composition preserved.' : preset.description}</p>
       </header>
 
       <div className="relative mx-auto w-full min-w-0 self-start" style={{ maxWidth: ratio < 1 ? 440 : '100%' }}>

@@ -85,7 +85,7 @@ export async function buildDescriptionProof(input: ProofInput): Promise<Buffer> 
   const page = doc.addPage([PAGE.w, PAGE.h]);
 
   // ---- ORDER# / VERSION (the grey rule under them is drawn once the right column's left edge is known) ----
-  const description = (input.description?.trim() || autoDescription(spec, input.wording, { fontStated: input.fontStated, photoCount: input.layout?.imageFrames.length, logoCount: input.layout?.logos.length })).replace(/\r/g, '');
+  const description = (input.description?.trim() || autoDescription(spec, input.wording, { exactDesign: !!input.layout?.exactDesign, fontStated: input.fontStated, photoCount: input.layout?.imageFrames.length, logoCount: input.layout?.logos.length })).replace(/\r/g, '');
   const order = `ORDER# ${input.jobNumber}`;
   const version = input.version > 1 ? `VERSION ${input.version}` : '';
   const orderW = fonts.labelBold.widthOfTextAtSize(order, 20.5) + (version ? fonts.labelBold.widthOfTextAtSize(` ${version}`, 20.5) : 0);

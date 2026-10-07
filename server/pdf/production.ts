@@ -62,6 +62,7 @@ export function uvPlateRect(box: Rect, logoAspect: number): Rect {
 
 export async function buildProductionPdf(input: ProductionInput): Promise<ProductionResult> {
   const { spec, layout } = input;
+  if (layout.exactDesign) throw new Error('Use the original exact design artwork for production. The automatic vector PDF cannot preserve its custom lettering, colors and image edits.');
   const notes: string[] = [];
   const W = layout.widthIn * PT;
   const H = layout.heightIn * PT;

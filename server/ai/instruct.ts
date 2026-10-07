@@ -174,7 +174,7 @@ function planClause(project: Project, instruction: string, preset: LayoutPresetI
     const names = [m.option.label, m.option.id, ...m.option.aliases].sort((a, b) => b.length - a.length);
     for (const name of names) remainder = remainder.replace(new RegExp(`(^|[^a-z])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z])`, 'gi'), '$1 $2');
   }
-  remainder = remainder.replace(/\b(?:please|make|the|it|use|change|to|set|a|an|and|with|border|finish|paint|color|colour|background|field|texture|font|typeface|mounting|size|inches|inch|wide|tall|image|treatment|line|through|logos?|as)\b/gi, '').replace(/[\s,.'"-]/g, '');
+  remainder = remainder.replace(/\b(?:please|make|the|it|use|change|to|set|a|an|and|with|material|border|finish|paint|color|colour|background|field|texture|font|typeface|mounting|size|inches|inch|wide|tall|image|treatment|line|through|logos?|as)\b/gi, '').replace(/[\s,.'"-]/g, '');
   if (Object.keys(patch).length && !remainder) {
     // A new metal takes a finish made for it; a finish the metal cannot have is an image-only change.
     if (!finishFits(project, patch)) {
@@ -345,6 +345,14 @@ function mergePlans(project: Project, plans: Plan[], instruction: string): Plan 
 /** Deterministic, conservative planner for demo mode and unavailable/invalid AI output. */
 export function fallbackInstruction(project: Project, instruction: string, preset: LayoutPresetId = 'classic'): Plan {
   const whole = planClause(project, instruction.trim(), preset);
+  // Embedded artwork has no editable wording blocks or layout elements. Passing the
+  // literal request to the selected image prevents an unrelated synthetic relayout.
+  if (project.uploads?.exactDesigns?.length) {
+    if (whole.kind === 'spec') return whole;
+    const clauses = splitClauses(instruction);
+    const plans = clauses.map((c) => { const part = planClause(project, c, preset); return part.kind === 'spec' ? part : asImage(c); });
+    return clauses.length > 1 && plans.some((p) => p.kind === 'spec') ? mergePlans(project, plans, instruction) : asImage(instruction);
+  }
   // Literal text and catalog requests are read whole first ("change Smith and Jones to ...").
   if (whole.kind === 'spec' || (whole.kind === 'wording' && whole.wordingEdits.every((e) => e.op === 'replace_text' || e.op === 'insert_block'))) return whole;
   const clauses = splitClauses(instruction);
@@ -513,6 +521,7 @@ Never refuse. Every request becomes a plan; when nothing else fits, the whole re
 export async function planInstruction(project: Project, concept: ConceptRecord, instruction: string): Promise<Plan> {
   const preset = concept.preset ?? 'classic';
   const local = planSchema().parse(fallbackInstruction(project, instruction, preset));
+  if (project.uploads?.exactDesigns?.length) return local;
   // A spacing-only request already has an exact, bounded meaning. Do not let a
   // second model expand it into font, photo, wording or placement changes.
   const spacingOnly = local.kind === 'edit' && local.layoutPatch?.spacing != null

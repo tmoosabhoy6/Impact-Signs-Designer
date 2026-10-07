@@ -40,10 +40,11 @@ export type PreparedUpload =
   | { kind: 'photo'; entry: UploadedImage }
   | { kind: 'logo'; entry: UploadedLogo }
   | { kind: 'sketch'; entry: UploadedFile }
+  | { kind: 'exact-design'; entry: UploadedImage }
   | { kind: 'site'; entry: NonNullable<Uploads['site']> }
   | { kind: 'font'; entry: NonNullable<Uploads['font']> };
 
-export const listOf = (project: Project, kind: MultiUploadKind): UploadedFile[] => project.uploads[LIST_KEY[kind]];
+export const listOf = (project: Project, kind: MultiUploadKind): UploadedFile[] => project.uploads[LIST_KEY[kind]] ?? [];
 
 /** Refuses before any work when the job is full or the file is already on it. */
 export function checkCanAdd(project: Project, kind: UploadKind, originalName: string, hash?: string) {
@@ -68,6 +69,11 @@ export async function prepareUpload(projectId: string, kind: UploadKind, origina
   const ext = path.extname(originalName).toLowerCase() || '.bin';
   if (kind === 'font' && !/\.(otf|ttf|woff)$/i.test(ext)) throw new Error('Font files must be .otf, .ttf or .woff.');
   if (!data.length) throw new Error(`${originalName} is empty. Export it again and upload the new copy.`);
+  if (kind === 'exact-design' && ext === '.svg' && /<text\b/i.test(data.toString('utf8'))) {
+    // A font named inside an SVG may not be installed on the server. Silently
+    // substituting it would violate the approved design before the AI even sees it.
+    throw new Error(`${originalName} has editable SVG text. Convert the text to outlines, or upload a PDF with embedded fonts or a PNG to keep the exact letterforms.`);
+  }
   const dir = projectDir(projectId, 'uploads');
   // Time plus random: several files of one kind can arrive in the same millisecond.
   const id = `${kind}-${Date.now().toString(36)}${crypto.randomBytes(3).toString('hex')}`;
@@ -83,11 +89,11 @@ export async function prepareUpload(projectId: string, kind: UploadKind, origina
   try {
     if (/\.(pdf|ai|eps)$/i.test(ext)) {
       fs.writeFileSync(origFile, data);
-      png = await pdfToPng(origFile, kind === 'logo' ? 600 : 200);
+      png = await pdfToPng(origFile, kind === 'logo' || kind === 'exact-design' ? 600 : 200);
     } else if (ext === '.svg') png = await sharp(data, { density: 600 }).png().toBuffer();
     else png = await sharp(data).rotate().png().toBuffer();
     // Keep a sensible working size (the original is preserved).
-    const maxEdge = kind === 'logo' ? 3000 : 2400;
+    const maxEdge = kind === 'logo' || kind === 'exact-design' ? 3000 : 2400;
     png = await sharp(png).resize({ width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true }).png().toBuffer();
   } catch (e) {
     if (/PDF\/\.ai/.test((e as Error).message)) throw new Error(`${originalName}: ${(e as Error).message}`);
@@ -103,6 +109,7 @@ export async function prepareUpload(projectId: string, kind: UploadKind, origina
 
   const base = { id, file: pngName, name: originalName, hash };
   if (kind === 'photo') return { kind, entry: { ...base, width, height } };
+  if (kind === 'exact-design') return { kind, entry: { ...base, width, height, originalFile: path.basename(origFile) } };
   if (kind === 'logo') return { kind, entry: { ...base, width, height, vectorSource: VECTOR_EXT.test(ext) } };
   if (kind === 'sketch') return { kind, entry: base };
   return { kind, entry: { file: pngName, name: originalName, width, height } };
@@ -119,6 +126,8 @@ export function addUpload(project: Project, prepared: PreparedUpload): Project {
       return { ...project, uploads: { ...u, logos: [...u.logos, prepared.entry] } };
     case 'sketch':
       return { ...project, uploads: { ...u, sketches: [...u.sketches, prepared.entry] } };
+    case 'exact-design':
+      return { ...project, uploads: { ...u, exactDesigns: [...(u.exactDesigns ?? []), prepared.entry] } };
     case 'site':
       return { ...project, uploads: { ...u, site: prepared.entry } };
     case 'font':
@@ -138,7 +147,7 @@ export function removeUpload(project: Project, kind: UploadKind, id?: string): P
   if (isMultiKind(kind)) {
     if (!id) throw new Error(`Say which ${KIND_LABEL[kind].one} to remove.`);
     const key = LIST_KEY[kind];
-    const list = uploads[key] as UploadedFile[];
+    const list = (uploads[key] ?? []) as UploadedFile[];
     if (!list.some((f) => f.id === id)) throw new Error(`That ${KIND_LABEL[kind].one} is no longer on this job. Reload the page.`);
     (uploads[key] as UploadedFile[]) = list.filter((f) => f.id !== id);
   } else {
@@ -150,7 +159,7 @@ export function removeUpload(project: Project, kind: UploadKind, id?: string): P
 /** Puts the files of one kind in the given order (left to right on the plaque). */
 export function reorderUploads(project: Project, kind: MultiUploadKind, ids: unknown): Project {
   const key = LIST_KEY[kind];
-  const list = project.uploads[key] as UploadedFile[];
+  const list = (project.uploads[key] ?? []) as UploadedFile[];
   const want = Array.isArray(ids) ? ids.map(String) : [];
   // The new order must name exactly the files on the job, so a stale page cannot drop one.
   if (want.length !== list.length || new Set(want).size !== want.length || !want.every((id) => list.some((f) => f.id === id))) {

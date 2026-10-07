@@ -26,6 +26,7 @@ export interface LayoutInput {
   photos?: LayoutPicture[];
   /** Customer logos, in order; they sit together in one row (two rows for four or more). */
   logos?: LayoutPicture[];
+  exactDesign?: LayoutPicture;
   logoSlot?: 'auto' | 'top' | 'middle' | 'bottom';
   /** Put the image after this wording block; null/undefined = image first (top or left). */
   imageAfterBlock?: number | null;
@@ -903,6 +904,22 @@ export { getCatalog };
  * Orders without these controls keep the measured legacy layout.
  */
 export function computeLayout(input: LayoutInput, presetId: LayoutPresetId): PlaqueLayout {
+  if (input.exactDesign?.id) {
+    // The artwork is a single unit. Presets cannot retype it or rearrange its contents.
+    const layout = computeCore({ ...input, wording: null, photos: [], logos: [], spec: { ...input.spec, imageOption: 'none' } }, presetId);
+    const inner = layout.border.innerLine;
+    const edge = (layout.border.innerLineIn ?? 0) / 2;
+    const area = inner ? { x: inner.x + edge, y: inner.y + edge, w: inner.w - 2 * edge, h: inner.h - 2 * edge } : layout.field;
+    const pad = Math.max(0.1, ...layout.screws.map((s) => s.d * 2));
+    if (area.w <= 2 * pad || area.h <= 2 * pad) throw new Error('This plaque is too small for the exact design and its mounting. Increase the plaque size or change the mounting.');
+    const aspect = Math.max(0.01, input.exactDesign.aspect || 1);
+    const w = Math.min(Math.max(0.01, area.w - 2 * pad), Math.max(0.01, area.h - 2 * pad) * aspect);
+    const h = w / aspect;
+    layout.exactDesign = { designId: input.exactDesign.id, x: area.x + (area.w - w) / 2, y: area.y + (area.h - h) / 2, w, h };
+    layout.presetDescription = 'Exact customer design: preserve the complete artwork and its proportions.';
+    layout.warnings.push('Exact design keeps the supplied lettering and artwork. Check fine lines and letter heights with production.');
+    return layout;
+  }
   if (!input.logos?.some((l) => l.position && l.position !== 'auto')) return computeCore(input, presetId);
   let layout: PlaqueLayout | undefined;
   for (let attempt = 0; attempt <= 8; attempt++) {

@@ -509,6 +509,15 @@ function FilesSection({ data, catalog, onChange }: Props) {
           data={data}
           onChange={onChange}
         />
+        <FileList
+          kind="exact-design"
+          label="Exact design"
+          hint="Complete customer artwork: PDF/AI, SVG, JPG or PNG. Keeps handwriting, custom lettering, doodles and layout; applies the ordered plaque finish. PDF/AI uses page 1."
+          accept="image/*,.svg,.pdf,.ai,.eps"
+          data={data}
+          onChange={onChange}
+        />
+        {!!p.uploads.exactDesigns?.length && <Notice tone="info">Exact design takes priority over sketches, separate wording, photos and logos. Both concepts keep this composition. Inspect the result against the original before sending a proof. For production, use the original artwork; the automatic vector PDF is unavailable for exact designs.</Notice>}
       </div>
     </Panel>
   );
@@ -538,7 +547,7 @@ function FileList({
   const [errors, setErrors] = useState<string[]>([]);
   const [drag, setDrag] = useState(false);
   const p = data.project;
-  const items = p.uploads[LIST_KEY[kind]] as UploadedFile[];
+  const items = (p.uploads[LIST_KEY[kind]] ?? []) as UploadedFile[];
   const limit = UPLOAD_LIMITS[kind];
   const words = KIND_LABEL[kind];
   const full = items.length >= limit;
@@ -616,13 +625,13 @@ function FileList({
             {items.length > 0 && <span className="font-mono text-[11px] text-muted">{items.length} of {limit}</span>}
           </div>
           <div className="text-[12px] text-muted">
-            {progress ? `Adding ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : items.length ? (full ? `This job has the most ${words.many} it can take.` : `Drop more here, or add several at once.`) : `${hint} You can add several at once.`}
+            {progress ? `Adding ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : items.length ? (full ? limit === 1 ? 'Remove this design to add a different one. Earlier versions keep their original.' : `This job has the most ${words.many} it can take.` : `Drop more here, or add several at once.`) : `${hint}${limit > 1 ? ' You can add several at once.' : ' One complete design per job.'}`}
           </div>
         </div>
         <input
           ref={ref}
           type="file"
-          multiple
+          multiple={limit > 1}
           accept={accept}
           className="hidden"
           aria-label={`Choose ${words.many}`}
@@ -650,6 +659,10 @@ function FileList({
                   {f.name}
                 </div>
                 {detail?.(f)}
+                {kind === 'exact-design' && <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-navy">
+                  <a href={`/api/projects/${p.id}/files/${kind}/${f.id}`} target="_blank" rel="noreferrer" className="underline">View design</a>
+                  {f.originalFile && <a href={`/api/projects/${p.id}/files/${kind}/${f.id}/original`} className="underline">Download original</a>}
+                </div>}
                 {kind === 'logo' && logoPositions && (
                   <label className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-graphite">
                     Position

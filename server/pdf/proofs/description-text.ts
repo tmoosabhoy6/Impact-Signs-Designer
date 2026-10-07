@@ -86,13 +86,15 @@ export function copyPhrase(wording: Wording | null): string {
   return all && all.length <= 60 ? `Copy: ${all}` : 'Copy: as per customer art file.';
 }
 
-export function autoDescription(spec: PlaqueSpec, wording: Wording | null, opts: { fontStated?: boolean; photoCount?: number; logoCount?: number } = {}): string {
+export function autoDescription(spec: PlaqueSpec, wording: Wording | null, opts: { fontStated?: boolean; photoCount?: number; logoCount?: number; exactDesign?: boolean } = {}): string {
   const thick = spec.thicknessIn ? ` ${fractionText(spec.thicknessIn)}” thick` : '';
   const size = `${inch(spec.widthIn)}x${inch(spec.heightIn)}`;
   // The designers only list the font when the order names one.
   const font = spec.font === 'custom' || opts.fontStated ? `Font: ${fontLabel(spec)}.` : '';
   const l1 = `DESCRIPTION: Qty. 1 set ${size}${thick} ${materialPhrase(spec)}. ${finishPhrase(spec)}. ${borderPhrase(spec)}`;
   const l2 = backgroundPhrase(spec);
-  const l3 = [copyPhrase(wording), imagePhrase(spec, opts.photoCount), logoPhrase(spec, opts.logoCount), font, mountingPhrase(spec)].filter(Boolean).join('  ');
+  const l3 = (opts.exactDesign
+    ? ['Copy and artwork: as per customer exact design file, including original lettering and colored details.', mountingPhrase(spec)]
+    : [copyPhrase(wording), imagePhrase(spec, opts.photoCount), logoPhrase(spec, opts.logoCount), font, mountingPhrase(spec)]).filter(Boolean).join('  ');
   return [l1, l2, l3].join('\n');
 }

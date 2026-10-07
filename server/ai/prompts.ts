@@ -5,10 +5,10 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { fromRoot } from '../config.js';
-import { fontLabel, mustOption, paintLabel } from '../catalog.js';
+import { fontLabel, mustOption, paintHex, paintLabel } from '../catalog.js';
 import type { DesignContext, PlaqueLayout, PlaqueSpec, Rect } from '../../shared/types.js';
 
-export const PROMPT_FILES = ['house_rules.md', 'concept.md', 'fix.md', 'relayout.md', 'spellcheck.md', 'design.md', 'design-review.md'] as const;
+export const PROMPT_FILES = ['house_rules.md', 'concept.md', 'exact-design.md', 'fix.md', 'relayout.md', 'spellcheck.md', 'design.md', 'design-review.md'] as const;
 export type PromptFile = (typeof PROMPT_FILES)[number];
 
 export function readPrompt(name: PromptFile): string {
@@ -75,6 +75,18 @@ export function placeNames(rects: Rect[]): string[] {
 const fmtIn = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/0+$/, ''));
 
 export function buildConceptPrompt(spec: PlaqueSpec, layout: PlaqueLayout, refs: RefImage[], opts: { logoCount: number; direction?: string }): string {
+  if (layout.exactDesign) {
+    const option = (group: Parameters<typeof mustOption>[0], id: string) => mustOption(group, id).prompt;
+    return fill(readPrompt('exact-design.md'), {
+      width: String(spec.widthIn), height: String(spec.heightIn),
+      material: option('materials', spec.material), process: option('processes', spec.process),
+      finish: option('finishes', spec.finish), paint: `${paintLabel(spec)} (${paintHex(spec)})`,
+      texture: option('backgroundTextures', spec.backgroundTexture), border: option('borders', spec.border),
+      mounting: option('mountings', spec.mounting), lettering: option('lettering', spec.lettering),
+      imageTreatment: option('imageOptions', spec.imageOption), logoTreatment: option('logoTreatments', spec.logoTreatment),
+      references: refs.map((r, i) => `Image ${i + 1}: ${r.role}`).join('\n'),
+    });
+  }
   const material = mustOption('materials', spec.material);
   const finish = mustOption('finishes', spec.finish);
   const paint = mustOption('backgroundColors', spec.backgroundColor);

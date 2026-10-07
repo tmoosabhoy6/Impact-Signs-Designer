@@ -40,7 +40,7 @@ export const api = express.Router();
 const runTool = promisify(execFile);
 const UPLOAD_LIMIT_MB = 60;
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: UPLOAD_LIMIT_MB * 1024 * 1024 } });
-const UPLOAD_KINDS: UploadKind[] = ['photo', 'logo', 'sketch', 'font'];
+const UPLOAD_KINDS: UploadKind[] = ['photo', 'logo', 'sketch', 'exact-design', 'font'];
 const ROLES: WordingRole[] = ['headline', 'subhead', 'body', 'footer'];
 const genLimiter = rateLimit({ windowMs: 60_000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many generations in a minute. Please wait a moment.' } });
 
@@ -205,7 +205,7 @@ function projectPayload(p: Project) {
     }
   }
   const photoCount = p.spec?.imageOption === 'none' ? 0 : Math.max(1, p.uploads.photos.length);
-  return { project: p, concepts, outputs, layouts, autoDescription: p.spec ? autoDescription(p.spec, p.wording, { fontStated: !(p.parse?.assumed ?? []).includes('font'), photoCount, logoCount: p.uploads.logos.length }) : null };
+  return { project: p, concepts, outputs, layouts, autoDescription: p.spec ? autoDescription(p.spec, p.wording, { exactDesign: !!p.uploads.exactDesigns?.length, fontStated: !(p.parse?.assumed ?? []).includes('font'), photoCount, logoCount: p.uploads.logos.length }) : null };
 }
 
 api.get('/projects/:id', ah((req, res) => res.json(projectPayload(loadProject(req)))));
@@ -365,6 +365,16 @@ const fileHandler = ah((req, res) => {
 api.get('/projects/:id/files/:kind', fileHandler);
 api.get('/projects/:id/files/:kind/:fileId', fileHandler);
 
+api.get('/projects/:id/files/exact-design/:fileId/original', ah((req, res) => {
+  const p = loadProject(req);
+  const f = p.uploads.exactDesigns?.find((x) => x.id === req.params.fileId);
+  if (!f?.originalFile || path.basename(f.originalFile) !== f.originalFile) return res.status(404).end();
+  const original = path.join(projectDir(p.id, 'uploads'), f.originalFile);
+  if (!fs.existsSync(original)) return res.status(404).end();
+  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+  res.download(original, f.name);
+}));
+
 api.get('/projects/:id/layout/:preset', ah(async (req, res) => {
   const p = loadProject(req);
   // The engine would quietly draw the first layout for an unknown name; say so instead.
@@ -402,8 +412,8 @@ async function runStreamed(res: Response, project: Project, records: ConceptReco
 api.post('/projects/:id/generate', genLimiter, express.json(), ah(async (req, res) => {
   const p = loadProject(req);
   if (!p.spec) throw new Error('Confirm the plaque specification first.');
-  if (!p.wording?.blocks.length) throw new Error('Add the customer wording first.');
-  if (p.spec.imageOption !== 'none' && !p.uploads.photos.length) throw new Error(`The spec calls for ${mustOption('imageOptions', p.spec.imageOption).label}, but no photo is uploaded.`);
+  if (!p.wording?.blocks.length && !p.uploads.exactDesigns?.length) throw new Error('Add the customer wording or an exact design first.');
+  if (!p.uploads.exactDesigns?.length && p.spec.imageOption !== 'none' && !p.uploads.photos.length) throw new Error(`The spec calls for ${mustOption('imageOptions', p.spec.imageOption).label}, but no photo is uploaded.`);
   const batchId = newId('b');
   // Old clients cannot re-enable the retired variation or multiply paid requests.
   const records = ACTIVE_PRESETS.map(({ id: preset }) => newConceptRecord(p, { preset, kind: 'concept', batchId }));
@@ -444,8 +454,8 @@ api.post('/concepts/:id/fix', genLimiter, express.json(), ah(async (req, res) =>
   // Image-only edits leave the live order alone; structural edits publish this snapshot.
   const base = source;
   applyPlan(base, plan, c.preset);
-  if (!base.wording?.blocks.length) throw new Error('Add the customer wording first.');
-  if (base.spec?.imageOption !== 'none' && !base.uploads.photos.length) throw new Error('Upload the photo before requesting this image treatment.');
+  if (!base.wording?.blocks.length && !base.uploads.exactDesigns?.length) throw new Error('Add the customer wording or an exact design first.');
+  if (!base.uploads.exactDesigns?.length && base.spec?.imageOption !== 'none' && !base.uploads.photos.length) throw new Error('Upload the photo before requesting this image treatment.');
   // Validate the changed layout before saving any order change.
   layoutFor(base, c.preset);
   if (previous) base.selectedConceptId = null;
@@ -657,6 +667,7 @@ api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
   // A concept that was asked for by name must exist: never fall back to another layout.
   if ((asked && !c) || (c && c.projectId !== p.id)) throw new Error('That concept was not found in this job.');
   if (c) p = projectForConcept(p, c);
+  if (p.uploads.exactDesigns?.length) throw new Error('Use the original exact design artwork for production. The automatic vector PDF cannot preserve its custom lettering, colors and image edits.');
   if (!p.spec || !p.wording?.blocks.length) throw new Error('Read the specification and add the customer wording first.');
   const preset = c?.preset ?? (PRESETS.some((x) => x.id === req.body?.preset) ? req.body.preset as LayoutPresetId : 'classic');
   const layout = layoutFor(p, preset);

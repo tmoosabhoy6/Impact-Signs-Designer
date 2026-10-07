@@ -180,6 +180,8 @@ export interface PlaqueLayout {
   heightIn: number;
   border: { id: string; widthIn: number; innerLine?: Rect; innerLineIn?: number; verified: boolean };
   field: Rect;
+  /** Complete customer artwork fitted without cropping or reflowing its contents. */
+  exactDesign?: Rect & { designId: string };
   /** One raised frame per photo, in upload order (a placeholder frame when no photo is uploaded yet). */
   imageFrames: ImageFrame[];
   /** One box per logo, in upload order. */
@@ -278,6 +280,8 @@ export interface UploadedFile {
   name: string;
   /** SHA-256 of the original file, to catch the same file added twice (missing on older jobs). */
   hash?: string;
+  /** Untouched original, available for exact artwork production handoff. */
+  originalFile?: string;
 }
 
 export interface UploadedImage extends UploadedFile {
@@ -301,6 +305,8 @@ export interface Uploads {
   logos: UploadedLogo[];
   /** Customer sketches: direction for the image model only, never drawn on the plaque. */
   sketches: UploadedFile[];
+  /** One complete, authoritative customer design. Optional on older jobs. */
+  exactDesigns?: UploadedImage[];
   /** Photo of the installation site for the Description sheet's scale panel. */
   site?: { file: string; name: string; width: number; height: number };
   /** A font file supplied for this job (custom font). */

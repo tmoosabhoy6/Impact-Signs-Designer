@@ -35,6 +35,7 @@ export interface FlatOptions {
   photoPngs?: (Buffer | null)[];
   /** Logo PNGs, one per `layout.logos` entry. */
   logoPngs?: (Buffer | null)[];
+  exactDesignPng?: Buffer;
 }
 
 export async function preparePhoto(photo: Buffer, imageOption: string, finishHex: string): Promise<Buffer> {
@@ -105,6 +106,9 @@ export function layoutToSvg(layout: PlaqueLayout, spec: PlaqueSpec, opts: FlatOp
     const b = layout.border.widthIn * k;
     parts.push(`<path d="M0 0 L${W} 0 L${W - b} ${b} L${b} ${b} Z" fill="${shade(metal, 0.25)}"/>`);
     parts.push(`<path d="M0 ${H} L${W} ${H} L${W - b} ${H - b} L${b} ${H - b} Z" fill="${shade(metal, -0.2)}"/>`);
+  }
+  if (layout.exactDesign && opts.exactDesignPng) {
+    parts.push(`<image ${r(layout.exactDesign)} preserveAspectRatio="xMidYMid meet" href="data:image/png;base64,${opts.exactDesignPng.toString('base64')}"/>`);
   }
   layout.imageFrames.forEach((f, i) => {
     const png = opts.photoPngs?.[i];

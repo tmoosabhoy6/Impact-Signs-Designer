@@ -7,7 +7,7 @@ function dist(a: number[], b: number[]) {
   return Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
 }
 
-export async function fitToPlaque(png: Buffer, widthIn: number, heightIn: number, longEdgePx = 2048): Promise<{ png: Buffer; trimmed: boolean }> {
+export async function fitToPlaque(png: Buffer, widthIn: number, heightIn: number, longEdgePx = 2048, allowTrim = true): Promise<{ png: Buffer; trimmed: boolean }> {
   const img = sharp(png).removeAlpha();
   const { data, info } = await img.raw().toBuffer({ resolveWithObject: true });
   const px = (x: number, y: number) => {
@@ -20,7 +20,7 @@ export async function fitToPlaque(png: Buffer, widthIn: number, heightIn: number
   const similar = corners.every((c) => dist(c, corners[0]) < 14);
   let input = png;
   let trimmed = false;
-  if (similar) {
+  if (allowTrim && similar) {
     // Only trim when the corners share one background color and the trim keeps most of the image.
     const t = await sharp(png).trim({ background: { r: corners[0][0], g: corners[0][1], b: corners[0][2] }, threshold: 18 }).toBuffer({ resolveWithObject: true });
     const area = (t.info.width * t.info.height) / (W * H);

@@ -33,6 +33,7 @@ export function layoutFor(project: Project, preset: LayoutPresetId): PlaqueLayou
       wording: project.wording,
       photos: project.uploads.photos.map(aspect),
       logos: project.uploads.logos.map((l) => ({ ...aspect(l), position: l.position })),
+      exactDesign: project.uploads.exactDesigns?.[0] ? aspect(project.uploads.exactDesigns[0]) : undefined,
       logoSlot: project.logoSlot,
       imageAfterBlock: project.imageAfterBlock,
       customFontFile: uploadPath(project, 'font'),
@@ -70,7 +71,10 @@ export async function layoutDrawing(project: Project, layout: PlaqueLayout, w: n
   const files = layoutFiles(project, layout);
   const photoPngs = await Promise.all(files.photos.map((f) => (f ? preparePhoto(fs.readFileSync(f), spec.imageOption, finish.hex ?? '#C49A6C') : null)));
   const logoPngs = await Promise.all(files.logos.map((f) => (f ? logoForDrawing(fs.readFileSync(f), spec.logoTreatment, finish.hex ?? '#C49A6C') : null)));
-  return renderFlatPng(layout, spec, { pxPerIn: w / layout.widthIn, widthPx: w, heightPx: h, photoPngs, logoPngs });
+  const exactFile = layout.exactDesign ? uploadPath(project, 'exact-design', layout.exactDesign.designId) : null;
+  if (layout.exactDesign && (!exactFile || !fs.existsSync(exactFile))) throw new Error('The exact design file is missing. Upload it again before generating.');
+  const exactDesignPng = exactFile ? fs.readFileSync(exactFile) : undefined;
+  return renderFlatPng(layout, spec, { pxPerIn: w / layout.widthIn, widthPx: w, heightPx: h, photoPngs, logoPngs, exactDesignPng });
 }
 
 /** The image model takes at most this many reference pictures per request. */
@@ -119,6 +123,18 @@ async function groupRefs(g: CustomerGroup): Promise<RefImage[]> {
 
 export async function buildReferences(project: Project, layout: PlaqueLayout, layoutPng: Buffer, includeDesign = true): Promise<RefImage[]> {
   const spec = project.spec!;
+  if (layout.exactDesign) {
+    const file = uploadPath(project, 'exact-design', layout.exactDesign.designId);
+    if (!file || !fs.existsSync(file)) throw new Error('The exact design file is missing. Upload it again before generating.');
+    // Source artwork first, at full working resolution. No sketches or house examples
+    // can compete with the customer's approved composition.
+    return [
+      { role: 'authoritative complete customer exact design; preserve every mark and letterform', file: fs.readFileSync(file), name: 'customer-exact-design.png', mime: 'image/png' },
+      { role: 'plaque geometry and artwork placement only; do not substitute fonts or rearrange the source', file: layoutPng, name: 'layout.png', mime: 'image/png' },
+      { role: 'ordered raised metal finish color', file: await solidSwatch(mustOption('finishes', spec.finish).hex ?? '#C49A6C'), name: 'finish-swatch.png', mime: 'image/png' },
+      { role: 'ordered recessed background paint color', file: await solidSwatch(paintHex(spec)), name: 'paint-swatch.png', mime: 'image/png' },
+    ];
+  }
   const files = layoutFiles(project, layout);
   // Customer files: one reference each when they fit within the model's limit; otherwise the
   // sketches, then the logos, then the photos share one numbered sheet per group.
@@ -273,12 +289,14 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
     let prompt: string;
     let images: RefImage[];
     let styleRefs: RefImage[];
+    let sourceImage: Buffer | undefined;
     if (rec.kind === 'fix' && rec.parentId) {
       const parent = getConcept(rec.parentId);
       if (!parent?.hasImage) throw new Error('The image to fix is missing.');
       // Send the actual selected image, without stretching it to the API's rounded canvas.
       const parentPng = fs.readFileSync(conceptFile(parent, 'image.png'));
-      const structural = !!rec.plan && changesOrder(rec.plan);
+      sourceImage = parentPng;
+      const structural = !layout.exactDesign && !!rec.plan && changesOrder(rec.plan);
       images = [
         { role: 'current plaque image', file: parentPng, name: 'current.png', mime: 'image/png' },
         ...(structural ? [{ role: 'updated layout drawing', file: layoutPng, name: 'layout.png', mime: 'image/png' }] : []),
@@ -293,11 +311,12 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
         prompt += `\n\nImages after Image ${structural ? 2 : 1} are the original customer logos, in layout order. Use them only when the instruction asks to change or restore a logo. Preserve complete artwork, including white lettering, fine rules and white color regions. Otherwise keep the logos exactly as they appear in Image 1.`;
       }
       // Taste references belong in the review, not in a focused edit of the selected image.
-      styleRefs = designReferences(project.spec!, layout, 3);
+      styleRefs = layout.exactDesign ? [] : designReferences(project.spec!, layout, 3);
     } else {
       images = await buildReferences(project, layout, layoutPng);
       styleRefs = images.filter((r) => r.designExample);
       prompt = buildConceptPrompt(project.spec!, layout, images, { logoCount: layoutFiles(project, layout).logos.filter(Boolean).length, direction: designerChange(rec) });
+      if (layout.exactDesign) sourceImage = images[0].file;
     }
     update({ prompt, designContext: designContext(styleRefs) });
 
@@ -324,7 +343,9 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
       if (actual.width !== w || actual.height !== h) throw new Error('OpenAI returned a different image size than the requested 1.5K size. Generate again; this result was not marked complete.');
     }
     // Keep the 1.5K resolution through cropping and into the proof image.
-    const fitted = await fitToPlaque(result.png, project.spec!.widthIn, project.spec!.heightIn, Math.max(w, h));
+    // A trim inferred from corner colors can silently move every element in an edit
+    // or crop approved edge artwork. Preserve those complete canvases.
+    const fitted = await fitToPlaque(result.png, project.spec!.widthIn, project.spec!.heightIn, Math.max(w, h), rec.kind !== 'fix' && !layout.exactDesign);
     fs.writeFileSync(conceptFile(rec, 'image.png'), fitted.png);
     fs.writeFileSync(conceptFile(rec, 'preview.jpg'), await smallPreview(fitted.png, 720));
     update({ hasImage: true, status: 'running', size: result.size ?? size, quality: result.quality ?? quality });
@@ -333,6 +354,7 @@ export async function runConcept(project: Project, rec: ConceptRecord, ev: Conce
 
     const { designReview, ...spellcheck } = await spellcheckImage(fitted.png, layout.lines.map((l) => l.text), layout.lines.map((l) => !!l.style?.smallCaps), {
       spec: project.spec!, layoutPng, styleRefs, instruction: rec.kind === 'fix' ? rec.instruction ?? rec.note : undefined,
+      sourceImage, exactDesign: !!layout.exactDesign,
     });
     update({ spellcheck, designReview, status: 'done', durationMs: Date.now() - started });
   } catch (e) {
