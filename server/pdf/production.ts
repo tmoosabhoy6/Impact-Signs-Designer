@@ -123,10 +123,14 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
       continue;
     }
     const traced = await traceLogo(logo.png);
+    const shapes = traced.paths.filter((p) => p.dark);
+    // A readable upload can still be blank. Do not silently omit the customer's logo
+    // while the route counts its uploaded file as a successful trace.
+    if (!shapes.length) throw new Error(`Nothing to trace was found in ${which}${many ? '' : ` (${logo.name})`}. Upload a clearer logo before creating the vector PDF.`);
     const s = Math.min((box.w * PT) / traced.width, (box.h * PT) / traced.height);
     const ox = box.x * PT + (box.w * PT - traced.width * s) / 2;
     const oy = box.y * PT + (box.h * PT - traced.height * s) / 2;
-    for (const p of traced.paths.filter((p) => p.dark)) {
+    for (const p of shapes) {
       page.drawSvgPath(p.d, { x: ox, y: H - oy, scale: s, color: INK, borderWidth: 0 });
     }
     notes.push(

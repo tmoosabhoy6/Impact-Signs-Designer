@@ -66,8 +66,10 @@ export async function vectorizeFile(file: { name: string; buffer: Buffer }, opti
   const { png, kind } = await readSource(file);
   const src = await sharp(png).metadata();
   if (!src.width || !src.height) throw new Error(`${file.name} has no visible size.`);
-  // The page is always white (dark marks on light), so the tone is not a choice. The tracer works at a fixed size; vector sources are rendered large enough for crisp curves.
-  const mask = await inkMask(png, { background: 'light', plate: true }, kind === 'image' ? TRACE_EDGE : Math.max(TRACE_EDGE, 2400));
+  // Photos need the same edge/plate reader as production logos; forcing white can
+  // mistake a dark surround for the artwork and invert the marks on the plate.
+  // PDF/SVG pages retain the dark-on-white convention.
+  const mask = await inkMask(png, { background: kind === 'image' ? 'auto' : 'light', plate: true }, kind === 'image' ? TRACE_EDGE : Math.max(TRACE_EDGE, 2400));
   // Always the finest trace: the outlines follow every edge the reader found.
   const paths = traceMask(mask, 'fine');
   const shapes = paths.filter((p) => p.dark);

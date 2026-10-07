@@ -78,6 +78,13 @@ describe('logo reader', () => {
 describe('logo treatment', () => {
   const heritage = () => parseSpec(fs.readFileSync('references/32241-edwin-feulner/spec.txt', 'utf8')).spec;
 
+  it('does not report an unreadable raised logo as successfully traced', async () => {
+    const s = heritage();
+    const layout = computeLayout({ spec: s, wording: { blocks: [{ id: 'h', role: 'headline', text: 'Test plaque' }], notes: [] }, logos: [{ aspect: 1 }] }, 'classic');
+    const blank = await sharp({ create: { width: 100, height: 100, channels: 3, background: '#ffffff' } }).png().toBuffer();
+    await expect(buildProductionPdf({ jobNumber: '1', name: 'Blank logo', spec: s, layout, logos: [{ png: blank, name: 'blank.png', fromVector: false }] })).rejects.toThrow(/Nothing to trace.*blank.png/);
+  });
+
   it('is read from the order, defaults to raised cast, and never turns a logo into a printed photo', () => {
     expect(heritage().logoTreatment).toBe('raised-cast');
     const uv = parseSpec('Bronze plaque 12"w x 16"h\nSatin finish\nUV print logo\nBlind mounting');

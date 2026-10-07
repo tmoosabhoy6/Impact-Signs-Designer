@@ -77,7 +77,9 @@ The concept image, the layout drawing, the proof description and the vector file
 
 The **AI Upscaler** tab, next to **Plaque Proof Studio** at the top, enlarges a low-resolution image just enough to be usable, without changing it. It is separate from jobs.
 
-The **Vectorizer** tab turns a picture or PDF (PNG, JPG, WebP, TIFF, SVG, PDF, .ai) into a one-ink vector PDF (and an SVG): outlines only, no pixels, no fonts, at the width you ask for. It uses the same logo reader as the production file, so a photo of a finished plaque comes out as its logo. The page is always treated as white (dark marks on a light page). Choose how closely the outlines follow the pixels. It is separate from jobs.
+The **Vectorizer** tab turns a picture or PDF (PNG, JPG, WebP, TIFF, SVG, PDF, PDF-compatible .ai) into a one-ink vector PDF (and an SVG): outlines only, no pixels, no fonts. It uses the same logo reader as the production file, so a photo of a finished plaque comes out as its logo. Pictures use automatic background detection; PDF and SVG pages are treated as white (dark marks on a light page). PDF/.ai uses page 1. The interface uses an 8.5-inch width and the finest outline setting; the height follows the cropped artwork. It is separate from jobs. Check traced edges against the source, especially for low-resolution photos or fine lettering; tracing cannot recover detail missing from the original. Outline SVG text before uploading when its exact font matters.
+
+If an uploaded raised-cast logo has no traceable marks, creating the production PDF stops and asks for a clearer logo, instead of silently leaving it out.
 
 The **Proof Merger** tab joins up to 15 proof PDFs into one PDF. Add the files (drop them or click), look at the preview card of each, put them in the order you want by dragging a card or using its arrows, then press "Merge into one PDF". Page 1 of the result is the first card, and every page of every file is kept. Nothing is saved on the server.
 

@@ -242,6 +242,23 @@ describe('proof styles', () => {
 });
 
 describe('vector production PDF', () => {
+  it('all catalog fonts, borders and processes produce one-ink outlines in both current layouts', async () => {
+    const base = spec('32582-awe').spec;
+    const catalog = getCatalog();
+    for (const font of catalog.fonts) for (const border of catalog.borders) for (const process of catalog.processes) for (const preset of ['classic', 'statement'] as const) {
+      const s = { ...base, font: font.id, border: border.id, process: process.id };
+      const wording: Wording = { blocks: [
+        { id: 'title', role: 'headline', text: 'In Honor of José & Zoë' },
+        { id: 'body', role: 'body', text: '“Always remembered” — 2026', style: { italic: true } },
+        { id: 'footer', role: 'footer', text: 'Our Family', style: { bold: true, smallCaps: true } },
+      ], notes: [] };
+      const layout = computeLayout({ spec: s, wording }, preset);
+      const result = await buildProductionPdf({ jobNumber: 'audit', name: 'Catalog matrix', spec: s, layout });
+      const checks = await preflight(result.pdf, layout, { fontLicensed: false, fontId: font.id });
+      expect(checks.filter((c) => !c.warnOnly && !c.ok), `${font.id}/${border.id}/${process.id}/${preset}`).toEqual([]);
+    }
+  });
+
   it('Heritage: 864 x 1296 pt, one ink, no fonts, no images', async () => {
     const { spec: s, layout } = await heritage();
     const r = await buildProductionPdf({ jobNumber: '32241', name: 'Heritage Foundation', spec: s, layout });
