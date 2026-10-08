@@ -20,7 +20,7 @@ rest of the toolkit. 1920 × 1080, 60 fps, with an original synthesized soundtra
 | 0:28 | 02 Customer wording, character for character. |
 | 0:32 | 03 Customer files: photos, logos, sketches, exact design. |
 | 0:36 | 04 Two concepts (Classic, Statement) from the layout drawing, spell-checked. |
-| 0:46 | 05 Fix in plain English: "Make the names larger and use a double line border". |
+| 0:46 | 05 Fix in plain English: "Add a raised paw print on each side of the photo" (v1 to v2). |
 | 0:54 | 06 Use this one, create proof PDF, zoom into the real proof with callouts. |
 | 1:06 | 07 Vector production file: wipe from concept to one-ink vector, preflight ticks. |
 | 1:13 | One layout engine, three files that always agree. |
@@ -29,9 +29,14 @@ rest of the toolkit. 1920 × 1080, 60 fps, with an original synthesized soundtra
 | 1:28 | Wall of real Impact Signs plaques. |
 | 1:34 | End card: impactsigns.com. |
 
-The proof and vector images are the app's own sample outputs (`output/samples/32885-*`), the
-gallery uses the reviewed examples in `references/design-library/`, and the plaque wording is the
-customer's, unchanged. The app screens are rebuilt in HTML so they stay sharp when the camera
+The Classic concept is the real image the app generated for this order
+(`public/media/concept-classic.jpg`, v2). The v1 shown before the Fix is the same image with the paw
+prints painted out (`concept-classic-v1.jpg`), and the customer proof is the app's measured proof for
+32885 with that concept placed in its plaque box (`proof-raccoon-concept.png`). The vector file is the
+app's sample production PDF for 32885, the gallery uses the reviewed examples in
+`references/design-library/`, and the plaque wording is the customer's, unchanged. The Statement
+concept and both layout drawings are drawn in HTML (`src/scene/plaque.js`) in the real concept's
+proportions. The app screens are rebuilt in HTML so they stay sharp when the camera
 zooms in; they follow the current interface (two concepts, numbered sections, navy and bronze).
 
 ## How it is built

@@ -29,12 +29,13 @@ export async function createFilm(asset) {
   grid.innerHTML = gridHTML;
 
   // Plaques
+  // Classic is the real concept the app generated for this order: v1 before the Fix, v2 after it.
   QA('#imgA .lay, #imgB .lay').forEach((el, i) => (el.innerHTML = plaque(i ? 'statement' : 'classic', 'line')));
-  Q('#imgA .ren').innerHTML = plaque('classic', 'metal');
-  Q('#imgA .ren2').innerHTML = plaque('classic2', 'metal');
+  Q('#imgA .ren').innerHTML = `<img src="${M('concept-classic-v1.jpg')}" alt="">`;
+  Q('#imgA .ren2').innerHTML = `<img src="${M('concept-classic.jpg')}" alt="">`;
   Q('#imgB .ren').innerHTML = plaque('statement', 'metal');
-  Q('.p1img').innerHTML = plaque('classic2', 'metal');
-  Q('#eo1 .pw').innerHTML = plaque('classic2', 'metal');
+  Q('.p1img').innerHTML = `<img src="${M('concept-classic.jpg')}" alt="">`;
+  Q('#eo1 .pw').innerHTML = `<img src="${M('concept-classic.jpg')}" alt="">`;
 
   // Spec rows
   const swatch = (bg) => `<span class="sw" style="background:${bg}"></span>`;
@@ -94,7 +95,7 @@ export async function createFilm(asset) {
     ['pen-tool', 'Vectorizer', 'Turn a logo, photo or PDF into a one-ink vector PDF and SVG.',
       `<div style="width:96px;height:128px;background:#fff;border:1.5px solid #d6d8de;border-radius:4px;overflow:hidden"><img src="${M('vector-raccoon-1.png')}" style="width:100%"></div>`],
     ['merge', 'Proof Merger', 'Join up to 15 proofs into one PDF, in the order you choose.',
-      `<div class="stack"><i style="left:0;top:0"></i><i style="left:8px;top:8px"></i><i style="left:16px;top:16px;background:#fff url(${M('proof-raccoon-1.png')}) center/cover"></i></div>`],
+      `<div class="stack"><i style="left:0;top:0"></i><i style="left:8px;top:8px"></i><i style="left:16px;top:16px;background:#fff url(${M('proof-raccoon-concept.png')}) center/cover"></i></div>`],
     ['spell-check', 'Spell check on every image', 'Each concept is read back and compared with the customer’s wording before it reaches a proof.', ''],
     ['rotate-ccw-clock', 'Nothing is overwritten', 'Every image, fix, proof and production file is its own version. Go back any time.',
       '<div class="vchips"><span>v1</span><span>v2</span><span>v3</span></div>'],
@@ -225,6 +226,15 @@ export async function createFilm(asset) {
     tl.to(scanEl, { opacity: 0, duration: 0.2 }, at + dur - 0.1);
   }
 
+  // Focus dims sit on the window itself and overlap their neighbours by a pixel, so no seam shows
+  // where two darkened panels meet at a fractional camera scale.
+  const dimGeo = { 'dim-top': [0, 0, 1600, 56], 'dim-L': [0, 56, 400, 844], 'dim-C': [400, 56, 780, 844], 'dim-R': [1180, 56, 420, 844] };
+  Object.entries(dimGeo).forEach(([id, [x, y, w, h]]) => {
+    const el = Q(`#${id}`);
+    tilt.appendChild(el);
+    el.style.cssText = `inset:auto;left:${x - 1}px;top:${y - 1}px;width:${w + 2}px;height:${h + 2}px`;
+  });
+
   // ---------- initial states ----------
   gsap.set(win, { x: 240, y: 1100, scale: 0.9 });
   gsap.set(tilt, { rotationX: 30 });
@@ -238,8 +248,6 @@ export async function createFilm(asset) {
   gsap.set('#cap0 .ch1', { fontSize: 54 });
   gsap.set('#cap0 .cstep', { justifyContent: 'center', marginBottom: 10 });
   gsap.set(QA('.cimg .ren, .cimg .ren2'), { clipPath: 'inset(0% 0% 100% 0%)' });
-  gsap.set('#vecBclip', { clipPath: 'inset(0% 100% 0% 0%)' });
-  gsap.set('#vecLine', { left: '0%' });
 
   function build() {
     // ===== 1 · Hook (0 – 6) =====
@@ -394,7 +402,7 @@ export async function createFilm(asset) {
     click(47.1, Q('#fixTa'), { press: false });
     tl.to('#fixPh', { opacity: 0, duration: 0.15 }, 47.2);
     blink(Q('#fixCaret'), 47.2, 49.2);
-    typeText(Q('#fixTxt'), 'Make the names larger and use a double line border', 47.3, 1.7);
+    typeText(Q('#fixTxt'), 'Add a raised paw print on each side of the photo', 47.3, 1.7);
     click(49.4, Q('#btnApply'));
     tl.fromTo('#plan', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: 'expo.out' }, 49.65);
     fadeUp(['#pc1', '#pc2'], 49.95, 0.3, 8, 0.45);
@@ -466,21 +474,24 @@ export async function createFilm(asset) {
     tl.fromTo('#vecBox', { opacity: 0, y: 60, rotationY: 12 }, { opacity: 1, y: 0, rotationY: 0, duration: 1, ease: 'expo.out', transformPerspective: 1600 }, 66.0);
     cue(66, 'whoosh', { dur: 0.8 });
     fadeUp(QA('#vecText > *'), 66.3, 0.12);
-    tl.fromTo('#vecLine', { opacity: 0 }, { opacity: 1, duration: 0.3 }, 67.0);
-    tl.to('#vecBclip', { clipPath: 'inset(0% 50% 0% 0%)', duration: 1.0, ease: 'power3.inOut' }, 67.1);
-    tl.to('#vecLine', { left: '50%', duration: 1.0, ease: 'power3.inOut' }, 67.1);
-    cue(67.1, 'swipe');
-    tl.to('#vecBclip', { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.0, ease: 'power3.inOut' }, 69.0);
-    tl.to('#vecLine', { left: '100%', duration: 1.0, ease: 'power3.inOut' }, 69.0);
-    tl.to('#vecLine', { opacity: 0, duration: 0.3 }, 69.9);
-    cue(69.0, 'swipe');
+    // Concept turns over to reveal the one-ink production file
+    tl.fromTo('#vecTag', { opacity: 0 }, { opacity: 1, duration: 0.4 }, 66.4);
+    tl.set('#vt2', { opacity: 0 }, 66.0);
+    tl.set('#vecBclip', { opacity: 0 }, 66.0);
+    tl.to('#vecBox', { rotationY: 90, duration: 0.45, ease: 'power2.in', transformPerspective: 1600 }, 67.3);
+    tl.set('#vecBclip', { opacity: 1 }, 67.75);
+    tl.set('#vecA', { opacity: 0 }, 67.75);
+    tl.fromTo('#vecBox', { rotationY: -90 }, { rotationY: 0, duration: 0.6, ease: 'power3.out', transformPerspective: 1600, immediateRender: false }, 67.75);
+    tl.to('#vt1', { opacity: 0, duration: 0.2 }, 67.3);
+    tl.to('#vt2', { opacity: 1, duration: 0.3 }, 67.8);
+    cue(67.3, 'swipe');
     QA('.prow').forEach((r, i) => {
       tl.fromTo(r, { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.5, ease: 'expo.out' }, 67.6 + i * 0.32);
       tl.fromTo(Q('.pk', r), { scale: 0 }, { scale: 1, duration: 0.45, ease: 'back.out(3)' }, 67.7 + i * 0.32);
       cue(67.7 + i * 0.32, 'tick');
     });
     step('vector', 'done', 68);
-    tl.to(['#vecBox', '#vecText'], { opacity: 0, y: -30, duration: 0.45, ease: 'power2.in', stagger: 0.05 }, 72.1);
+    tl.to(['#vecBox', '#vecText', '#vecTag'], { opacity: 0, y: -30, duration: 0.45, ease: 'power2.in', stagger: 0.05 }, 72.1);
 
     // ===== 7 · One engine (72.6 – 78) =====
     scene('s-engine', 72.6, 78.1);

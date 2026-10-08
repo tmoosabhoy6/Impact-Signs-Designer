@@ -120,8 +120,8 @@ export const MARKUP = `
                 <div class="fix"><div class="fta" id="fixTa"><span class="ph" id="fixPh">Describe any change to this image</span><span id="fixTxt"></span><span class="caret" id="fixCaret"></span></div><div class="btn apply" id="btnApply">Apply</div></div>
                 <div class="plan" id="plan">
                   <div class="pl-h mono">How the app read it</div>
-                  <div class="pchip" id="pc1"><b>Layout</b>Names larger</div>
-                  <div class="pchip" id="pc2"><b>Catalog</b>Border: Double Line</div>
+                  <div class="pchip" id="pc1"><b>Image</b>A raised paw print each side of the photo</div>
+                  <div class="pchip" id="pc2"><b>Kept</b>Wording, layout, finish and photo</div>
                 </div>
               </div>
               <div class="card" id="cardB">
@@ -155,7 +155,7 @@ export const MARKUP = `
               <div class="file" id="proofFile">
                 <div class="fn">Proof - 32885 - Classic v2.pdf <span class="chip latest">Latest</span></div>
                 <div class="mono sm mut">From Classic v2</div>
-                <div class="fthumb"><img src="media/proof-raccoon-1.png" alt=""></div>
+                <div class="fthumb"><img src="media/proof-raccoon-concept.png" alt=""></div>
                 <div class="crow"><div class="btn navy grow"><i class="ic" data-i="download"></i>Download</div><div class="btn ghost">Open</div></div>
               </div>
               <div class="sh" style="margin-top:22px"><span class="num">06</span>Vector production PDF</div>
@@ -192,7 +192,7 @@ export const MARKUP = `
     <div class="cap right" id="cap4">
       <div class="cstep mono"><b>04</b> Fix</div>
       <div class="ch1">Ask for changes in plain English.</div>
-      <div class="cp">Several at once. The proof and the vector file follow. Nothing is overwritten: every version is kept.</div>
+      <div class="cp">Small or large, several at once. Only what you ask for changes, and nothing is overwritten: every version is kept.</div>
     </div>
     <div class="cap" id="cap5">
       <div class="cstep mono"><b>05</b> Customer proof</div>
@@ -203,17 +203,18 @@ export const MARKUP = `
 
   <!-- 5 · Proof -->
   <section id="s-proof" class="scene">
-    <div id="proofBig"><img src="media/proof-raccoon-1.png" alt=""><div id="anns"></div></div>
+    <div id="proofBig"><img src="media/proof-raccoon-concept.png" alt=""><div id="anns"></div></div>
     <div id="proofNotes"></div>
     <div class="cap" id="capProof"><div class="cstep mono"><b>05</b> Customer proof</div><div class="ch1">Measured from real Impact Signs proofs.</div></div>
   </section>
 
   <!-- 6 · Vector -->
   <section id="s-vector" class="scene">
+    <div id="vecTag" class="mono"><span id="vt1">Concept · Classic v2</span><span id="vt2">Vector production PDF · 18 × 24 in</span></div>
     <div id="vecBox">
-      <img id="vecA" src="media/plaque-classic.png" alt="">
+      <img id="vecA" src="media/concept-classic.jpg" alt="">
       <div id="vecBclip"><img id="vecB" src="media/vector-raccoon-1.png" alt=""></div>
-      <div id="vecLine"><span class="mono">Vector</span><span class="mono">Concept</span></div>
+      
     </div>
     <div id="vecText">
       <div class="cstep mono"><b>06</b> Production file</div>
@@ -231,7 +232,7 @@ export const MARKUP = `
     <svg id="eng-lines" width="1920" height="1080"></svg>
     <div id="eng-core"><i class="ic" data-i="ruler"></i><b>Layout engine</b><span class="mono">Exact geometry</span></div>
     <div class="eng-out" id="eo1"><div class="eo-img"><div class="pw ren"></div></div><b>Concept image</b><span class="mono">For the customer</span></div>
-    <div class="eng-out" id="eo2"><div class="eo-img wide"><img src="media/proof-raccoon-1.png" alt=""></div><b>Customer proof</b><span class="mono">For approval</span></div>
+    <div class="eng-out" id="eo2"><div class="eo-img wide"><img src="media/proof-raccoon-concept.png" alt=""></div><b>Customer proof</b><span class="mono">For approval</span></div>
     <div class="eng-out" id="eo3"><div class="eo-img"><img src="media/vector-raccoon-1.png" alt=""></div><b>Vector production PDF</b><span class="mono">For the foundry</span></div>
   </section>
 

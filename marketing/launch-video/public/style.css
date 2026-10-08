@@ -68,9 +68,9 @@ em.bz, .bz { font-style: normal; color: var(--bronze); }
 #win { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; }
 #winTilt { position: absolute; inset: 0; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 60px 120px -40px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.06); transform-origin: 50% 30%; }
 .panel { position: absolute; top: 56px; height: 844px; overflow: hidden; }
-#pL { left: 0; width: 400px; background: #fff; border-right: 1px solid var(--line); }
+#pL { left: 0; width: 400px; background: #fff; box-shadow: inset -1px 0 0 var(--line); }
 #pC { left: 400px; width: 780px; background: var(--navy); background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.2px); background-size: 18px 18px; }
-#pR { left: 1180px; width: 420px; background: #fff; border-left: 1px solid var(--line); }
+#pR { left: 1180px; width: 420px; background: #fff; box-shadow: inset 1px 0 0 var(--line); }
 .dim { position: absolute; inset: 0; background: var(--navy2); opacity: 0; pointer-events: none; z-index: 20; }
 .scroll { position: absolute; left: 0; right: 0; top: 0; }
 
@@ -215,13 +215,11 @@ em.bz, .bz { font-style: normal; color: var(--bronze); }
 #capProof .ch1 { font-size: 46px; }
 
 /* Vector scene */
-#vecBox { position: absolute; left: 170px; top: 90px; width: 675px; height: 900px; box-shadow: 0 60px 120px -40px rgba(0,0,0,.75); }
+#vecBox { position: absolute; left: 170px; top: 80px; width: 675px; height: 900px; box-shadow: 0 60px 120px -40px rgba(0,0,0,.75); background: #fff; }
 #vecBox img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-#vecBclip { position: absolute; inset: 0; overflow: hidden; clip-path: inset(0 0 0 100%); }
-#vecLine { position: absolute; top: -26px; bottom: -26px; left: 100%; width: 3px; background: #fff; }
-#vecLine span { position: absolute; top: -34px; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: #fff; white-space: nowrap; }
-#vecLine span:first-child { right: 14px; }
-#vecLine span:last-child { left: 14px; }
+#vecBclip { position: absolute; inset: 0; overflow: hidden; }
+#vecTag { position: absolute; left: 170px; width: 675px; top: 1010px; text-align: center; font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: #c3c8d8; }
+#vecTag span { position: absolute; left: 0; right: 0; }
 #vecText { position: absolute; left: 960px; top: 150px; width: 820px; color: #fff; }
 #vecText .ch1 { font-size: 76px; }
 #pre { margin-top: 40px; border: 1.5px solid rgba(255,255,255,.16); border-radius: 12px; padding: 22px 28px; width: 700px; }
@@ -292,32 +290,36 @@ em.bz, .bz { font-style: normal; color: var(--bronze); }
 .ic { display: inline-flex; font-style: normal; }
 .ic svg { width: 1em; height: 1em; }
 
-/* Plaque */
+/* Plaque (proportions follow the real Classic concept, media/concept-classic.jpg) */
 .pl { position: absolute; left: 0; top: 0; width: 100em; height: 133.333em; }
-.pl .rim { position: absolute; inset: 0; background: #c49a6c; box-shadow: inset 0 0 0 .22em rgba(255,236,205,.45), inset 0 -.5em .8em rgba(70,40,10,.45), inset 0 .4em .6em rgba(255,240,215,.25); }
-.pl .field { position: absolute; inset: 1.8em; background: #221d1b; overflow: hidden; box-shadow: inset 0 .5em 1em rgba(0,0,0,.75), inset 0 0 0 .15em rgba(0,0,0,.6); }
-.pl .field .tex { position: absolute; inset: 0; background: url(media/leatherette.jpg) center / 170% auto no-repeat; opacity: .16; mix-blend-mode: screen; }
-.pl .dl { position: absolute; inset: 1.6em; border: .55em solid #c49a6c; box-shadow: 0 .2em .25em rgba(0,0,0,.7); }
-.pl .tx { position: absolute; inset: 0; text-align: center; font-family: 'Tinos'; text-shadow: 0 -.04em 0 rgba(255,236,205,.35), 0 .12em .1em rgba(0,0,0,.85); }
-.pl .m { color: #d3ab78; }
-.pl .sub { font-weight: 700; font-size: 2.55em; line-height: 1.22; }
-.pl .hl { font-weight: 700; font-variant: small-caps; font-size: 2.75em; line-height: 1.18; }
-.pl .sub2 { font-weight: 700; font-size: 2.42em; line-height: 1.2; }
-.pl .bw { margin: 1.4em auto 0; width: 88em; }
-.pl .body { font-size: 3.0em; line-height: 1.45; }
-.pl .body .q { font-style: italic; }
-.pl .ft { font-size: 2.0em; margin-top: .9em; }
-.pl .ph { position: relative; margin: 2.4em auto 0; width: 33.5em; height: 48.6em; padding: .75em; background: #c49a6c; box-shadow: 0 .25em .35em rgba(0,0,0,.6); }
+.pl .rim { position: absolute; inset: 0; background: #c99f6d; box-shadow: inset 0 0 0 .25em rgba(255,236,205,.5), inset 0 -.5em .8em rgba(70,40,10,.45), inset 0 .4em .6em rgba(255,240,215,.3); }
+.pl .field { position: absolute; inset: 2.1em; background: #2a2623; overflow: hidden; box-shadow: inset 0 .5em 1em rgba(0,0,0,.75), inset 0 0 0 .15em rgba(0,0,0,.7); }
+.pl .field .tex { position: absolute; inset: 0; background: url(media/leatherette.jpg) center / 170% auto no-repeat; opacity: .14; mix-blend-mode: screen; }
+.pl .tx { position: absolute; inset: 0; text-align: center; font-family: 'Tinos'; filter: drop-shadow(0 .14em .07em rgba(0,0,0,.85)); }
+/* Cast bronze letters: material shading, light from above */
+.pl .m { background: linear-gradient(180deg, #f6dcaa 0%, #dcb27a 40%, #b4854c 75%, #deb983 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pl .sub { font-weight: 700; font-size: 4.4em; line-height: 1.2; }
+.pl .hl { font-weight: 700; font-variant: small-caps; font-size: 5.5em; line-height: 1.12; }
+.pl .ph { position: relative; margin: 2.8em auto 0; width: 25.3em; height: 34.7em; padding: .7em; background: #c99f6d; box-shadow: 0 .25em .35em rgba(0,0,0,.65); }
 .pl .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.pl.v2 .hl { font-size: 3.55em; }
+.pl .sub2 { font-weight: 700; font-size: 3.85em; line-height: 1.2; margin-top: 2.9em; }
+.pl .bw { margin: 1.5em auto 0; width: 92em; }
+.pl .body { font-size: 3.15em; line-height: 1.27; }
+.pl .body > div { margin-bottom: .62em; }
+.pl .body .q { font-style: italic; margin-bottom: 0; }
+.pl .ft { font-size: 3.0em; text-align: right; padding-right: 12.5em; }
 /* Layout drawing: the flat geometry the image model is given */
 .pl.line .rim { background: #fff; box-shadow: inset 0 0 0 .5em var(--ink); }
 .pl.line .field { background: #fff; box-shadow: none; }
 .pl.line .field .tex { display: none; }
-.pl.line .tx { text-shadow: none; }
+.pl.line .tx { filter: none; }
 .pl.line .m { background: none; color: var(--ink); }
 .pl.line .ph { background: var(--ink); box-shadow: none; padding: .5em; }
-/* Statement */
-.pl .cols { display: flex; align-items: center; margin: 0 6em; height: 46em; }
+/* Statement: equal top columns */
+.pl .cols { display: flex; align-items: center; margin: 0 5em; height: 37em; }
 .pl .cols > div { flex: 1; }
-.pl .cols .ph { margin: 0 auto; width: 31em; height: 45em; }
+.pl .cols .ph { margin: 0 auto; }
+.pl .cols .sub { font-size: 3.9em; }
+.pl .cols .hl { font-size: 4.6em; }
+/* Real concept images in the concept cards and thumbnails */
+.cimg .pw img, .p1img img, .eo-img .pw img { width: 100%; height: 100%; object-fit: cover; display: block; }
