@@ -4,7 +4,7 @@ import gsap from 'gsap';
 import { ICONS } from './icons.js';
 import { plaque } from './plaque.js';
 
-export const DURATION = 100;
+export const DURATION = 124;
 
 // Builds the film inside the already-mounted stage. `asset` maps a public/ path to its served URL.
 // Resolves once fonts and images are loaded and every position has been measured.
@@ -104,6 +104,14 @@ export async function createFilm(asset) {
   Q('#bento').innerHTML = tools
     .map(([i, b, p, viz]) => `<div class="bc"><div class="bi">${icon(i)}</div><b>${b}</b><p>${p}</p>${viz ? `<div class="viz">${viz}</div>` : ''}</div>`)
     .join('');
+
+  // Team: one proof before, a stack of them now, per designer
+  const sheet = (i) => `<div class="sheet" style="bottom:${i * 42}px;background-image:url(${M('proof-raccoon-concept.png')})"></div>`;
+  Q('#team').innerHTML = [1, 2, 3, 4].map((n) => `<div class="tm">
+      <div class="col before">${sheet(0)}<div class="lb mono">Before</div></div>
+      <div class="col now">${Array.from({ length: 12 }, (_, i) => sheet(i)).join('')}<div class="lb mono">Now</div></div>
+      <div class="who"><i class="ic" data-i="user-round"></i>Designer ${n}</div></div>`).join('');
+  QA('#team .ic').forEach((el) => { el.innerHTML = icon(el.dataset.i); });
 
   // Preflight
   const pre = [
@@ -209,6 +217,11 @@ export async function createFilm(asset) {
     el.textContent = '';
     tl.to(o, { n: text.length, duration: dur, ease: 'none', onUpdate: () => { el.textContent = text.slice(0, Math.round(o.n)); } }, at);
     cue(at, 'type', { dur });
+  }
+  function countText(el, from, to, at, dur, fmt) {
+    const o = { n: from };
+    el.textContent = fmt(from);
+    tl.to(o, { n: to, duration: dur, ease: 'power2.out', onUpdate: () => { el.textContent = fmt(Math.round(o.n)); } }, at);
   }
   function blink(el, from, to) {
     tl.set(el, { opacity: 1 }, from);
@@ -532,26 +545,92 @@ export async function createFilm(asset) {
       wordsOut(s, at + 1.0, 0.03, 0.3);
     });
 
-    // ===== 10 · Gallery (88 – 94) =====
-    scene('s-gal', 87.9, 94.2);
-    tl.fromTo('#galWrap', { opacity: 0, scale: 1.12 }, { opacity: 1, scale: 1, duration: 1.4, ease: 'expo.out' }, 87.9);
-    tl.fromTo('#gr0', { x: 0 }, { x: -900, duration: 6.4, ease: 'none' }, 87.9);
-    tl.fromTo('#gr1', { x: -1100 }, { x: -200, duration: 6.4, ease: 'none' }, 87.9);
-    tl.fromTo('#gr2', { x: -300 }, { x: -1200, duration: 6.4, ease: 'none' }, 87.9);
-    cue(88, 'whoosh', { dur: 1.2 });
-    wordsIn('#gal-t', 88.7, 0.07, 0.9);
-    wordsOut('#gal-t', 93.2);
-    tl.to('#galWrap', { opacity: 0, duration: 0.5 }, 93.7);
+    // ===== 9b · Time saved (88 – 96) =====
+    scene('s-time', 87.9, 96.1);
+    wordsIn('#time-h1', 88.0, 0.06, 0.8);
+    cue(88.0, 'whoosh', { dur: 0.8 });
+    QA('.day').forEach((d, i) => {
+      tl.fromTo(d, { opacity: 0, y: 60, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: 'expo.out' }, 88.5 + i * 0.22);
+      cue(88.5 + i * 0.22, 'pop');
+    });
+    tl.fromTo('#daysBar', { opacity: 0, scaleX: 0.2 }, { opacity: 1, scaleX: 1, duration: 0.8, ease: 'expo.out' }, 89.5);
+    // Four days collapse into a stopwatch
+    wordsOut('#time-h1', 91.3);
+    QA('.day').forEach((d, i) => {
+      tl.to(d, { x: (1.5 - i) * 398, scaleX: 0.08, scaleY: 0.5, opacity: 0, duration: 0.6, ease: 'power3.in' }, 91.4 + Math.abs(1.5 - i) * 0.04);
+    });
+    tl.to('#daysBar', { scaleX: 0.02, opacity: 0, duration: 0.6, ease: 'power3.in' }, 91.4);
+    cue(91.4, 'suck');
+    tl.fromTo('#watch', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.8, ease: 'back.out(1.6)' }, 92.0);
+    cue(92.0, 'hit', { soft: true });
+    tl.fromTo('#watchArc', { attr: { 'stroke-dashoffset': 1 } }, { attr: { 'stroke-dashoffset': 0 }, duration: 1.8, ease: 'power2.out' }, 92.2);
+    countText(Q('#watchT'), 0, 208, 92.2, 1.8, (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`);
+    cue(92.2, 'type', { dur: 1.6 });
+    wordsIn('#time-h2', 92.6, 0.06, 0.8);
+    cue(94.0, 'ding');
+    tl.to(['#watch', '#time-h2'], { opacity: 0, y: -30, duration: 0.45, ease: 'power2.in' }, 95.6);
 
-    // ===== 11 · End (94 – 100) =====
-    scene('s-end', 94, null);
-    tl.to('#bg-paper', { opacity: 1, duration: 0.6, ease: 'power2.inOut' }, 93.9);
-    tl.fromTo('#endLogo', { y: 40, opacity: 0, scale: 0.94 }, { y: 0, opacity: 1, scale: 1, duration: 1, ease: 'expo.out' }, 94.3);
-    cue(94.3, 'impact', { soft: true });
-    tl.fromTo('#endName', { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: 'expo.out' }, 94.6);
-    tl.fromTo('#endRule', { scaleX: 0 }, { scaleX: 1, duration: 0.9, ease: 'expo.inOut' }, 95.0);
-    fadeUp('#endTag', 95.3);
-    fadeUp('#endUrl', 95.7);
+    // ===== 9c · Cost and time per proof (96 – 101.5) =====
+    scene('s-stats', 96.0, 101.6);
+    wordsIn('#stats-h', 96.05, 0.06, 0.8);
+    cue(96.05, 'whoosh', { dur: 0.6 });
+    QA('.kpi').forEach((k, i) => {
+      tl.fromTo(k, { opacity: 0, y: 70 }, { opacity: 1, y: 0, duration: 0.8, ease: 'expo.out' }, 96.5 + i * 0.18);
+      cue(96.5 + i * 0.18, 'pop');
+    });
+    countText(Q('#kCents'), 0, 10, 96.9, 1.0, (n) => String(n));
+    tl.fromTo('#kDays', { '--strike': 0 }, { '--strike': 1, duration: 0.5, ease: 'power2.inOut' }, 97.7);
+    cue(97.7, 'swipe');
+    tl.fromTo('#kMin', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.5, ease: 'expo.out' }, 98.1);
+    tl.to(['#stats-h', '#kpis'], { opacity: 0, y: -30, duration: 0.45, ease: 'power2.in' }, 101.1);
+
+    // ===== 9d · Every designer (101.5 – 106.5) =====
+    scene('s-team', 101.5, 106.6);
+    wordsIn('#team-h', 101.55, 0.05, 0.8);
+    cue(101.55, 'whoosh', { dur: 0.6 });
+    fadeUp('#team-p', 101.9, 0, 20);
+    QA('.tm').forEach((t, i) => {
+      const at = 102.2 + i * 0.12;
+      tl.fromTo(Q('.who', t), { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: 'expo.out' }, at);
+      tl.fromTo(QA('.lb', t), { opacity: 0 }, { opacity: 1, duration: 0.4 }, at + 0.2);
+      tl.fromTo(Q('.before .sheet', t), { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: 'back.out(2)' }, at + 0.3);
+      tl.fromTo(QA('.now .sheet', t), { opacity: 0, y: -40, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.35, stagger: 0.07, ease: 'back.out(2)' }, at + 0.6);
+    });
+    for (let k = 0; k < 12; k++) cue(102.8 + k * 0.1, 'tick', { soft: true });
+    tl.to(['#team-h', '#team-p', '#team'], { opacity: 0, y: -30, duration: 0.45, ease: 'power2.in' }, 106.1);
+
+    // ===== 9e · The everyday 85% (106.5 – 112) =====
+    scene('s-share', 106.5, 112.1);
+    tl.fromTo('#donut', { opacity: 0, scale: 0.85, rotation: -20 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.9, ease: 'expo.out' }, 106.55);
+    cue(106.55, 'whoosh', { dur: 0.6 });
+    tl.fromTo('#arc85', { attr: { 'stroke-dashoffset': 85 } }, { attr: { 'stroke-dashoffset': 0 }, duration: 1.5, ease: 'power2.inOut' }, 106.9);
+    countText(Q('#pctN'), 0, 85, 106.9, 1.5, (n) => String(n));
+    cue(106.9, 'render', { dur: 1.5 });
+    tl.fromTo('#arc15', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 108.4);
+    cue(108.4, 'ding');
+    fadeUp(QA('#share-t > *'), 107.2, 0.14);
+    tl.to(['#donut', '#share-t'], { opacity: 0, y: -30, duration: 0.45, ease: 'power2.in' }, 111.5);
+
+    // ===== 10 · Gallery (112 – 118) =====
+    scene('s-gal', 111.9, 118.2);
+    tl.fromTo('#galWrap', { opacity: 0, scale: 1.12 }, { opacity: 1, scale: 1, duration: 1.4, ease: 'expo.out' }, 111.9);
+    tl.fromTo('#gr0', { x: 0 }, { x: -900, duration: 6.4, ease: 'none' }, 111.9);
+    tl.fromTo('#gr1', { x: -1100 }, { x: -200, duration: 6.4, ease: 'none' }, 111.9);
+    tl.fromTo('#gr2', { x: -300 }, { x: -1200, duration: 6.4, ease: 'none' }, 111.9);
+    cue(112, 'whoosh', { dur: 1.2 });
+    wordsIn('#gal-t', 112.7, 0.07, 0.9);
+    wordsOut('#gal-t', 117.2);
+    tl.to('#galWrap', { opacity: 0, duration: 0.5 }, 117.7);
+
+    // ===== 11 · End (118 – 124) =====
+    scene('s-end', 118, null);
+    tl.to('#bg-paper', { opacity: 1, duration: 0.6, ease: 'power2.inOut' }, 117.9);
+    tl.fromTo('#endLogo', { y: 40, opacity: 0, scale: 0.94 }, { y: 0, opacity: 1, scale: 1, duration: 1, ease: 'expo.out' }, 118.3);
+    cue(118.3, 'impact', { soft: true });
+    tl.fromTo('#endName', { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: 'expo.out' }, 118.6);
+    tl.fromTo('#endRule', { scaleX: 0 }, { scaleX: 1, duration: 0.9, ease: 'expo.inOut' }, 119.0);
+    fadeUp('#endTag', 119.3);
+    fadeUp('#endUrl', 119.7);
     tl.set({}, {}, DURATION);
   }
 

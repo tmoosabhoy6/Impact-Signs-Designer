@@ -1,6 +1,6 @@
 # Plaque Proof Studio launch film
 
-A 100-second motion graphic for marketing Plaque Proof Studio: a walk through one real order
+A 124-second motion graphic for marketing Plaque Proof Studio: a walk through one real order
 (job 32885, Raccoon River Pet Rescue) from pasted spec to vector production file, then the
 rest of the toolkit. 1920 × 1080, 60 fps, with an original synthesized soundtrack.
 
@@ -22,18 +22,22 @@ rest of the toolkit. 1920 × 1080, 60 fps, with an original synthesized soundtra
 | 0:36 | 04 Two concepts (Classic, Statement) from the layout drawing, spell-checked. |
 | 0:46 | 05 Fix in plain English: "Add a raised paw print on each side of the photo" (v1 to v2). |
 | 0:54 | 06 Use this one, create proof PDF, zoom into the real proof with callouts. |
-| 1:06 | 07 Vector production file: wipe from concept to one-ink vector, preflight ticks. |
+| 1:06 | 07 Vector production file: the concept flips over to the one-ink vector (paw prints included), preflight ticks. |
 | 1:13 | One layout engine, three files that always agree. |
 | 1:18 | Toolkit: AI Upscaler, Vectorizer, Proof Merger, spell check, versions, private sign-in. |
 | 1:24 | No retyping. No redrawing. No files that disagree. |
-| 1:28 | Wall of real Impact Signs plaques. |
-| 1:34 | End card: impactsigns.com. |
+| 1:28 | Time saved: four days of manual design collapse into a stopwatch, "under 3½ minutes". |
+| 1:36 | Faster and cheaper: 3½ min, about 10¢ per proof, days back on every straightforward plaque. |
+| 1:41 | Give it to every designer: one proof every few days becomes a stack of them a day. |
+| 1:46 | The everyday 85% of bronze and aluminum plaques, handled; designers keep the complex 15%. |
+| 1:52 | Wall of real Impact Signs plaques. |
+| 1:58 | End card: impactsigns.com. |
 
 The Classic concept is the real image the app generated for this order
 (`public/media/concept-classic.jpg`, v2). The v1 shown before the Fix is the same image with the paw
 prints painted out (`concept-classic-v1.jpg`), and the customer proof is the app's measured proof for
 32885 with that concept placed in its plaque box (`proof-raccoon-concept.png`). The vector file is the
-app's sample production PDF for 32885, the gallery uses the reviewed examples in
+app's sample production PDF for 32885 with the concept's paw prints traced in as one-ink shapes, the gallery uses the reviewed examples in
 `references/design-library/`, and the plaque wording is the customer's, unchanged. The Statement
 concept and both layout drawings are drawn in HTML (`src/scene/plaque.js`) in the real concept's
 proportions. The app screens are rebuilt in HTML so they stay sharp when the camera

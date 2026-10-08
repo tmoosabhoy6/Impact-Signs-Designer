@@ -249,6 +249,56 @@ export const MARKUP = `
     <div class="kt center ben" id="ben3"><div class="ln">No files that disagree.</div></div>
   </section>
 
+  <!-- 9b · Time saved -->
+  <section id="s-time" class="scene">
+    <div class="kt center-x" id="time-h1"><div class="ln">What used to take <em class="bz">3–4 days</em></div></div>
+    <div class="kt center-x" id="time-h2"><div class="ln">now takes under <em class="bz">3½ minutes.</em></div></div>
+    <div id="days">
+      <div class="day"><span class="mono dn">Day 1</span><i class="ic" data-i="pencil-ruler"></i><b>Draft the layout</b></div>
+      <div class="day"><span class="mono dn">Day 2</span><i class="ic" data-i="type"></i><b>Draw and set the type</b></div>
+      <div class="day"><span class="mono dn">Day 3</span><i class="ic" data-i="palette"></i><b>Color and render</b></div>
+      <div class="day"><span class="mono dn">Day 4</span><i class="ic" data-i="file-check"></i><b>Proof and revise</b></div>
+    </div>
+    <div id="daysBar"><span class="mono">By hand in a design tool, for every plaque</span></div>
+    <div id="watch">
+      <svg width="400" height="400" viewBox="0 0 400 400"><circle class="tr" cx="200" cy="200" r="180"/><circle id="watchArc" class="ta" cx="200" cy="200" r="180" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/></svg>
+      <i class="ic" data-i="timer"></i>
+      <div id="watchT" class="mono">0:00</div>
+      <div id="watchL" class="mono">Order to proof and vector PDF</div>
+    </div>
+  </section>
+
+  <!-- 9c · Cost and time per proof -->
+  <section id="s-stats" class="scene">
+    <div class="kt center-x" id="stats-h"><div class="ln">Faster and cheaper, every proof.</div></div>
+    <div id="kpis">
+      <div class="kpi"><div class="kv">3½<small>min</small></div><b>From order to proof and vector file</b><span class="mono">vs 3–4 days by hand</span></div>
+      <div class="kpi"><div class="kv">≈<span id="kCents">0</span>¢</div><b>Total cost to create each proof</b><span class="mono">All generation, all in</span></div>
+      <div class="kpi"><div class="kv sm"><s id="kDays">Days</s> <span id="kMin">Minutes</span></div><b>Back on every straightforward plaque</b><span class="mono">Bronze and aluminum</span></div>
+    </div>
+  </section>
+
+  <!-- 9d · Every designer -->
+  <section id="s-team" class="scene">
+    <div class="kt center-x" id="team-h"><div class="ln">Give it to every designer you have.</div></div>
+    <div id="team-p">Each one goes from one proof every few days to dozens a day.</div>
+    <div id="team"></div>
+  </section>
+
+  <!-- 9e · The everyday 85% -->
+  <section id="s-share" class="scene">
+    <div id="donut">
+      <svg width="560" height="560" viewBox="0 0 560 560"><circle class="tr" cx="280" cy="280" r="230"/><circle id="arc85" cx="280" cy="280" r="230" pathLength="100" stroke-dasharray="85 100" stroke-dashoffset="85"/><circle id="arc15" cx="280" cy="280" r="230" pathLength="100" stroke-dasharray="14 100" stroke-dashoffset="-86"/></svg>
+      <div id="pct"><b><span id="pctN">0</span>%</b><span class="mono">of plaques</span></div>
+    </div>
+    <div id="share-t">
+      <div class="cstep mono">The everyday work</div>
+      <div class="ch1">The 85% that should be easy, finally is.</div>
+      <div class="cp">Most bronze and aluminum plaques are straightforward: names, dates, a photo, a logo. Plaque Proof Studio clears them in minutes, so your designers save their craft for the complex 15%.</div>
+      <div id="legend"><span><i class="lg bz2"></i>85% straightforward: done in minutes</span><span><i class="lg bl"></i>15% complex: your designers’ craft</span></div>
+    </div>
+  </section>
+
   <!-- 10 · Gallery -->
   <section id="s-gal" class="scene">
     <div id="galWrap"><div id="galPlane"></div></div>

@@ -15,7 +15,7 @@ from scipy.signal import butter, sosfilt
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SR = 48000
-DUR = 100.0
+DUR = 124.0
 N = int(SR * DUR)
 BEAT = 0.5  # 120 BPM
 BAR = 4 * BEAT
@@ -88,9 +88,9 @@ def section_level(t):
         return 0.0
     if 84.0 <= t < 88.0:
         return 0.0
-    if 88.0 <= t < 94.0:
+    if 112.0 <= t < 118.0:
         return 0.55
-    if t >= 94.0:
+    if t >= 118.0:
         return 0.0
     return 1.0
 
@@ -105,16 +105,16 @@ for bar in range(int(DUR // BAR) + 1):
         break
     root, notes = chord_at(t0)
     length = BAR + 0.8  # overlap the next bar for a smooth crossfade
-    if t0 >= 94:
+    if t0 >= 118:
         root, notes = 45, [57, 60, 64, 71]  # Am(add9) to finish, ringing out
         length = DUR - t0
     voice = np.zeros(int(length * SR))
     for m in notes:
         for det, ph in ((-0.07, 0.0), (0.0, 1.3), (0.07, 2.1)):
             voice += saw(midi(m + det), length, 8, ph)
-    cutoff = 600 + 1600 * min(1.0, t0 / 12) if t0 < 12 else (2200 if t0 < 88 else 1500)
+    cutoff = 600 + 1600 * min(1.0, t0 / 12) if t0 < 12 else (2200 if t0 < 112 else 1500)
     voice = filt(voice, 'low', cutoff)
-    if t0 >= 94:
+    if t0 >= 118:
         e = env(len(voice), 0.05, 2.6)
     else:
         e = np.minimum(1, np.minimum(np.arange(len(voice)) / (0.35 * SR), (len(voice) - np.arange(len(voice))) / (0.8 * SR)))
@@ -165,7 +165,7 @@ for s in range(steps):
         add(music, hat(), t, pan=0.3, gain=0.05 + 0.08 * (t - 6) / 6)
     if lv == 0:
         continue
-    half_time = 88 <= t < 94
+    half_time = 112 <= t < 118
     if (beat_pos % 4 == 0 and not half_time) or (half_time and beat_pos in (0, 8)):
         add(music, K, t, gain=0.85 * lv)
         i = int(t * SR)

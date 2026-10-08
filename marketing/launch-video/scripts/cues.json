@@ -364,10 +364,149 @@
  {
   "t": 88,
   "kind": "whoosh",
+  "dur": 0.8
+ },
+ {
+  "t": 88.5,
+  "kind": "pop"
+ },
+ {
+  "t": 88.72,
+  "kind": "pop"
+ },
+ {
+  "t": 88.94,
+  "kind": "pop"
+ },
+ {
+  "t": 89.16,
+  "kind": "pop"
+ },
+ {
+  "t": 91.4,
+  "kind": "suck"
+ },
+ {
+  "t": 92,
+  "kind": "hit",
+  "soft": true
+ },
+ {
+  "t": 92.2,
+  "kind": "type",
+  "dur": 1.6
+ },
+ {
+  "t": 94,
+  "kind": "ding"
+ },
+ {
+  "t": 96.05,
+  "kind": "whoosh",
+  "dur": 0.6
+ },
+ {
+  "t": 96.5,
+  "kind": "pop"
+ },
+ {
+  "t": 96.68,
+  "kind": "pop"
+ },
+ {
+  "t": 96.86,
+  "kind": "pop"
+ },
+ {
+  "t": 97.7,
+  "kind": "swipe"
+ },
+ {
+  "t": 101.55,
+  "kind": "whoosh",
+  "dur": 0.6
+ },
+ {
+  "t": 102.8,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 102.9,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.1,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.2,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.3,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.4,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.5,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.6,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.7,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.8,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 103.9,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 106.55,
+  "kind": "whoosh",
+  "dur": 0.6
+ },
+ {
+  "t": 106.9,
+  "kind": "render",
+  "dur": 1.5
+ },
+ {
+  "t": 108.4,
+  "kind": "ding"
+ },
+ {
+  "t": 112,
+  "kind": "whoosh",
   "dur": 1.2
  },
  {
-  "t": 94.3,
+  "t": 118.3,
   "kind": "impact",
   "soft": true
  }

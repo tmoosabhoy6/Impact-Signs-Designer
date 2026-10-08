@@ -92,7 +92,7 @@ How it stays faithful: the image model (`OPENAI_IMAGE_MODEL`, the same one used 
 
 ### Launch film
 
-A 100-second marketing video of the app lives in [`marketing/launch-video/`](marketing/launch-video/): the finished MP4s are in its `out/` folder, and its README explains how to change and re-render it.
+A two-minute marketing video of the app lives in [`marketing/launch-video/`](marketing/launch-video/): the finished MP4s are in its `out/` folder, and its README explains how to change and re-render it.
 
 ---
 
