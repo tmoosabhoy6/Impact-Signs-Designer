@@ -163,7 +163,7 @@ function PresetColumn({
   const shownPlan = plan ?? current?.plan;
   const exactDesign = !!(current?.snapshot?.uploads ?? p.uploads).exactDesigns?.length;
   const planNote = shownPlan?.kind === 'refuse' ? shownPlan.reason
-    : shownPlan?.kind === 'visual' ? exactDesign ? 'Sent to the image model as written. Select the edited version to put it on the proof; use the original artwork for production.' : 'Sent to the image model as written (changes the image only; the proof and vector file keep the current order)'
+    : shownPlan?.kind === 'visual' ? exactDesign ? 'Sent to the image model as written. Select the edited version to put it on the proof; the vector PDF traces the saved customer artwork.' : 'Sent to the image model as written (changes the image only; the proof and vector file keep the current order)'
     : shownPlan ? `Interpreted as: ${shownPlan.restated} ${planScope(shownPlan)}` : '';
 
   return (

@@ -33,7 +33,20 @@ try {
   await page.getByRole('button', { name: 'Use this one', exact: true }).first().click();
   await page.getByRole('button', { name: 'Create proof PDF', exact: true }).click();
   await page.getByRole('button', { name: 'Create vector PDF', exact: true }).waitFor();
-  if (await page.getByRole('button', { name: 'Create vector PDF', exact: true }).isEnabled()) throw new Error('Exact artwork should not produce an unrelated synthetic vector layout.');
+  const vectorButton = page.getByRole('button', { name: 'Create vector PDF', exact: true });
+  if (!(await vectorButton.isEnabled())) throw new Error('Exact design must enable vector output without separate wording.');
+  const madeVector = page.waitForResponse((r) => r.url().endsWith('/production') && r.request().method() === 'POST');
+  await vectorButton.click();
+  const response = await madeVector;
+  if (!response.ok()) throw new Error(await response.text());
+  const { output: vector } = await response.json();
+  if (vector.preflight.some((c) => !c.warnOnly && !c.ok)) throw new Error('Exact vector PDF failed preflight.');
+  const vectorPdf = await context.request.get(`${base}/api/outputs/${vector.id}/download`);
+  if (!vectorPdf.ok()) throw new Error('Exact vector PDF download failed.');
+  fs.writeFileSync(`${out}/exact-production.pdf`, await vectorPdf.body());
+  await page.getByText('100% vector', { exact: false }).waitFor();
+  await vectorButton.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${out}/vector-output.png` });
   const column = page.locator('.concept-column').first();
   await column.getByLabel('Describe a change for this image').fill('Change only the red circle to blue');
   await column.getByRole('button', { name: 'Apply', exact: true }).click();
@@ -48,5 +61,5 @@ try {
   fs.writeFileSync(`${out}/proof.png`, await preview.body());
   await page.screenshot({ path: `${out}/concepts-proof-edit.png` });
   if (errors.length) throw new Error(errors.join('\n'));
-  console.log(`Exact design UI passed: upload, generation without wording, proof, selected-image edit, production guard. Screenshots: ${out}`);
+  console.log(`Exact design UI passed: upload, generation without wording, proof, vector PDF creation/download, selected-image edit. Screenshots: ${out}`);
 } finally { await browser.close(); }

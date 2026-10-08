@@ -61,20 +61,20 @@ export async function preflight(pdf: Buffer, layout: PlaqueLayout, extra: { logo
   items.push({
     label: 'Everything fits on the plaque',
     ok: problems.length === 0,
-    detail: problems.length ? `${problems.join(' ')} Shorten the wording, use fewer or shorter names per line, or use a larger plaque.` : 'All wording sits inside the border with no overlaps',
+    detail: problems.length ? `${problems.join(' ')} Shorten the wording, use fewer or shorter names per line, or use a larger plaque.` : layout.exactDesign ? 'The exact design uses the shared artwork placement inside the border' : 'All wording sits inside the border with no overlaps',
   });
   const small = layout.warnings.find((w) => /casting minimum/.test(w));
   const enlarged = layout.warnings.find((w) => /enlarged to the ¼" minimum/.test(w));
   items.push({
     label: 'Letter heights',
-    ok: !small,
-    detail: small ?? `All letters are at least ¼" tall${layout.minLetterIn != null ? ` (smallest ${layout.minLetterIn.toFixed(2)}")` : ''}${enlarged ? `; ${enlarged.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}` : ''}`,
+    ok: !layout.exactDesign && !small,
+    detail: layout.exactDesign ? 'Exact design lettering is traced artwork. Check letter heights against the ¼" casting minimum.' : small ?? `All letters are at least ¼" tall${layout.minLetterIn != null ? ` (smallest ${layout.minLetterIn.toFixed(2)}")` : ''}${enlarged ? `; ${enlarged.replace(/\.$/, '').replace(/^./, (c) => c.toLowerCase())}` : ''}`,
     warnOnly: true,
   });
   items.push({
     label: 'Font',
-    ok: extra.fontLicensed,
-    detail: extra.fontLicensed ? 'Licensed font file used' : 'Open stand-in used. Add the licensed font to brand-assets/fonts/ for exact letterforms.',
+    ok: !!layout.exactDesign || extra.fontLicensed,
+    detail: layout.exactDesign ? 'Letterforms traced from the supplied artwork; no substitute font used' : extra.fontLicensed ? 'Licensed font file used' : 'Open stand-in used. Add the licensed font to brand-assets/fonts/ for exact letterforms.',
     warnOnly: true,
   });
   const logos = layout.logos.length;

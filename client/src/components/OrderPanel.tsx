@@ -517,7 +517,7 @@ function FilesSection({ data, catalog, onChange }: Props) {
           data={data}
           onChange={onChange}
         />
-        {!!p.uploads.exactDesigns?.length && <Notice tone="info">Exact design takes priority over sketches, separate wording, photos and logos. Both concepts keep this composition. Inspect the result against the original before sending a proof. For production, use the original artwork; the automatic vector PDF is unavailable for exact designs.</Notice>}
+        {!!p.uploads.exactDesigns?.length && <Notice tone="info">Exact design takes priority over sketches, separate wording, photos and logos. Both concepts keep this composition. Inspect the result against the original before sending a proof. Create vector PDF traces the saved artwork into one-ink outlines; Download original keeps the untouched customer file.</Notice>}
       </div>
     </Panel>
   );

@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import type { Server } from 'node:http';
 import sharp from 'sharp';
 import { PDFDocument, rgb } from 'pdf-lib';
@@ -19,6 +21,7 @@ import { DESIGN_CRITERIA } from '../shared/types';
 import { normalizeUploads } from '../shared/uploads';
 import { autoDescription } from '../server/pdf/proofs/description-text';
 import { buildProductionPdf } from '../server/pdf/production';
+import { preflight } from '../server/pdf/preflight';
 
 const artwork = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="white"/><path d="M20 35 Q50 120 120 55 T240 65 M50 350 Q170 270 295 335 T570 320" stroke="#231f20" stroke-width="5" fill="none"/><circle cx="540" cy="45" r="15" fill="#ed1c24"/></svg>');
 const project = () => {
@@ -64,7 +67,7 @@ describe('exact design files and shared geometry', () => {
     expect(classic.lines).toEqual([]);
     expect(classic.imageFrames).toEqual([]);
     expect(classic.logos).toEqual([]);
-    await expect(buildProductionPdf({ jobNumber: p.jobNumber, name: p.name, spec: p.spec!, layout: classic })).rejects.toThrow('original exact design artwork');
+    await expect(buildProductionPdf({ jobNumber: p.jobNumber, name: p.name, spec: p.spec!, layout: classic })).rejects.toThrow('exact design file is missing');
     const box = classic.exactDesign!;
     expect(box.w / box.h).toBeCloseTo(1.5);
     expect(box.x).toBeGreaterThanOrEqual(classic.field.x);
@@ -92,6 +95,39 @@ describe('exact design files and shared geometry', () => {
     const p = await withDesign();
     p.uploads.exactDesigns![0].file = 'missing.png';
     await expect(layoutDrawing(p, layoutFor(p, 'classic'), 900, 600)).rejects.toThrow('file is missing');
+  });
+
+  it('traces the entire source canvas into its shared placement, keeping margins and holes', async () => {
+    const p = await storeUpload(project(), 'exact-design', 'holes.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="white"/><path d="M60 80H240V280H60Z M100 120V240H200V120Z" fill="#231f20"/><circle cx="450" cy="300" r="25" fill="#ed1c24"/></svg>'));
+    const layout = layoutFor(p, 'classic');
+    const result = await buildProductionPdf({ jobNumber: p.jobNumber, name: p.name, spec: p.spec!, layout, exactDesignPng: fs.readFileSync(uploadPath(p, 'exact-design')!) });
+    const checks = await preflight(result.pdf, layout, { fontLicensed: false });
+    expect(checks.filter((c) => !c.warnOnly && !c.ok)).toEqual([]);
+    expect(checks.find((c) => c.label === 'Letter heights')).toMatchObject({ ok: false, warnOnly: true });
+    expect(checks.find((c) => c.label === 'Font')?.detail).toContain('no substitute font');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'exact-vector-'));
+    try {
+      fs.writeFileSync(path.join(tmp, 'result.pdf'), result.pdf);
+      execFileSync('pdftocairo', ['-png', '-singlefile', '-r', '100', path.join(tmp, 'result.pdf'), path.join(tmp, 'result')]);
+      const { data, info } = await sharp(path.join(tmp, 'result.png')).greyscale().raw().toBuffer({ resolveWithObject: true });
+      const box = layout.exactDesign!;
+      const dark = (x: number, y: number) => data[Math.floor((box.y + box.h * y / 400) * 100) * info.width + Math.floor((box.x + box.w * x / 600) * 100)] < 128;
+      expect(dark(30, 180), 'source left margin').toBe(false);
+      expect(dark(80, 180), 'outer stroke at its original position').toBe(true);
+      expect(dark(150, 180), 'inner hole').toBe(false);
+      expect(dark(450, 300), 'colored mark converted to ink').toBe(true);
+      expect(dark(550, 300), 'source right margin').toBe(false);
+      const out = 'output/layout-check/exact-vector';
+      fs.mkdirSync(out, { recursive: true });
+      fs.writeFileSync(`${out}/placement.pdf`, result.pdf);
+      fs.copyFileSync(path.join(tmp, 'result.png'), `${out}/placement.png`);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  });
+
+  it('rejects blank exact artwork instead of producing an empty design', async () => {
+    const p = await withDesign();
+    const blank = await sharp({ create: { width: 100, height: 100, channels: 3, background: '#fff' } }).png().toBuffer();
+    await expect(buildProductionPdf({ jobNumber: p.jobNumber, name: p.name, spec: p.spec!, layout: layoutFor(p, 'classic'), exactDesignPng: blank })).rejects.toThrow('Nothing to trace');
   });
 
   it.each(['change only the red circle to blue', 'move the handwritten title down and left and make the doodles larger', 'make the text spacing just slightly wider'])('passes embedded artwork edits literally without a synthetic relayout: %s', async (instruction) => {
@@ -201,11 +237,19 @@ describe('exact design API lifecycle', () => {
       const original = await fetch(`${base}/projects/${p.id}/files/exact-design/${f.id}/original`, { headers: { Cookie: cookie } });
       expect(original.status).toBe(200);
       expect(Buffer.from(await original.arrayBuffer())).toEqual(bytes);
+      const made = await post(`/projects/${p.id}/production`, {});
+      expect(made.status, `vector output from ${name} without wording`).toBe(200);
+      const output = (await made.json()).output;
+      expect(output.preflight.filter((c: { ok: boolean; warnOnly?: boolean }) => !c.warnOnly && !c.ok)).toEqual([]);
+      const vector = await fetch(`${base}/outputs/${output.id}/download`, { headers: { Cookie: cookie } });
+      expect(vector.status).toBe(200);
+      expect((await PDFDocument.load(await vector.arrayBuffer())).getPage(0).getSize()).toEqual({ width: 864, height: 576 });
       saved.ownerId = 'another-account'; saveProject(saved);
       const denied = await fetch(`${base}/projects/${p.id}/files/exact-design/${f.id}`, { headers: { Cookie: cookie } });
       expect(denied.status).toBe(400);
       expect((await denied.json()).error).toBe('Job not found.');
       expect((await fetch(`${base}/projects/${p.id}/files/exact-design/${f.id}/original`, { headers: { Cookie: cookie } })).status).toBe(400);
+      expect((await fetch(`${base}/outputs/${output.id}/download`, { headers: { Cookie: cookie } })).status).toBe(404);
     }
   });
 
@@ -222,11 +266,18 @@ describe('exact design API lifecycle', () => {
     const o = (await proof.json()).output;
     expect((await fetch(`${base}/outputs/${o.id}/preview.png`, { headers: { Cookie: cookie } })).status).toBe(200);
     const production = await post(`/projects/${p.id}/production`, { conceptId: parent.id });
-    expect(production.status).toBe(400);
-    expect((await production.json()).error).toContain('original exact design artwork');
+    expect(production.status).toBe(200);
+    const vector = (await production.json()).output;
+    expect(vector.conceptId).toBe(parent.id);
+    expect(vector.preflight.filter((c: { ok: boolean; warnOnly?: boolean }) => !c.warnOnly && !c.ok)).toEqual([]);
     const fixed = await post(`/concepts/${parent.id}/fix`, { instruction: 'Move only the doodle to the right' });
     expect(fixed.status).toBe(200); await fixed.text();
     const removed = removeUpload(getProject(p.id)!, 'exact-design', p.uploads.exactDesigns![0].id); saveProject(removed);
+    expect(getProject(p.id)!.uploads.exactDesigns).toBeUndefined();
+    // The selected version still carries its original artwork after the live upload is removed.
+    const frozen = await post(`/projects/${p.id}/production`, { conceptId: parent.id });
+    expect(frozen.status).toBe(200);
+    expect((await frozen.json()).output.id).not.toBe(vector.id);
     expect(getProject(p.id)!.uploads.exactDesigns).toBeUndefined();
     expect((await post(`/projects/${p.id}/select`, { conceptId: parent.id })).status).toBe(200);
     expect(getProject(p.id)!.uploads.exactDesigns![0].id).toBe(p.uploads.exactDesigns![0].id);

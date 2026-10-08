@@ -667,14 +667,16 @@ api.post('/projects/:id/production', express.json(), ah(async (req, res) => {
   // A concept that was asked for by name must exist: never fall back to another layout.
   if ((asked && !c) || (c && c.projectId !== p.id)) throw new Error('That concept was not found in this job.');
   if (c) p = projectForConcept(p, c);
-  if (p.uploads.exactDesigns?.length) throw new Error('Use the original exact design artwork for production. The automatic vector PDF cannot preserve its custom lettering, colors and image edits.');
-  if (!p.spec || !p.wording?.blocks.length) throw new Error('Read the specification and add the customer wording first.');
+  if (!p.spec || (!p.wording?.blocks.length && !p.uploads.exactDesigns?.length)) throw new Error('Read the specification and add the customer wording or an exact design first.');
   const preset = c?.preset ?? (PRESETS.some((x) => x.id === req.body?.preset) ? req.body.preset as LayoutPresetId : 'classic');
   const layout = layoutFor(p, preset);
   const logos = productionLogos(p, layout);
+  const exactFile = layout.exactDesign ? uploadPath(p, 'exact-design', layout.exactDesign.designId) : null;
+  if (layout.exactDesign && (!exactFile || !fs.existsSync(exactFile))) throw new Error('The exact design file is missing. Upload it again before creating the vector PDF.');
   const result = await buildProductionPdf({
     jobNumber: p.jobNumber || 'draft', name: p.name, spec: p.spec!, layout, logos,
     customFontFile: uploadPath(p, 'font'),
+    exactDesignPng: exactFile ? fs.readFileSync(exactFile) : undefined,
   });
   const checks = await preflight(result.pdf, layout, { logosTraced: logos.filter((l) => l.png).length, fontLicensed: resolveFont(p.spec!.font, {}, uploadPath(p, 'font')).licensed, logoTreatment: p.spec!.logoTreatment, fontId: p.spec!.font });
   // The layout name keeps the vector files of the three concepts apart once downloaded.

@@ -14,6 +14,8 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
   // The images on the proof, one page each, in page order.
   const pages = p.proofConceptIds.map((id) => data.concepts.find((c) => c.id === id)).filter((c): c is ConceptRecord => !!c);
   const selected = pages[0] ?? null;
+  const content = selected?.snapshot ?? p;
+  const exactDesign = !!(content.uploads ?? p.uploads).exactDesigns?.length;
   const proofs = data.outputs.filter((o) => o.kind === 'proof');
   const productions = data.outputs.filter((o) => o.kind === 'production');
   const { busy, error, check, notes, makeProof, makeProduction } = useMakeOutput(p.id, pages.map((c) => c.id), onChange);
@@ -41,11 +43,10 @@ export function OutputsPanel({ data, catalog, onChange }: Props) {
       </Panel>
 
       <Panel step="06" title="Vector production PDF" busy={busy === 'production'}>
-        {!!(selected?.snapshot?.uploads ?? p.uploads).exactDesigns?.length && <Notice tone="info">Use the original exact design artwork for production. Automatic vector output cannot preserve its custom lettering, colors and image edits.</Notice>}
         <p className="text-[13.5px] leading-relaxed text-muted">
-          One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of {pages.length > 1 ? 'page 1 of the proof' : 'the concept on the proof'}{selected ? ` (${conceptTag(selected, data.concepts, catalog)})` : ''}.
+          {exactDesign ? 'One-ink vector PDF at full plaque size, traced from the saved exact design artwork. Colors become raised metal; check fine details and letter heights against the original. Image-only concept edits are not included.' : <>One-ink production file at full plaque size: black = raised metal, white = recessed field, all text outlined, photo area left as a placeholder. Built from the layout of {pages.length > 1 ? 'page 1 of the proof' : 'the concept on the proof'}{selected ? ` (${conceptTag(selected, data.concepts, catalog)})` : ''}.</>}
         </p>
-        <Button className="mt-3 w-full" variant="secondary" disabled={!p.spec || !p.wording?.blocks.length || !!(selected?.snapshot?.uploads ?? p.uploads).exactDesigns?.length} busy={busy === 'production'} onClick={makeProduction}>
+        <Button className="mt-3 w-full" variant="secondary" disabled={!content.spec || (!content.wording?.blocks.length && !exactDesign)} busy={busy === 'production'} onClick={makeProduction}>
           <FileCog className="h-4 w-4" /> Create vector PDF
         </Button>
         {notes.length > 0 && (

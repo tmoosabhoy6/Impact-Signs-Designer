@@ -9,7 +9,7 @@ import { resolveFont } from '../text/fonts.js';
 import { linePathData } from '../render/flat.js';
 import sharp from 'sharp';
 import { mustOption } from '../catalog.js';
-import { traceLogo } from './trace.js';
+import { inkMask, traceLogo, traceMask } from './trace.js';
 import type { PlaqueLayout, PlaqueSpec, Rect } from '../../shared/types.js';
 
 export const INK_HEX = '#231F20';
@@ -25,6 +25,8 @@ export interface ProductionInput {
   /** One entry per `layout.logos` box, in the same order. */
   logos?: ProductionLogo[];
   customFontFile?: string | null;
+  /** Complete customer artwork, placed in the shared layout's exact-design rectangle. */
+  exactDesignPng?: Buffer;
 }
 
 export interface ProductionLogo {
@@ -62,7 +64,6 @@ export function uvPlateRect(box: Rect, logoAspect: number): Rect {
 
 export async function buildProductionPdf(input: ProductionInput): Promise<ProductionResult> {
   const { spec, layout } = input;
-  if (layout.exactDesign) throw new Error('Use the original exact design artwork for production. The automatic vector PDF cannot preserve its custom lettering, colors and image edits.');
   const notes: string[] = [];
   const W = layout.widthIn * PT;
   const H = layout.heightIn * PT;
@@ -96,6 +97,21 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
     rect({ x: il.x + t / 2, y: il.y + t / 2, w: il.w - t, h: il.h - t }, WHITE);
   }
   if (!layout.border.verified) notes.push(`${layout.border.id} border geometry is not yet verified against a real production file.`);
+
+  if (layout.exactDesign) {
+    if (!input.exactDesignPng) throw new Error('The exact design file is missing. Upload it again before creating the vector PDF.');
+    // Keep the complete source canvas in the shared placement rectangle. The reader
+    // crops blank margins, so translate its paths back into that canvas before scaling.
+    const mask = await inkMask(input.exactDesignPng, { background: 'light', plate: false }, 2400);
+    const shapes = traceMask(mask, 'fine').filter((p) => p.dark);
+    if (!shapes.length) throw new Error('Nothing to trace was found in the exact design. Upload artwork with visible marks.');
+    const box = layout.exactDesign;
+    const scale = box.w * PT / mask.source.width;
+    const x = box.x * PT + mask.crop.x * scale;
+    const y = H - box.y * PT - mask.crop.y * scale;
+    for (const shape of shapes) page.drawSvgPath(shape.d, { x, y, scale, color: INK, borderWidth: 0 });
+    notes.push('Exact design traced from the saved customer artwork into one-ink outlines. Colors become raised metal; check fine details and letter heights against the original. Image-only concept edits are not included.');
+  }
 
   // Image frames: each a raised frame with an empty placeholder window (1.12 pt keyline as on the real file).
   for (const f of layout.imageFrames) {
@@ -155,7 +171,7 @@ export async function buildProductionPdf(input: ProductionInput): Promise<Produc
 
   // Text as outlines.
   const { licensed, label } = resolveFont(spec.font, {}, input.customFontFile);
-  if (!licensed) {
+  if (!layout.exactDesign && !licensed) {
     notes.push(
       spec.font === 'custom'
         ? `Custom font "${spec.customFontName ?? ''}" was not uploaded; text was outlined with a stand-in. Upload the font file and rebuild.`
