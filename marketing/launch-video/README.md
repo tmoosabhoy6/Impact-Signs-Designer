@@ -6,7 +6,7 @@ rest of the toolkit. 1920 × 1080, 60 fps, with an original synthesized soundtra
 
 **Finished files** (in `out/`):
 - `plaque-proof-studio-launch.mp4`: with music and sound effects.
-- `plaque-proof-studio-launch-no-music.mp4`: silent, for laying your own licensed track under it.
+- `plaque-proof-studio-launch-no-music.mp4`: silent, for laying your own licensed track under it (`npm run render:silent` makes it from the first file; not kept in git).
 
 ## What it shows
 
