@@ -1,0 +1,378 @@
+[
+ {
+  "t": 0.35,
+  "kind": "whoosh",
+  "dur": 0.6
+ },
+ {
+  "t": 3,
+  "kind": "pop"
+ },
+ {
+  "t": 4,
+  "kind": "pop"
+ },
+ {
+  "t": 5,
+  "kind": "pop"
+ },
+ {
+  "t": 6,
+  "kind": "whoosh",
+  "dur": 1
+ },
+ {
+  "t": 9.55,
+  "kind": "suck"
+ },
+ {
+  "t": 10.1,
+  "kind": "hit"
+ },
+ {
+  "t": 11,
+  "kind": "riser",
+  "dur": 1
+ },
+ {
+  "t": 12,
+  "kind": "impact"
+ },
+ {
+  "t": 15.8,
+  "kind": "whoosh",
+  "dur": 1
+ },
+ {
+  "t": 18.3,
+  "kind": "whoosh",
+  "dur": 1.2
+ },
+ {
+  "t": 19.75,
+  "kind": "click"
+ },
+ {
+  "t": 19.95,
+  "kind": "type",
+  "dur": 2.1
+ },
+ {
+  "t": 22.75,
+  "kind": "click"
+ },
+ {
+  "t": 23.1,
+  "kind": "tick"
+ },
+ {
+  "t": 23.25,
+  "kind": "tick"
+ },
+ {
+  "t": 23.4,
+  "kind": "tick"
+ },
+ {
+  "t": 23.55,
+  "kind": "tick"
+ },
+ {
+  "t": 23.7,
+  "kind": "tick"
+ },
+ {
+  "t": 23.85,
+  "kind": "tick"
+ },
+ {
+  "t": 24,
+  "kind": "tick"
+ },
+ {
+  "t": 24.15,
+  "kind": "tick"
+ },
+ {
+  "t": 24.3,
+  "kind": "tick"
+ },
+ {
+  "t": 28.95,
+  "kind": "click"
+ },
+ {
+  "t": 29.25,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 29.37,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 29.49,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 29.61,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 29.73,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 29.85,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 29.97,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 30.09,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 30.8,
+  "kind": "pop"
+ },
+ {
+  "t": 30.95,
+  "kind": "pop"
+ },
+ {
+  "t": 31.1,
+  "kind": "pop"
+ },
+ {
+  "t": 33.65,
+  "kind": "click"
+ },
+ {
+  "t": 33.95,
+  "kind": "pop"
+ },
+ {
+  "t": 35.6,
+  "kind": "whoosh",
+  "dur": 1.2
+ },
+ {
+  "t": 37.45,
+  "kind": "click"
+ },
+ {
+  "t": 38.2,
+  "kind": "render",
+  "dur": 2.3
+ },
+ {
+  "t": 41,
+  "kind": "ding"
+ },
+ {
+  "t": 45.6,
+  "kind": "whoosh",
+  "dur": 1.2
+ },
+ {
+  "t": 47.1,
+  "kind": "click"
+ },
+ {
+  "t": 47.3,
+  "kind": "type",
+  "dur": 1.7
+ },
+ {
+  "t": 49.4,
+  "kind": "click"
+ },
+ {
+  "t": 49.95,
+  "kind": "pop"
+ },
+ {
+  "t": 50.25,
+  "kind": "pop"
+ },
+ {
+  "t": 51.4,
+  "kind": "render",
+  "dur": 1.4
+ },
+ {
+  "t": 52.9,
+  "kind": "ding"
+ },
+ {
+  "t": 54.2,
+  "kind": "click"
+ },
+ {
+  "t": 54.3,
+  "kind": "ding"
+ },
+ {
+  "t": 54.8,
+  "kind": "whoosh",
+  "dur": 1.1
+ },
+ {
+  "t": 55.7,
+  "kind": "pop"
+ },
+ {
+  "t": 56.75,
+  "kind": "click"
+ },
+ {
+  "t": 57,
+  "kind": "pop"
+ },
+ {
+  "t": 58.2,
+  "kind": "whoosh",
+  "dur": 1.2
+ },
+ {
+  "t": 60.4,
+  "kind": "pop"
+ },
+ {
+  "t": 60.95,
+  "kind": "pop"
+ },
+ {
+  "t": 61.5,
+  "kind": "pop"
+ },
+ {
+  "t": 62.05,
+  "kind": "pop"
+ },
+ {
+  "t": 66,
+  "kind": "whoosh",
+  "dur": 0.8
+ },
+ {
+  "t": 67.1,
+  "kind": "swipe"
+ },
+ {
+  "t": 67.7,
+  "kind": "tick"
+ },
+ {
+  "t": 68.02,
+  "kind": "tick"
+ },
+ {
+  "t": 68.34,
+  "kind": "tick"
+ },
+ {
+  "t": 68.66,
+  "kind": "tick"
+ },
+ {
+  "t": 68.98,
+  "kind": "tick"
+ },
+ {
+  "t": 69,
+  "kind": "swipe"
+ },
+ {
+  "t": 72.7,
+  "kind": "whoosh",
+  "dur": 0.6
+ },
+ {
+  "t": 73.4,
+  "kind": "hit",
+  "soft": true
+ },
+ {
+  "t": 74.4,
+  "kind": "pop"
+ },
+ {
+  "t": 74.58,
+  "kind": "pop"
+ },
+ {
+  "t": 74.76,
+  "kind": "pop"
+ },
+ {
+  "t": 78.05,
+  "kind": "whoosh",
+  "dur": 0.6
+ },
+ {
+  "t": 78.5,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 78.63,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 78.76,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 78.89,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 79.02,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 79.15,
+  "kind": "tick",
+  "soft": true
+ },
+ {
+  "t": 84,
+  "kind": "hit",
+  "soft": true
+ },
+ {
+  "t": 85.2,
+  "kind": "hit",
+  "soft": true
+ },
+ {
+  "t": 86.4,
+  "kind": "hit",
+  "soft": false
+ },
+ {
+  "t": 88,
+  "kind": "whoosh",
+  "dur": 1.2
+ },
+ {
+  "t": 94.3,
+  "kind": "impact",
+  "soft": true
+ }
+]

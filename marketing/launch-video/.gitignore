@@ -1,0 +1,5 @@
+node_modules/
+out/*
+!out/plaque-proof-studio-launch.mp4
+!out/plaque-proof-studio-launch-no-music.mp4
+public/audio/

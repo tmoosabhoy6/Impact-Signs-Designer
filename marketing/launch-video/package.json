@@ -1,0 +1,22 @@
+{
+  "name": "plaque-proof-studio-launch-video",
+  "private": true,
+  "description": "Launch film for Plaque Proof Studio, built with Remotion.",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "cues": "node scripts/cues.mjs",
+    "soundtrack": "python3 scripts/soundtrack.py",
+    "render": "remotion render Launch out/plaque-proof-studio-launch.mp4",
+    "render:silent": "ffmpeg -y -i out/plaque-proof-studio-launch.mp4 -an -c:v copy out/plaque-proof-studio-launch-no-music.mp4"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.527",
+    "@remotion/cli": "^4.0.527",
+    "@remotion/renderer": "^4.0.527",
+    "gsap": "^3.12.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "remotion": "^4.0.527"
+  }
+}

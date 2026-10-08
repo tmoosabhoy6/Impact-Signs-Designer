@@ -90,6 +90,10 @@ The **Proof Merger** tab joins up to 15 proof PDFs into one PDF. Add the files (
 
 How it stays faithful: the image model (`OPENAI_IMAGE_MODEL`, the same one used for concepts) gets a Lanczos enlargement of the original, high input fidelity, and a prompt that forbids any change. If the result still lines up with the original, the original's broad tones and colors are locked back in, so only fine detail comes from the AI. Transparent images keep their own transparency. Upscales count toward `DAILY_BUDGET_USD`, are listed under **Recent upscales**, and can be deleted there.
 
+### Launch film
+
+A 100-second marketing video of the app lives in [`marketing/launch-video/`](marketing/launch-video/): the finished MP4s are in its `out/` folder, and its README explains how to change and re-render it.
+
 ---
 
 ## Getting it online on Render.com (one time, about 10 minutes)
